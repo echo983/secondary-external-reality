@@ -79,6 +79,7 @@ export class DualRoleBedroomJury implements BedroomJury {
 const DETERMINISTIC_KERNEL_ACTIONS = new Set([
   "take", "place", "put_inside", "open", "close", "observe", "open_and_observe", "write", "find", "read",
   "look_around", "inventory", "inspect_contents", "locate",
+  "inspect_inscription_presence", "inspect_inscription_value",
 ]);
 
 export class KernelAwareBedroomJury implements BedroomJury {

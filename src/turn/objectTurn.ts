@@ -174,6 +174,18 @@ export async function runObjectTurn(options: {
       { kind: "relation_asserted", relationId: `${note.entityId}-location-${options.commitSequence}`, subjectId: note.entityId, predicate: "contained_by", objectId: pillow.entityId },
     );
     response = parsed.inputLanguage === "zh" ? `你在${label(note, "zh")}上写下“${inscription}”，把它放在${label(pillow, "zh")}下面。` : `You write “${inscription}” on the ${label(note, "en")} and place it under the ${label(pillow, "en")}.`;
+  } else if (parsed.operation === "inspect_inscription_presence" || parsed.operation === "inspect_inscription_value") {
+    const note = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.entityType === "paper_note"), "paper note");
+    if (!isVisible(world, note)) throw new ObjectTurnError(`${note.entityId} is not currently visible.`);
+    const inscription = note.attributes.inscription ?? "";
+    fact(registry, snapshots, conditions, `entity:${note.entityId}.inscription`, inscription, note.attributeRevisions.inscription ?? 0);
+    const eventId = `event-inspect-inscription-${note.entityId}-${options.commitSequence}`;
+    events.push({ eventId, type: "action_result", actionKind: parsed.operation, outcome: "success", subjectRef: "self", objectRef: note.entityId });
+    const evidenceId = `evidence-inscription-${note.entityId}-${options.commitSequence}`;
+    evidenceGenerated.push({ evidenceId, kind: "attribute_observed", sourceEventId: eventId, subjectId: note.entityId, attribute: "inscription", value: inscription });
+    epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
+    if (parsed.inputLanguage === "zh") response = inscription ? (parsed.operation === "inspect_inscription_presence" ? "纸条上有字。" : `纸条上写着“${inscription}”。`) : "纸条上没有字。";
+    else response = inscription ? (parsed.operation === "inspect_inscription_presence" ? "There is writing on the note." : `The note reads “${inscription}”.`) : "There is no writing on the note.";
   } else if (parsed.operation === "read") {
     const mentionedPillow = mentionedIds.find((id) => world.entities.get(id)?.entityType === "pillow");
     const mentionedNotes = mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.entityType === "paper_note");

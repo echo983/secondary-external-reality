@@ -1,4 +1,4 @@
-export const OBJECT_OPERATION_KINDS = ["take", "place", "put_inside", "open", "close", "observe", "open_and_observe", "write_and_hide", "read", "look_around", "inspect_contents", "locate", "inventory"] as const;
+export const OBJECT_OPERATION_KINDS = ["take", "place", "put_inside", "open", "close", "observe", "open_and_observe", "write_and_hide", "read", "look_around", "inspect_contents", "locate", "inventory", "inspect_inscription_presence", "inspect_inscription_value"] as const;
 export type ObjectOperationKind = (typeof OBJECT_OPERATION_KINDS)[number];
 
 export interface ObjectIntent {
@@ -11,7 +11,9 @@ export function parseObjectIntent(rawTtd: string): ObjectIntent | null {
   const text = rawTtd.trim();
   const inputLanguage = /[\u3400-\u9fff]/u.test(text) ? "zh" : "en";
   let operation: ObjectOperationKind | null = null;
-  if (/^(?:look|看看周围|看看房间|看能看到什么|我能看到什么|环顾四周)$/iu.test(text)) operation = "look_around";
+  if (/(纸条|note|paper)/iu.test(text) && /(有字|写字了吗|any (?:text|writing)|written on)/iu.test(text)) operation = "inspect_inscription_presence";
+  else if (/(纸条|note|paper)/iu.test(text) && /(写着什么|写了什么|what.*(?:written|say)|read on)/iu.test(text)) operation = "inspect_inscription_value";
+  else if (/^(?:look|看看周围|看看房间|看能看到什么|我能看到什么|我看看周围有什么|环顾|环顾四周)$/iu.test(text)) operation = "look_around";
   else if (/^(?:inventory|我手里有什么|手里有什么|我拿着什么)$/iu.test(text)) operation = "inventory";
   else if (/(里面有什么|里有什么|contents|what(?:'s| is) inside)/iu.test(text)) operation = "inspect_contents";
   else if (/(在哪里|在哪儿|where is|where's)/iu.test(text)) operation = "locate";
@@ -24,7 +26,7 @@ export function parseObjectIntent(rawTtd: string): ObjectIntent | null {
   else if (/(拿起|拿到|取出|拿出|pick up|take|remove)/iu.test(text)) operation = "take";
   else if (/(打开|开门|open)/iu.test(text)) operation = "open";
   else if (/(关上|关闭|close|shut)/iu.test(text)) operation = "close";
-  else if (/(找|查看|看看|观察|find|look|inspect|observe)/iu.test(text)) operation = "observe";
+  else if (/(找|看|查看|看看|观察|find|look|inspect|observe)/iu.test(text)) operation = "observe";
   return operation ? { operation, rawTtd: text, inputLanguage } : null;
 }
 

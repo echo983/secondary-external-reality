@@ -52,3 +52,16 @@ test("locates only visible objects and reports held inventory", async () => {
     assert.match((await session.submit("钥匙在哪里")).response, /手里/u);
   } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
 });
+
+test("distinguishes blank inscription presence from exact inscription value", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-observe-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const session = createSession(store);
+    assert.equal((await session.submit("纸条上有字吗")).response, "纸条上没有字。");
+    assert.equal((await session.submit("纸条上写着什么")).response, "纸条上没有字。");
+    await session.submit("我在纸条上写下001739并藏到枕头下面");
+    await assert.rejects(session.submit("纸条上写着什么"));
+    assert.match((await session.submit("我找到枕头下的纸条并读它")).response, /001739/u);
+  } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
+});

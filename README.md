@@ -46,6 +46,11 @@ from replayed relations; closed containers and hidden inscriptions are not
 leaked. Deterministic parser matches use the kernel fast path, while Action IR
 handles natural paraphrases outside that closed parser.
 
+v0.9 adds an open Semantic IR for queries and perception. The model may propose
+meaning and exact source mentions, but a deterministic capability compiler is
+the only component allowed to produce closed executable intents. Paper-note
+writing presence and exact value are now distinct, visibility-gated queries.
+
 ## Development
 
 ```sh

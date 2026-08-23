@@ -17,6 +17,9 @@ import type { ActionProposalEnvelopeV07, ActionStepProposalV07 } from "../action
 import type { ActionIrSemanticAuditor } from "../actionIr/semanticAuditor.js";
 import { compileGroundedAction } from "../actionIr/compiler.js";
 import type { ObjectIntent } from "../world/objectIntent.js";
+import type { SemanticIrAuditor, SemanticIrProposer } from "../semanticIr/adapters.js";
+import { compileSemanticIntent } from "../semanticIr/compiler.js";
+import { normalizeSemanticInput } from "../semanticIr/normalization.js";
 
 export interface BedroomSessionOptions {
   sessionId: string;
@@ -25,6 +28,7 @@ export interface BedroomSessionOptions {
   renderer: TurnRenderer;
   fixtureFactory?: () => BedroomFixture;
   actionIr?: { mode: "off" | "shadow" | "active"; proposer?: ActionIrProposer; semanticAuditor?: ActionIrSemanticAuditor };
+  semanticIr?: { proposer: SemanticIrProposer; auditor: SemanticIrAuditor };
 }
 
 export class BedroomSession {
@@ -56,6 +60,10 @@ export class BedroomSession {
     const rootTurnId = `${this.options.sessionId}:${randomUUID()}`;
     const deterministicFastPath = steps.length > 0 && steps.every((step) => isObjectIntent(step));
     const useActiveIr = this.options.actionIr?.mode === "active" && !deterministicFastPath;
+    if (useActiveIr && this.options.semanticIr) {
+      const semantic = await this.executeSemanticFallback(rawTtd, rootTurnId);
+      if (semantic) return semantic;
+    }
     const activeProposal = this.options.actionIr?.mode === "shadow" || useActiveIr ? await this.runActionIr(rawTtd, rootTurnId) : null;
     if (useActiveIr) {
       if (!activeProposal) throw new BedroomTurnError(this.failureMessage(rawTtd, "这个尝试目前无法可靠地理解。", "This attempt cannot yet be understood reliably."));
@@ -96,6 +104,34 @@ export class BedroomSession {
       intent: parseMvpIntent(rawTtd),
       partial: false,
     };
+  }
+
+  private async executeSemanticFallback(rawTtd: string, rootTurnId: string): Promise<TurnResult | null> {
+    const config = this.options.semanticIr!;
+    const normalized = normalizeSemanticInput(rawTtd);
+    try {
+      const proposed = await config.proposer.propose(normalized.normalized);
+      if (!proposed.validation.proposal) return null;
+      const audit = await config.auditor.review(normalized.normalized, proposed.validation.proposal);
+      if (audit.verdict !== "pass") return null;
+      await this.options.store.appendActionProposalAudit({
+        auditId: `${rootTurnId}:semantic-ir`, rootTurnId, mode: "active",
+        inputHash: createHash("sha256").update(rawTtd).digest("hex"), outputHash: proposed.outputHash,
+        status: "validated", proposal: proposed.validation.proposal, validationIssues: proposed.validation.issues,
+        groundingIssues: normalized.repairs, semanticIssues: audit.violations, model: proposed.model,
+        latencyMs: proposed.latencyMs, usage: proposed.usage, createdAt: new Date().toISOString(),
+      });
+      const completed: TurnResult[] = [];
+      for (const [index, intent] of proposed.validation.proposal.intents.entries()) {
+        const fixture = createObjectWorldFixture();
+        const world = MaterializedWorld.replay(await this.options.store.list(), fixture.seedCommitments);
+        const executable = compileSemanticIntent(intent, normalized.normalized, proposed.validation.proposal.inputLanguage, fixture, world);
+        completed.push(await this.executeAudited(rawTtd, rootTurnId, index, proposed.validation.proposal.intents.length, executable.objectIntent, executable.mentionedEntityIds));
+      }
+      const last = completed.at(-1)!;
+      return { response: completed.map((item) => item.response).join(""), commitPackage: last.commitPackage,
+        commitPackages: completed.flatMap((item) => item.commitPackages ?? [item.commitPackage]), intent: parseMvpIntent(rawTtd), partial: false };
+    } catch { return null; }
   }
 
   private failureMessage(rawTtd: string, zh: string, en: string): string {

@@ -25,7 +25,7 @@ try {
     const client = new Client();
     let text = "";
     let prompts = 0;
-    const inputs = ["help", "看能看到什么", "打开抽屉", "抽屉里有什么", "拿起钥匙", "我手里有什么", "钥匙在哪里", "把钥匙放进抽屉", "抽屉里有什么", "exit"];
+    const inputs = ["help", "我想确认纸条是否有书写痕迹", "我在纸条上写下001739并藏到枕头下面", "看能看到什么", "纸条上写着什么", "我找到枕头下的纸条并读它", "exit"];
     const timer = setTimeout(() => { client.end(); reject(new Error("Live SSH evaluation timed out.")); }, 180_000);
     client.on("ready", () => client.shell((error, channel) => {
       if (error) { clearTimeout(timer); reject(error); return; }
@@ -48,7 +48,7 @@ try {
   process.stdout.write(`${JSON.stringify({ promptCount: output.split("ttd: ").length - 1, commitCount: commits.length,
     auditStatuses: audits.map((audit) => audit.status), selectedCandidateIds: commits.map((commit) => commit.selectedCandidateId),
     responseText: output.replaceAll("ttd: ", "").trim() }, null, 2)}\n`);
-  if (commits.length !== 8 || audits.length !== 0) process.exitCode = 1;
+  if (commits.length !== 4 || audits.length !== 1 || audits[0]?.status !== "validated") process.exitCode = 1;
 } finally {
   await new Promise<void>((resolve) => server.close(() => resolve()));
   store.close();

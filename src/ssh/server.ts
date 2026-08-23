@@ -10,6 +10,7 @@ import { ChineseBedroomRenderer } from "../turn/bedroomTurn.js";
 import { TtdTextShell } from "./textShell.js";
 import { WorkersAiActionIrProposer } from "../actionIr/proposer.js";
 import { WorkersAiActionIrSemanticAuditor } from "../actionIr/semanticAuditor.js";
+import { WorkersAiSemanticIrAuditor, WorkersAiSemanticIrProposer } from "../semanticIr/adapters.js";
 
 const { Server } = ssh2;
 
@@ -47,6 +48,7 @@ export function createSshMvpServer(config: SshMvpConfig): { server: SshServer; s
       proposer: new WorkersAiActionIrProposer(client),
       semanticAuditor: new WorkersAiActionIrSemanticAuditor(client),
     },
+    semanticIr: { proposer: new WorkersAiSemanticIrProposer(client), auditor: new WorkersAiSemanticIrAuditor(client) },
   });
   const server = new Server({ hostKeys: [config.hostKey] }, (connection) => {
     connection.on("authentication", (context: AuthContext) => {
