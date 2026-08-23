@@ -7,10 +7,12 @@ import { WorkersAiActionIrSemanticAuditor } from "../actionIr/semanticAuditor.js
 import { WorkersAiTurnRenderer } from "../ai/bedroomAdapters.js";
 import { WorkersAiClient } from "../ai/workersAiClient.js";
 import { DeterministicPresentationRenderer } from "../presentation/renderer.js";
+import { replayCanonicalViews } from "../replay/canonicalReplay.js";
 import { WorkersAiSemanticIrAuditor, WorkersAiSemanticIrProposer } from "../semanticIr/adapters.js";
 import { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import { BedroomSession } from "../turn/bedroomSession.js";
 import { ChineseBedroomRenderer, PassingBedroomJury } from "../turn/bedroomTurn.js";
+import { createObjectWorldFixture } from "../world/objectFixture.js";
 
 const cases = [
   { id: "greeting", input: "你好呀", expectedKind: "interface", expectedCommitDelta: 0, expectedResponse: /ttd/u },
@@ -58,8 +60,11 @@ try {
     }
   }
   const passed = rows.filter((row) => row.correct).length;
-  process.stdout.write(`${JSON.stringify({ passed, total: rows.length, accuracy: passed / rows.length, rows }, null, 2)}\n`);
-  process.exitCode = passed === rows.length ? 0 : 1;
+  const fixture = createObjectWorldFixture();
+  const replay = replayCanonicalViews(await store.list(), { seedCommitments: fixture.seedCommitments, mode: "diagnostic" });
+  const fatalReplayIssues = replay.issues.filter((issue) => issue.fatal);
+  process.stdout.write(`${JSON.stringify({ passed, total: rows.length, accuracy: passed / rows.length, fatalReplayIssues, rows }, null, 2)}\n`);
+  process.exitCode = passed === rows.length && fatalReplayIssues.length === 0 ? 0 : 1;
 } finally {
   store.close();
   await rm(directory, { recursive: true, force: true });
