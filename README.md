@@ -34,6 +34,12 @@ The object fixture is currently version `0.3.0`. Its seed now includes the
 player posture and position used by the unified state model; databases committed
 against `0.2.0` are intentionally rejected rather than silently migrated.
 
+MVP v0.7 adds a closed Action IR in front of the same deterministic world
+pipeline. `SER_ACTION_IR_MODE=shadow` records proposals without affecting the
+world; `active` requires strict schema validation, semantic audit, deterministic
+entity grounding and both reality-jury roles before the existing commit
+admission can run. The default remains `off`.
+
 ## Development
 
 ```sh
@@ -58,6 +64,7 @@ Build and start the loopback-only server:
 npm run build
 SER_SSH_HOST_KEY_PATH=secret/ssh_host_ed25519_key \
 SER_SSH_PASSWORD_FILE=secret/ssh_password \
+SER_ACTION_IR_MODE=shadow \
 npm run start:ssh
 ```
 
@@ -71,3 +78,6 @@ The Cloudflare API token defaults to `secret/cftoken.txt`, and the LanceDB
 world defaults to `.world/world.lancedb`. The server intentionally binds only
 to `127.0.0.1`; public exposure and stronger authentication are separate
 deployment work, not implicit defaults.
+
+Live milestone checks, which read the ignored token file, are available as
+`npm run eval:action-ir:live` and `npm run eval:active-ssh:live`.

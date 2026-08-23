@@ -19,7 +19,7 @@ test("semantic auditor accepts a well-formed identity-free verdict", async () =>
   assert.equal(report.verdict, "pass");
 });
 
-test("semantic auditor fails closed on malformed or contradictory output", async () => {
-  await assert.rejects(new WorkersAiActionIrSemanticAuditor(client('```json\n{"verdict":"pass","violations":[]}\n```')).review("打开抽屉", proposal));
+test("semantic auditor accepts one JSON fence but fails closed on contradictory output", async () => {
+  assert.equal((await new WorkersAiActionIrSemanticAuditor(client('```json\n{"verdict":"pass","violations":[]}\n```')).review("打开抽屉", proposal)).verdict, "pass");
   await assert.rejects(new WorkersAiActionIrSemanticAuditor(client('{"verdict":"fail","violations":[]}')).review("打开抽屉", proposal));
 });

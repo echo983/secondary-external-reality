@@ -1,5 +1,7 @@
 # MVP 开放自然语言到受限 Action IR 计划 v0.7
 
+执行状态：六个阶段均已完成；验收与边界见 `MILESTONE-open-action-ir-v0.7.0.md`。
+
 日期：2026-08-23  
 前置里程碑：`mvp-world-foundation-v0.6.0`
 
