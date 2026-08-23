@@ -80,3 +80,37 @@ export interface ValidationResult {
   valid: boolean;
   issues: ValidationIssue[];
 }
+
+export interface ProjectionSnapshot {
+  projection: string;
+  value: string;
+  revision: number;
+}
+
+export type CandidateEligibility = "eligible" | "ineligible" | "unresolved";
+
+export interface ConditionEvaluation {
+  projection: string;
+  expectedValue: string;
+  actualValue?: string;
+  matched: boolean | null;
+}
+
+export interface CandidateEvaluation {
+  candidateId: string;
+  status: CandidateEligibility;
+  conditions: ConditionEvaluation[];
+  unresolvedProjections: string[];
+}
+
+export interface EnvelopeEvaluation {
+  valid: boolean;
+  issues: ValidationIssue[];
+  candidates: CandidateEvaluation[];
+  eligibleCandidateIds: string[];
+}
+
+export interface JuryBatch {
+  projectionRevisions: Record<string, number>;
+  candidates: ConditionalCandidate[];
+}
