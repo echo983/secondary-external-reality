@@ -7,6 +7,10 @@ import { parseObjectIntent, type ObjectIntent } from "../world/objectIntent.js";
 import type { BedroomJury, TurnResult } from "./bedroomTurn.js";
 import { commitCandidateEnvelope } from "./commitCandidate.js";
 import { isEntityPerceivable } from "../query/perceptionPolicy.js";
+import { triageFixedQuery } from "../query/queryTriage.js";
+import { replayCanonicalViews } from "../replay/canonicalReplay.js";
+import type { PublicBoundaryCode } from "../presentation/types.js";
+import type { FixedQueryKind, QueryRequest } from "../query/types.js";
 
 export class ObjectTurnError extends Error {}
 
@@ -75,6 +79,29 @@ export async function runObjectTurn(options: {
   }
   const world = MaterializedWorld.replay(options.priorCommits, fixture.seedCommitments);
   const mentionedIds = options.mentionedEntityIds ?? resolveFixtureEntity(fixture, parsed.rawTtd);
+  const queryKind: FixedQueryKind | undefined = parsed.operation === "inspect_contents" ? "inspect_contents"
+    : parsed.operation === "locate" ? "locate"
+      : parsed.operation === "inspect_inscription_presence" || parsed.operation === "inspect_inscription_value" ? "inspect_attribute"
+        : parsed.operation === "look_around" ? "look_around" : parsed.operation === "inventory" ? "inventory" : undefined;
+  if (queryKind) {
+    const targetEntityId = mentionedIds.length === 1 ? mentionedIds[0] : undefined;
+    const request: QueryRequest = { queryId: `${options.turnId}:query`, agentId: "self", kind: queryKind, ...(targetEntityId ? { targetEntityId } : {}), language: parsed.inputLanguage };
+    const epistemic = replayCanonicalViews(options.priorCommits, { seedCommitments: fixture.seedCommitments }).epistemic;
+    const decision = triageFixedQuery(request, world, epistemic);
+    if (decision.kind === "epistemic_boundary" || decision.kind === "unsupported_boundary" || decision.kind === "resolution_deferred") {
+      const code: PublicBoundaryCode = decision.code;
+      const zh: Record<PublicBoundaryCode, string> = {
+        TARGET_NOT_PERCEIVABLE: "你现在无法感知到目标。", CONTAINER_CLOSED: "容器关着，你现在看不到里面。", NO_ACQUIRED_EVIDENCE: "你没有可供查阅的既有证据。",
+        UNSUPPORTED_PROJECTION: "当前世界还不能回答这个问题。", RESOLUTION_DEFERRED: "这个事实目前尚未固定。", AMBIGUOUS_TARGET: "你指的目标不够明确。",
+      };
+      const en: Record<PublicBoundaryCode, string> = {
+        TARGET_NOT_PERCEIVABLE: "You cannot currently perceive the target.", CONTAINER_CLOSED: "The container is closed, so you cannot see inside.", NO_ACQUIRED_EVIDENCE: "You have no acquired evidence to consult.",
+        UNSUPPORTED_PROJECTION: "The current world cannot answer that yet.", RESOLUTION_DEFERRED: "That fact has not yet been fixed.", AMBIGUOUS_TARGET: "The target is ambiguous.",
+      };
+      const packet = { packetId: `${options.turnId}:boundary`, outcome: "boundary" as const, language: parsed.inputLanguage, items: [{ kind: "boundary" as const, code }] };
+      return { kind: "boundary", response: parsed.inputLanguage === "zh" ? zh[code] : en[code], packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never };
+    }
+  }
   const registry: ProjectionDefinition[] = [];
   const snapshots: ProjectionSnapshot[] = [];
   const conditions: CandidateEnvelope["candidates"][number]["conditions"] = [];
@@ -301,7 +328,7 @@ export async function runObjectTurn(options: {
   const candidateId = `object-${parsed.operation}-${options.commitSequence}`;
   const envelope: CandidateEnvelope = { candidates: [{ candidateId, outcomeKind: "success", requiresResolution: [], conditions, proposedEvents: events, proposedStateChanges: [], observations, evidenceGenerated, epistemicChanges, newWorldCommitments: commitments }] };
   const commitPackage = await commitCandidateEnvelope({ ...options, envelope, registry, snapshots, worldBasis: fixture.worldBasis, seedCommitments: fixture.seedCommitments });
-  return { response, commitPackage, intent: parseMvpIntent(options.rawTtd) };
+  return { kind: "committed", response, commitPackage, intent: parseMvpIntent(options.rawTtd) };
 }
 
 export function isObjectIntent(rawTtd: string): boolean {

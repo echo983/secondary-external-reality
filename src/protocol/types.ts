@@ -244,10 +244,11 @@ export interface TurnAttempt {
   stepIndex: number;
   stepCount: number;
   rawTtd: string;
-  status: "committed" | "failed";
+  status: "committed" | "boundary" | "failed";
   commitSequence?: number;
   selectedCandidateId?: string;
   failureCode?: string;
+  boundaryCode?: string;
   createdAt: string;
 }
 

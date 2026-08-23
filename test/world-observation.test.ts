@@ -31,7 +31,11 @@ test("closed containers hide contents and open containers expose committed conte
   const store = new LanceCommitStore(join(directory, "world.lancedb"));
   try {
     const session = createSession(store);
-    await assert.rejects(session.submit("抽屉里有什么"));
+    const before = (await store.list()).length;
+    const closed = await session.submit("抽屉里有什么");
+    assert.equal(closed.kind, "boundary");
+    assert.equal((await store.list()).length, before);
+    assert.equal((await store.listTurnAttempts()).at(-1)?.status, "boundary");
     await session.submit("打开抽屉");
     assert.match((await session.submit("抽屉里有什么")).response, /空/u);
     await session.submit("拿起钥匙");
@@ -61,7 +65,11 @@ test("distinguishes blank inscription presence from exact inscription value", as
     assert.equal((await session.submit("纸条上有字吗")).response, "纸条上没有字。");
     assert.equal((await session.submit("纸条上写着什么")).response, "纸条上没有字。");
     await session.submit("我在纸条上写下001739并藏到枕头下面");
-    await assert.rejects(session.submit("纸条上写着什么"));
+    const before = (await store.list()).length;
+    const hidden = await session.submit("纸条上写着什么");
+    assert.equal(hidden.kind, "boundary");
+    assert.doesNotMatch(hidden.response, /001739/u);
+    assert.equal((await store.list()).length, before);
     assert.match((await session.submit("我找到枕头下的纸条并读它")).response, /001739/u);
   } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
 });

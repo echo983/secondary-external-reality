@@ -8,16 +8,28 @@ import { BEDROOM_PROJECTIONS, type BedroomFixture } from "../world/bedroomFixtur
 import { parseMvpIntent, type NormalizedIntent } from "../world/intent.js";
 import { FiniteDomainProjectionResolver } from "../world/projectionResolver.js";
 import { createObjectWorldFixture } from "../world/objectFixture.js";
+import type { ApprovedPresentationPacket } from "../presentation/types.js";
 
 export interface BedroomJury { review(batch: JuryBatch): Promise<JuryReport[]> }
 export interface TurnRenderer { render(commitPackage: CommitPackage, intent: NormalizedIntent): Promise<string> }
-export interface TurnResult {
+export interface CommittedTurnResult {
+  kind: "committed";
   response: string;
   commitPackage: CommitPackage;
   intent: NormalizedIntent;
   commitPackages?: CommitPackage[];
   partial?: boolean;
 }
+export interface BoundaryTurnResult {
+  kind: "boundary";
+  response: string;
+  packet: ApprovedPresentationPacket;
+  intent: NormalizedIntent;
+  commitPackage: never;
+  commitPackages?: never;
+  partial?: false;
+}
+export type TurnResult = CommittedTurnResult | BoundaryTurnResult;
 
 export class BedroomTurnError extends Error {}
 
@@ -65,7 +77,7 @@ export async function runBedroomTurn(options: {
   stepIndex?: number;
   stepCount?: number;
   attemptedTtd?: string;
-}): Promise<TurnResult> {
+}): Promise<CommittedTurnResult> {
   const intent = parseMvpIntent(options.rawTtd);
   if (intent.actions.map((action) => action.kind).join(",") !== "stand,move,open") {
     throw new BedroomTurnError("The MVP bedroom turn supports only stand → move → open.");
@@ -108,7 +120,7 @@ export async function runBedroomTurn(options: {
     seedCommitments: createObjectWorldFixture().seedCommitments,
   });
   const response = await options.renderer.render(prepared.commitPackage, intent);
-  return { response, commitPackage: prepared.commitPackage, intent };
+  return { kind: "committed", response, commitPackage: prepared.commitPackage, intent };
 }
 
 export class PassingBedroomJury implements BedroomJury {

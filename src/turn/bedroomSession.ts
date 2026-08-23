@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { BedroomFixture } from "../world/bedroomFixture.js";
 import { createBedroomFixture } from "../world/bedroomFixture.js";
 import type { LanceCommitStore } from "../storage/lanceCommitStore.js";
-import type { BedroomJury, TurnRenderer, TurnResult } from "./bedroomTurn.js";
+import type { BedroomJury, CommittedTurnResult, TurnRenderer, TurnResult } from "./bedroomTurn.js";
 import { BedroomTurnError, runBedroomTurn } from "./bedroomTurn.js";
 import { isObjectIntent, runObjectTurn } from "./objectTurn.js";
 import { parseMvpIntent } from "../world/intent.js";
@@ -76,10 +76,12 @@ export class BedroomSession {
     }
     if (steps.length <= 1) return this.executeAudited(rawTtd, rootTurnId, 0, 1);
 
-    const completed: TurnResult[] = [];
+    const completed: CommittedTurnResult[] = [];
     for (const [stepIndex, step] of steps.entries()) {
       try {
-        completed.push(await this.executeAudited(step, rootTurnId, stepIndex, steps.length));
+        const result = await this.executeAudited(step, rootTurnId, stepIndex, steps.length);
+        if (result.kind === "boundary") return result;
+        completed.push(result);
       } catch (error) {
         if (completed.length === 0) throw error;
         const chinese = /[\u3400-\u9fff]/u.test(rawTtd);
@@ -88,6 +90,7 @@ export class BedroomSession {
           : `The earlier actions occurred, but “${step}” could not be completed.`;
         const last = completed.at(-1)!;
         return {
+          kind: "committed",
           response: `${completed.map((result) => result.response).join("")} ${failure}`.trim(),
           commitPackage: last.commitPackage,
           commitPackages: completed.flatMap((result) => result.commitPackages ?? [result.commitPackage]),
@@ -98,6 +101,7 @@ export class BedroomSession {
     }
     const last = completed.at(-1)!;
     return {
+      kind: "committed",
       response: completed.map((result) => result.response).join(""),
       commitPackage: last.commitPackage,
       commitPackages: completed.flatMap((result) => result.commitPackages ?? [result.commitPackage]),
@@ -121,15 +125,17 @@ export class BedroomSession {
         groundingIssues: normalized.repairs, semanticIssues: audit.violations, model: proposed.model,
         latencyMs: proposed.latencyMs, usage: proposed.usage, createdAt: new Date().toISOString(),
       });
-      const completed: TurnResult[] = [];
+      const completed: CommittedTurnResult[] = [];
       for (const [index, intent] of proposed.validation.proposal.intents.entries()) {
         const fixture = createObjectWorldFixture();
         const world = MaterializedWorld.replay(await this.options.store.list(), fixture.seedCommitments);
         const executable = compileSemanticIntent(intent, normalized.normalized, proposed.validation.proposal.inputLanguage, fixture, world);
-        completed.push(await this.executeAudited(rawTtd, rootTurnId, index, proposed.validation.proposal.intents.length, executable.objectIntent, executable.mentionedEntityIds));
+        const result = await this.executeAudited(rawTtd, rootTurnId, index, proposed.validation.proposal.intents.length, executable.objectIntent, executable.mentionedEntityIds);
+        if (result.kind === "boundary") return result;
+        completed.push(result);
       }
       const last = completed.at(-1)!;
-      return { response: completed.map((item) => item.response).join(""), commitPackage: last.commitPackage,
+      return { kind: "committed", response: completed.map((item) => item.response).join(""), commitPackage: last.commitPackage,
         commitPackages: completed.flatMap((item) => item.commitPackages ?? [item.commitPackage]), intent: parseMvpIntent(rawTtd), partial: false };
     } catch { return null; }
   }
@@ -178,7 +184,7 @@ export class BedroomSession {
   }
 
   private async executeActiveProposal(rawTtd: string, rootTurnId: string, proposal: ActionProposalEnvelopeV07): Promise<TurnResult> {
-    const completed: TurnResult[] = [];
+    const completed: CommittedTurnResult[] = [];
     for (const [stepIndex, step] of proposal.steps.entries()) {
       const fixture = createObjectWorldFixture();
       const commits = await this.options.store.list();
@@ -191,21 +197,23 @@ export class BedroomSession {
       }
       const compiled = compileGroundedAction(grounded.steps[0], rawTtd, proposal.inputLanguage);
       try {
-        completed.push(await this.executeAudited(rawTtd, rootTurnId, stepIndex, proposal.steps.length, compiled.intent, compiled.mentionedEntityIds));
+        const result = await this.executeAudited(rawTtd, rootTurnId, stepIndex, proposal.steps.length, compiled.intent, compiled.mentionedEntityIds);
+        if (result.kind === "boundary") return result;
+        completed.push(result);
       } catch (error) {
         if (completed.length === 0) throw error;
         return this.partialResult(rawTtd, completed, step);
       }
     }
     const last = completed.at(-1)!;
-    return { response: completed.map((item) => item.response).join(""), commitPackage: last.commitPackage,
+    return { kind: "committed", response: completed.map((item) => item.response).join(""), commitPackage: last.commitPackage,
       commitPackages: completed.flatMap((item) => item.commitPackages ?? [item.commitPackage]), intent: parseMvpIntent(rawTtd), partial: false };
   }
 
-  private partialResult(rawTtd: string, completed: TurnResult[], step: ActionStepProposalV07): TurnResult {
+  private partialResult(rawTtd: string, completed: CommittedTurnResult[], step: ActionStepProposalV07): CommittedTurnResult {
     const last = completed.at(-1)!;
     const failure = this.failureMessage(rawTtd, `前面的动作已经发生，但“${step.primitive}”未能完成。`, `The earlier actions occurred, but “${step.primitive}” could not be completed.`);
-    return { response: `${completed.map((item) => item.response).join("")} ${failure}`.trim(), commitPackage: last.commitPackage,
+    return { kind: "committed", response: `${completed.map((item) => item.response).join("")} ${failure}`.trim(), commitPackage: last.commitPackage,
       commitPackages: completed.flatMap((item) => item.commitPackages ?? [item.commitPackage]), intent: parseMvpIntent(rawTtd), partial: true };
   }
 
@@ -222,13 +230,14 @@ export class BedroomSession {
       });
       throw error;
     }
-    await this.options.store.appendTurnAttempt({
-      attemptId, rootTurnId, stepIndex, stepCount, rawTtd,
-      status: "committed",
-      commitSequence: result.commitPackage.commitSequence,
-      selectedCandidateId: result.commitPackage.selectedCandidateId,
-      createdAt: new Date().toISOString(),
-    });
+    if (result.kind === "boundary") {
+      const boundary = result.packet.items[0];
+      await this.options.store.appendTurnAttempt({ attemptId, rootTurnId, stepIndex, stepCount, rawTtd, status: "boundary",
+        ...(boundary?.kind === "boundary" ? { boundaryCode: boundary.code } : {}), createdAt: new Date().toISOString() });
+    } else {
+      await this.options.store.appendTurnAttempt({ attemptId, rootTurnId, stepIndex, stepCount, rawTtd, status: "committed",
+        commitSequence: result.commitPackage.commitSequence, selectedCandidateId: result.commitPackage.selectedCandidateId, createdAt: new Date().toISOString() });
+    }
     return result;
   }
 
