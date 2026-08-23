@@ -14,6 +14,10 @@ The generic object-operation MVP also supports taking portable objects,
 placing them on surfaces or inside open containers, opening/closing containers,
 and observing them through event-sourced temporal relations.
 
+Explicit multi-action `ttd` inputs are executed step by step. If a later step
+fails, earlier committed actions remain true and the response reports partial
+success instead of rolling the world back.
+
 ## Development
 
 ```sh
