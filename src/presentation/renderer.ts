@@ -70,7 +70,11 @@ export class DeterministicPresentationRenderer implements ApprovedPresentationRe
     const evidence = item;
     if (evidence.kind === "attribute_evidence") {
       const value = String(evidence.value ?? "");
-      if (String(evidence.semanticAddress) === "entity:self.attribute:position") return packet.language === "zh" ? `你在${value === "bedside" ? "床边" : value}。` : `You are ${value === "bedside" ? "beside the bed" : value}.`;
+      if (String(evidence.semanticAddress) === "entity:self.attribute:position") {
+        const zhPosition = value === "doorway" ? "门口" : "床边";
+        const enPosition = value === "doorway" ? "at the doorway" : "beside the bed";
+        return packet.language === "zh" ? `你在${zhPosition}。` : `You are ${enPosition}.`;
+      }
       if (String(evidence.semanticAddress) === "entity:self.attribute:posture") return packet.language === "zh" ? (value === "sitting_on_bed_edge" ? "你正坐在床沿。" : `你的姿势是${value}。`) : (value === "sitting_on_bed_edge" ? "You are sitting on the edge of the bed." : `Your posture is ${value}.`);
       const presence = /有字|writing on/iu.test(languageSample);
       return packet.language === "zh" ? (value ? (presence ? "纸条上有字。" : `纸条上写着“${value}”。`) : "纸条上没有字。") : (value ? (presence ? "There is writing on the note." : `The note reads “${value}”.`) : "There is no writing on the note.");
