@@ -8,6 +8,7 @@ export interface MaterializedEntity {
 }
 
 export interface MaterializedRelation {
+  relationId: string;
   subjectId: string;
   predicate: string;
   objectId: string;
@@ -48,7 +49,36 @@ export class MaterializedWorld {
       entity.attributes[commitment.attribute] = commitment.value;
       return;
     }
+    if (commitment.kind === "relation_ended") {
+      if (!this.relations.delete(commitment.relationId)) throw new MaterializedWorldError(`Cannot end inactive relation ${commitment.relationId}.`);
+      return;
+    }
     if (!this.entities.has(commitment.subjectId)) throw new MaterializedWorldError(`Relation references missing subject ${commitment.subjectId}.`);
-    this.relations.set(`${commitment.subjectId}\u0000${commitment.predicate}`, { ...commitment, setAtSequence: commitSequence });
+    const relationId = commitment.kind === "relation_asserted"
+      ? commitment.relationId
+      : `legacy:${commitment.subjectId}:${commitment.predicate}`;
+    if (commitment.kind === "relation_asserted" && this.relations.has(relationId)) {
+      throw new MaterializedWorldError(`Relation ${relationId} was asserted twice without ending.`);
+    }
+    if (["located_on", "contained_by", "held_by"].includes(commitment.predicate)) {
+      const existingLocation = [...this.relations.values()].find((relation) =>
+        relation.subjectId === commitment.subjectId && ["located_on", "contained_by", "held_by"].includes(relation.predicate),
+      );
+      if (existingLocation && existingLocation.relationId !== relationId) {
+        throw new MaterializedWorldError(`Entity ${commitment.subjectId} already has an active direct location.`);
+      }
+    }
+    if (commitment.predicate === "contained_by") {
+      let cursor = commitment.objectId;
+      const visited = new Set([commitment.subjectId]);
+      while (true) {
+        if (visited.has(cursor)) throw new MaterializedWorldError("Containment relation would form a cycle.");
+        visited.add(cursor);
+        const parent = [...this.relations.values()].find((relation) => relation.subjectId === cursor && relation.predicate === "contained_by");
+        if (!parent) break;
+        cursor = parent.objectId;
+      }
+    }
+    this.relations.set(relationId, { relationId, subjectId: commitment.subjectId, predicate: commitment.predicate, objectId: commitment.objectId, setAtSequence: commitSequence });
   }
 }

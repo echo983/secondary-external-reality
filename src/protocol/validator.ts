@@ -90,6 +90,10 @@ function validateCommitmentShape(value: unknown, path: string, issues: Validatio
       ? ["entityId", "attribute", "value"]
       : value.kind === "relation_set"
         ? ["subjectId", "predicate", "objectId"]
+        : value.kind === "relation_asserted"
+          ? ["relationId", "subjectId", "predicate", "objectId"]
+          : value.kind === "relation_ended"
+            ? ["relationId"]
         : null;
   if (!required) {
     issue(issues, "UNKNOWN_WORLD_COMMITMENT", `${path}.kind`, "World commitment kind is not in the closed registry.");

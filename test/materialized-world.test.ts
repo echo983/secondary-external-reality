@@ -22,3 +22,33 @@ test("rejects commitments whose subject entity does not exist", () => {
     { kind: "attribute_set", entityId: "missing", attribute: "inscription", value: "1" },
   ])]), MaterializedWorldError);
 });
+
+test("ends one temporal location before asserting another", () => {
+  const world = MaterializedWorld.replay([
+    commit(0, [
+      { kind: "entity_created", entityId: "key-1", entityType: "key" },
+      { kind: "relation_asserted", relationId: "key-location-0", subjectId: "key-1", predicate: "located_on", objectId: "table-1" },
+    ]),
+    commit(1, [
+      { kind: "relation_ended", relationId: "key-location-0" },
+      { kind: "relation_asserted", relationId: "key-location-1", subjectId: "key-1", predicate: "held_by", objectId: "self" },
+    ]),
+  ]);
+  assert.equal(world.entitiesRelatedTo("located_on", "table-1").length, 0);
+  assert.equal(world.entitiesRelatedTo("held_by", "self")[0]?.entityId, "key-1");
+});
+
+test("rejects simultaneous locations and containment cycles", () => {
+  assert.throws(() => MaterializedWorld.replay([commit(0, [
+    { kind: "entity_created", entityId: "key-1", entityType: "key" },
+    { kind: "relation_asserted", relationId: "r1", subjectId: "key-1", predicate: "located_on", objectId: "table-1" },
+    { kind: "relation_asserted", relationId: "r2", subjectId: "key-1", predicate: "held_by", objectId: "self" },
+  ])]), /active direct location/);
+
+  assert.throws(() => MaterializedWorld.replay([commit(0, [
+    { kind: "entity_created", entityId: "box-1", entityType: "container" },
+    { kind: "entity_created", entityId: "box-2", entityType: "container" },
+    { kind: "relation_asserted", relationId: "r1", subjectId: "box-1", predicate: "contained_by", objectId: "box-2" },
+    { kind: "relation_asserted", relationId: "r2", subjectId: "box-2", predicate: "contained_by", objectId: "box-1" },
+  ])]), /cycle/);
+});

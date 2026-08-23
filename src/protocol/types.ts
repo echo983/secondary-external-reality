@@ -75,7 +75,25 @@ export interface RelationSetCommitment {
   objectId: string;
 }
 
-export type WorldCommitment = EntityCreatedCommitment | AttributeSetCommitment | RelationSetCommitment;
+export interface RelationAssertedCommitment {
+  kind: "relation_asserted";
+  relationId: string;
+  subjectId: string;
+  predicate: string;
+  objectId: string;
+}
+
+export interface RelationEndedCommitment {
+  kind: "relation_ended";
+  relationId: string;
+}
+
+export type WorldCommitment =
+  | EntityCreatedCommitment
+  | AttributeSetCommitment
+  | RelationSetCommitment
+  | RelationAssertedCommitment
+  | RelationEndedCommitment;
 
 export interface ConditionalCandidate {
   candidateId: string;
