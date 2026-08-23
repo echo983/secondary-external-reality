@@ -10,6 +10,23 @@ import { MaterializedWorld, MaterializedWorldError } from "../world/materialized
 
 const COMMIT_TABLE = "world_commits";
 const ATTEMPT_TABLE = "turn_attempts";
+const ACTION_PROPOSAL_TABLE = "action_proposals";
+
+export interface ActionProposalAudit {
+  auditId: string;
+  rootTurnId: string;
+  mode: "shadow";
+  inputHash: string;
+  outputHash?: string;
+  status: "validated" | "rejected" | "model_error";
+  proposal?: unknown;
+  validationIssues: unknown[];
+  groundingIssues: unknown[];
+  model?: string;
+  latencyMs?: number;
+  usage?: Record<string, unknown>;
+  createdAt: string;
+}
 
 interface CommitRow extends Record<string, unknown> {
   commit_id: string;
@@ -32,6 +49,15 @@ interface AttemptRow extends Record<string, unknown> {
   root_turn_id: string;
   step_index: number;
   step_count: number;
+  status: string;
+  record_json: string;
+  record_hash: string;
+  created_at: string;
+}
+
+interface ActionProposalRow extends Record<string, unknown> {
+  audit_id: string;
+  root_turn_id: string;
   status: string;
   record_json: string;
   record_hash: string;
@@ -102,6 +128,7 @@ export class LanceCommitStore {
   private connection: Connection | null = null;
   private table: Table | null = null;
   private attemptTable: Table | null = null;
+  private actionProposalTable: Table | null = null;
   private writeTail: Promise<void> = Promise.resolve();
 
   constructor(private readonly uri: string) {}
@@ -115,14 +142,19 @@ export class LanceCommitStore {
     if ((await this.connection.tableNames()).includes(ATTEMPT_TABLE)) {
       this.attemptTable = await this.connection.openTable(ATTEMPT_TABLE);
     }
+    if ((await this.connection.tableNames()).includes(ACTION_PROPOSAL_TABLE)) {
+      this.actionProposalTable = await this.connection.openTable(ACTION_PROPOSAL_TABLE);
+    }
   }
 
   close(): void {
     this.table?.close();
     this.attemptTable?.close();
+    this.actionProposalTable?.close();
     this.connection?.close();
     this.table = null;
     this.attemptTable = null;
+    this.actionProposalTable = null;
     this.connection = null;
   }
 
@@ -202,6 +234,42 @@ export class LanceCommitStore {
       .map((row) => JSON.parse(row.record_json) as TurnAttempt)
       .filter((attempt) => rootTurnId === undefined || attempt.rootTurnId === rootTurnId)
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.stepIndex - right.stepIndex);
+  }
+
+  async appendActionProposalAudit(audit: ActionProposalAudit): Promise<void> {
+    const operation = this.writeTail.then(
+      () => this.appendActionProposalAuditSerialized(audit),
+      () => this.appendActionProposalAuditSerialized(audit),
+    );
+    this.writeTail = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
+  async listActionProposalAudits(rootTurnId?: string): Promise<ActionProposalAudit[]> {
+    await this.open();
+    if (!this.actionProposalTable) return [];
+    const rows = await this.actionProposalTable.query().toArray() as ActionProposalRow[];
+    return rows.map((row) => JSON.parse(row.record_json) as ActionProposalAudit)
+      .filter((audit) => rootTurnId === undefined || audit.rootTurnId === rootTurnId)
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  }
+
+  private async appendActionProposalAuditSerialized(audit: ActionProposalAudit): Promise<void> {
+    await this.open();
+    if (!this.connection) throw new Error("LanceDB connection is not open.");
+    const recordJson = JSON.stringify(audit);
+    const row: ActionProposalRow = {
+      audit_id: audit.auditId, root_turn_id: audit.rootTurnId, status: audit.status,
+      record_json: recordJson, record_hash: hashPackage(recordJson), created_at: audit.createdAt,
+    };
+    const rows = this.actionProposalTable ? await this.actionProposalTable.query().toArray() as ActionProposalRow[] : [];
+    const existing = rows.find((candidate) => candidate.audit_id === row.audit_id);
+    if (existing) {
+      if (existing.record_hash !== row.record_hash) throw new CommitConflictError(`Action proposal audit ${row.audit_id} already exists with different content.`);
+      return;
+    }
+    if (!this.actionProposalTable) this.actionProposalTable = await this.connection.createTable(ACTION_PROPOSAL_TABLE, [row]);
+    else await this.actionProposalTable.add([row]);
   }
 
   async repairTurnAttempts(): Promise<RepairTurnAttemptsResult> {

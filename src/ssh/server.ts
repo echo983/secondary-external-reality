@@ -8,6 +8,7 @@ import { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import { BedroomSession } from "../turn/bedroomSession.js";
 import { ChineseBedroomRenderer } from "../turn/bedroomTurn.js";
 import { TtdTextShell } from "./textShell.js";
+import { WorkersAiActionIrProposer } from "../actionIr/proposer.js";
 
 const { Server } = ssh2;
 
@@ -20,6 +21,7 @@ export interface SshMvpConfig {
   accountId: string;
   apiToken: string;
   dataPath: string;
+  actionIrMode?: "off" | "shadow";
 }
 
 function equalSecret(actual: string, expected: string): boolean {
@@ -36,6 +38,7 @@ export function createSshMvpServer(config: SshMvpConfig): { server: SshServer; s
     store,
     jury: new WorkersAiBedroomJury(client),
     renderer: new WorkersAiTurnRenderer(client, new ChineseBedroomRenderer()),
+    actionIr: { mode: config.actionIrMode ?? "off", proposer: new WorkersAiActionIrProposer(client) },
   });
   const server = new Server({ hostKeys: [config.hostKey] }, (connection) => {
     connection.on("authentication", (context: AuthContext) => {
@@ -72,6 +75,8 @@ export async function startSshMvpFromEnvironment(): Promise<SshServer> {
   if (!password || !apiToken) throw new Error("Password and Cloudflare token must be non-empty.");
   const port = Number(process.env.SER_SSH_PORT ?? "2222");
   if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw new Error("SER_SSH_PORT must be a valid TCP port.");
+  const actionIrMode = process.env.SER_ACTION_IR_MODE ?? "off";
+  if (actionIrMode !== "off" && actionIrMode !== "shadow") throw new Error("SER_ACTION_IR_MODE must be off or shadow.");
   const { server } = createSshMvpServer({
     host: process.env.SER_SSH_HOST ?? "127.0.0.1",
     port,
@@ -81,6 +86,7 @@ export async function startSshMvpFromEnvironment(): Promise<SshServer> {
     accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "00f6c85f82f6297c8c0bef9460e013d9",
     apiToken,
     dataPath: process.env.SER_DATA_PATH ?? ".world/world.lancedb",
+    actionIrMode,
   });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);

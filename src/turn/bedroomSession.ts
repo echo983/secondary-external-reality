@@ -8,6 +8,11 @@ import { runBedroomTurn } from "./bedroomTurn.js";
 import { isObjectIntent, runObjectTurn } from "./objectTurn.js";
 import { parseMvpIntent } from "../world/intent.js";
 import { parseObjectIntent, splitActionSequence } from "../world/objectIntent.js";
+import type { ActionIrProposer } from "../actionIr/proposer.js";
+import { createHash } from "node:crypto";
+import { createObjectWorldFixture } from "../world/objectFixture.js";
+import { MaterializedWorld } from "../world/materializedWorld.js";
+import { groundActionProposal } from "../actionIr/grounding.js";
 
 export interface BedroomSessionOptions {
   sessionId: string;
@@ -15,6 +20,7 @@ export interface BedroomSessionOptions {
   jury: BedroomJury;
   renderer: TurnRenderer;
   fixtureFactory?: () => BedroomFixture;
+  actionIr?: { mode: "off" | "shadow"; proposer?: ActionIrProposer };
 }
 
 export class BedroomSession {
@@ -41,6 +47,7 @@ export class BedroomSession {
     const atomicComposite = wholeObjectIntent?.operation === "write_and_hide" || wholeObjectIntent?.operation === "open_and_observe" || wholeObjectIntent?.operation === "read";
     const steps = atomicComposite ? [rawTtd.trim()] : splitActionSequence(rawTtd);
     const rootTurnId = `${this.options.sessionId}:${randomUUID()}`;
+    await this.runActionIrShadow(rawTtd, rootTurnId);
     if (steps.length <= 1) return this.executeAudited(rawTtd, rootTurnId, 0, 1);
 
     const completed: TurnResult[] = [];
@@ -71,6 +78,37 @@ export class BedroomSession {
       intent: parseMvpIntent(rawTtd),
       partial: false,
     };
+  }
+
+  private async runActionIrShadow(rawTtd: string, rootTurnId: string): Promise<void> {
+    const config = this.options.actionIr;
+    if (config?.mode !== "shadow" || !config.proposer) return;
+    const auditId = `${rootTurnId}:action-ir`;
+    const inputHash = createHash("sha256").update(rawTtd).digest("hex");
+    try {
+      const result = await config.proposer.propose(rawTtd);
+      let groundingIssues: unknown[] = [];
+      if (result.validation.proposal) {
+        const fixture = createObjectWorldFixture();
+        const world = MaterializedWorld.replay(await this.options.store.list(), fixture.seedCommitments);
+        groundingIssues = groundActionProposal(result.validation.proposal, fixture, world).issues;
+      }
+      await this.options.store.appendActionProposalAudit({
+        auditId, rootTurnId, mode: "shadow", inputHash, outputHash: result.outputHash,
+        status: result.validation.valid && groundingIssues.length === 0 ? "validated" : "rejected",
+        proposal: result.validation.proposal ?? undefined,
+        validationIssues: result.validation.issues, groundingIssues,
+        model: result.model, latencyMs: result.latencyMs, usage: result.usage,
+        createdAt: new Date().toISOString(),
+      });
+    } catch {
+      try {
+        await this.options.store.appendActionProposalAudit({
+          auditId, rootTurnId, mode: "shadow", inputHash, status: "model_error",
+          validationIssues: [], groundingIssues: [], createdAt: new Date().toISOString(),
+        });
+      } catch { /* Shadow telemetry cannot affect execution. */ }
+    }
   }
 
   private async executeAudited(rawTtd: string, rootTurnId: string, stepIndex: number, stepCount: number): Promise<TurnResult> {
