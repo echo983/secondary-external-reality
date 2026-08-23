@@ -14,6 +14,7 @@ const suites = [
   { name: "human-round3-sequence", module: "./runHumanRound3SequenceLiveEval.js" },
   { name: "placement-failure-sequence", module: "./runPlacementFailureSequenceLiveEval.js" },
   { name: "move-sequence", module: "./runMoveSequenceLiveEval.js" },
+  { name: "query-confluence", module: "./runQueryConfluenceLiveEval.js" },
   { name: "human-simulation-corpus", module: "./runHumanSimulationCorpusLiveEval.js" },
 ] as const;
 

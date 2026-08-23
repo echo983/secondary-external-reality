@@ -2,6 +2,7 @@ import type { CommitPackage } from "../protocol/types.js";
 import type { ObjectWorldFixture } from "../world/objectFixture.js";
 import { MaterializedWorld } from "../world/materializedWorld.js";
 import { replayCanonicalViews } from "../replay/canonicalReplay.js";
+import { checkCommitmentClosureTemplates, checkReplayDeterminism } from "../verification/acceptanceChecks.js";
 
 export interface TurnRecord {
   id: string;
@@ -152,5 +153,9 @@ export function checkInvariants(input: InvariantCheckInput): InvariantViolation[
   } catch (error) {
     violations.push({ code: "canonical-replay-threw", severity: "fatal", message: error instanceof Error ? error.message : String(error) });
   }
+  // Layer A acceptance checks (GWA V2/V3 closure templates, replay determinism) —
+  // see docs/MVP-layer-a-acceptance-tests-design-v1.0.md.
+  for (const issue of checkCommitmentClosureTemplates(input.commits)) violations.push(issue);
+  for (const issue of checkReplayDeterminism(input.commits, input.fixture.seedCommitments)) violations.push(issue);
   return violations;
 }
