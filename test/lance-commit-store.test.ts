@@ -304,3 +304,34 @@ test("serializes the same next sequence across separate processes", async () => 
     assert.equal((await store.list()).length, 1);
   });
 });
+
+test("replays canonical views read-only across restart", async () => {
+  await withStore(async (store, uri) => {
+    const fixture = createObjectWorldFixture();
+    const input = commit("canonical-read", 0);
+    input.worldBasis = fixture.worldBasis;
+    input.events = [{ eventId: "read-event", type: "action_result", subjectRef: "self", objectRef: "blank-note-1" }];
+    input.evidenceGenerated = [{ evidenceId: "read-evidence", kind: "attribute_observed", sourceEventId: "read-event", subjectId: "blank-note-1", attribute: "inscription", value: "" }];
+    input.epistemicChanges = [{ agentId: "self", kind: "acquired_evidence", evidenceId: "read-evidence" }];
+    await store.append(input, { seedCommitments: fixture.seedCommitments });
+    const before = await store.list();
+    const first = await store.replayCanonicalViews(fixture.seedCommitments);
+    assert.equal(first.evidence.allEvidence().length, 1);
+    assert.equal(first.epistemic.allEdges().length, 1);
+    assert.deepEqual(await store.list(), before);
+    store.close();
+
+    const reopened = new LanceCommitStore(uri);
+    try {
+      const second = await reopened.replayCanonicalViews(fixture.seedCommitments);
+      assert.deepEqual(second.evidence.allEvidence(), first.evidence.allEvidence());
+      assert.deepEqual(second.epistemic.allEdges(), first.epistemic.allEdges());
+      assert.deepEqual(await reopened.list(), before);
+      const concurrent = await Promise.all(Array.from({ length: 4 }, () => reopened.replayCanonicalViews(fixture.seedCommitments)));
+      assert.ok(concurrent.every((result) => result.issues.length === 0));
+      assert.deepEqual(await reopened.list(), before);
+    } finally {
+      reopened.close();
+    }
+  });
+});

@@ -6,6 +6,7 @@ import type { Connection, Table } from "@lancedb/lancedb";
 
 import type { CommitPackage, TurnAttempt } from "../protocol/types.js";
 import type { WorldCommitment } from "../protocol/types.js";
+import { replayCanonicalViews, type CanonicalReplayMode, type CanonicalReplayViews } from "../replay/canonicalReplay.js";
 import { MaterializedWorld, MaterializedWorldError } from "../world/materializedWorld.js";
 
 const COMMIT_TABLE = "world_commits";
@@ -216,6 +217,13 @@ export class LanceCommitStore {
     return rows
       .sort((left, right) => Number(left.commit_sequence) - Number(right.commit_sequence))
       .map((row) => JSON.parse(row.package_json) as CommitPackage);
+  }
+
+  async replayCanonicalViews(
+    seedCommitments: readonly WorldCommitment[],
+    mode: CanonicalReplayMode = "strict",
+  ): Promise<CanonicalReplayViews> {
+    return replayCanonicalViews(await this.list(), { seedCommitments, mode });
   }
 
   async appendTurnAttempt(attempt: TurnAttempt): Promise<void> {
