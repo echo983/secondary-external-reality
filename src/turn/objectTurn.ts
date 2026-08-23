@@ -225,7 +225,7 @@ export async function runObjectTurn(options: {
 
   const candidateId = `object-${parsed.operation}-${options.commitSequence}`;
   const envelope: CandidateEnvelope = { candidates: [{ candidateId, outcomeKind: "success", requiresResolution: [], conditions, proposedEvents: events, proposedStateChanges: [], observations, evidenceGenerated, epistemicChanges, newWorldCommitments: commitments }] };
-  const commitPackage = await commitCandidateEnvelope({ ...options, envelope, registry, snapshots, worldBasis: fixture.worldBasis });
+  const commitPackage = await commitCandidateEnvelope({ ...options, envelope, registry, snapshots, worldBasis: fixture.worldBasis, seedCommitments: fixture.seedCommitments });
   return { response, commitPackage, intent: parseMvpIntent(options.rawTtd) };
 }
 

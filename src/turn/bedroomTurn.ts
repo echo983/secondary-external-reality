@@ -7,6 +7,7 @@ import type { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import { BEDROOM_PROJECTIONS, type BedroomFixture } from "../world/bedroomFixture.js";
 import { parseMvpIntent, type NormalizedIntent } from "../world/intent.js";
 import { FiniteDomainProjectionResolver } from "../world/projectionResolver.js";
+import { createObjectWorldFixture } from "../world/objectFixture.js";
 
 export interface BedroomJury { review(batch: JuryBatch): Promise<JuryReport[]> }
 export interface TurnRenderer { render(commitPackage: CommitPackage, intent: NormalizedIntent): Promise<string> }
@@ -44,7 +45,11 @@ function buildCandidate(): CandidateEnvelope {
       { projection: BEDROOM_PROJECTIONS.doorOpenState, from: "closed", to: "open", causedByEventId: "event-open" },
     ],
     observations: [{ kind: "body_feedback", value: "left_leg_unsteady" }],
-    newWorldCommitments: [],
+    newWorldCommitments: [
+      { kind: "attribute_set", entityId: "self", attribute: "posture", value: "standing" },
+      { kind: "attribute_set", entityId: "self", attribute: "position", value: "doorway" },
+      { kind: "attribute_set", entityId: "door-1", attribute: "open_state", value: "open" },
+    ],
   }] };
 }
 
@@ -92,13 +97,16 @@ export async function runBedroomTurn(options: {
     selection,
     snapshots,
     snapshots,
+    createObjectWorldFixture().worldBasis,
   );
   if (!prepared.ready || !prepared.commitPackage) throw new BedroomTurnError("Commit package preparation failed.");
   if (options.rootTurnId !== undefined) prepared.commitPackage.rootTurnId = options.rootTurnId;
   if (options.stepIndex !== undefined) prepared.commitPackage.stepIndex = options.stepIndex;
   if (options.stepCount !== undefined) prepared.commitPackage.stepCount = options.stepCount;
   if (options.attemptedTtd !== undefined) prepared.commitPackage.attemptedTtd = options.attemptedTtd;
-  await options.store.append(prepared.commitPackage);
+  await options.store.append(prepared.commitPackage, {
+    seedCommitments: createObjectWorldFixture().seedCommitments,
+  });
   const response = await options.renderer.render(prepared.commitPackage, intent);
   return { response, commitPackage: prepared.commitPackage, intent };
 }

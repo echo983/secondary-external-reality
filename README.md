@@ -25,6 +25,15 @@ their authoritative world commits; failed attempts are recorded separately in
 If a process stops after a world commit but before its success audit is written,
 the next session reconstructs the missing audit from the authoritative commit.
 
+Every new world commit is preflighted against a closed MVP schema and a fully
+replayed future-world copy before LanceDB append. Entity projection changes must
+also carry matching entity-attribute commitments. A filesystem writer lock and
+expected world sequence serialize commits across local server processes.
+
+The object fixture is currently version `0.3.0`. Its seed now includes the
+player posture and position used by the unified state model; databases committed
+against `0.2.0` are intentionally rejected rather than silently migrated.
+
 ## Development
 
 ```sh

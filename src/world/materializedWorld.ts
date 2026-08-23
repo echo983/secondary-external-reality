@@ -1,4 +1,5 @@
 import type { CommitPackage, WorldCommitment } from "../protocol/types.js";
+import { validateCommitmentSchema, WorldSchemaError } from "./worldSchema.js";
 
 export interface MaterializedEntity {
   entityId: string;
@@ -24,9 +25,14 @@ export class MaterializedWorld {
 
   static replay(commits: readonly CommitPackage[], seedCommitments: readonly WorldCommitment[] = []): MaterializedWorld {
     const world = new MaterializedWorld();
-    for (const commitment of seedCommitments) world.apply(commitment, -1);
-    for (const commit of [...commits].sort((left, right) => left.commitSequence - right.commitSequence)) {
-      for (const commitment of commit.newWorldCommitments) world.apply(commitment, commit.commitSequence);
+    try {
+      for (const commitment of seedCommitments) world.apply(commitment, -1);
+      for (const commit of [...commits].sort((left, right) => left.commitSequence - right.commitSequence)) {
+        for (const commitment of commit.newWorldCommitments) world.apply(commitment, commit.commitSequence);
+      }
+    } catch (error) {
+      if (error instanceof WorldSchemaError) throw new MaterializedWorldError(error.message);
+      throw error;
     }
     return world;
   }
@@ -46,6 +52,7 @@ export class MaterializedWorld {
   }
 
   private apply(commitment: WorldCommitment, commitSequence: number): void {
+    validateCommitmentSchema(commitment, (entityId) => this.entities.get(entityId)?.entityType);
     if (commitment.kind === "entity_created") {
       if (this.entities.has(commitment.entityId)) throw new MaterializedWorldError(`Entity ${commitment.entityId} was created twice.`);
       this.entities.set(commitment.entityId, { entityId: commitment.entityId, entityType: commitment.entityType, attributes: {}, attributeRevisions: {}, createdAtSequence: commitSequence });
@@ -54,6 +61,9 @@ export class MaterializedWorld {
     if (commitment.kind === "attribute_set") {
       const entity = this.entities.get(commitment.entityId);
       if (!entity) throw new MaterializedWorldError(`Attribute references missing entity ${commitment.entityId}.`);
+      if (commitment.attribute === "open_state" && entity.attributes.openable !== "true") {
+        throw new MaterializedWorldError(`Entity ${commitment.entityId} has open_state but is not openable.`);
+      }
       entity.attributes[commitment.attribute] = commitment.value;
       entity.attributeRevisions[commitment.attribute] = commitSequence;
       return;
@@ -63,10 +73,23 @@ export class MaterializedWorld {
       return;
     }
     if (!this.entities.has(commitment.subjectId)) throw new MaterializedWorldError(`Relation references missing subject ${commitment.subjectId}.`);
+    if (!this.entities.has(commitment.objectId)) throw new MaterializedWorldError(`Relation references missing object ${commitment.objectId}.`);
+    const subject = this.entities.get(commitment.subjectId)!;
+    const object = this.entities.get(commitment.objectId)!;
+    if (commitment.predicate === "held_by" && (subject.attributes.portable !== "true" || object.entityType !== "person")) {
+      throw new MaterializedWorldError("held_by requires a portable subject and person object.");
+    }
+    if (commitment.predicate === "located_on" && object.attributes.surface !== "true" && object.entityType !== "bed") {
+      throw new MaterializedWorldError("located_on requires a surface object.");
+    }
+    if (commitment.predicate === "contained_by" && object.attributes.container !== "true" &&
+        object.entityType !== "container" && object.entityType !== "pillow") {
+      throw new MaterializedWorldError("contained_by requires a container or pillow object.");
+    }
     const relationId = commitment.kind === "relation_asserted"
       ? commitment.relationId
       : `legacy:${commitment.subjectId}:${commitment.predicate}`;
-    if (commitment.kind === "relation_asserted" && this.relations.has(relationId)) {
+    if (this.relations.has(relationId)) {
       throw new MaterializedWorldError(`Relation ${relationId} was asserted twice without ending.`);
     }
     if (["located_on", "contained_by", "held_by"].includes(commitment.predicate)) {

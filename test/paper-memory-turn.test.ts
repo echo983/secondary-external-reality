@@ -9,6 +9,7 @@ import { ChineseBedroomRenderer, PassingBedroomJury } from "../src/turn/bedroomT
 import { ObjectTurnError } from "../src/turn/objectTurn.js";
 import { parseObjectIntent } from "../src/world/objectIntent.js";
 import type { CommitPackage } from "../src/protocol/types.js";
+import { createObjectWorldFixture } from "../src/world/objectFixture.js";
 
 test("parses exact paper inscriptions without normalizing leading zeroes", () => {
   assert.equal(parseObjectIntent("我在纸条上写下数字001739，然后放在枕头下面")?.operation, "write_and_hide");
@@ -74,10 +75,10 @@ test("reads a legacy paper commit that predates world-basis metadata", async () 
         { kind: "relation_set", subjectId: "note-0", predicate: "contained_by", objectId: "pillow-1" },
       ],
     };
-    await store.append(legacy);
+    await store.append(legacy, { seedCommitments: createObjectWorldFixture().seedCommitments });
     const read = await new BedroomSession({ sessionId: "player", store, jury: new PassingBedroomJury(), renderer: new ChineseBedroomRenderer() }).submit("我看看枕头下面并读纸条");
     assert.match(read.response, /0042/);
-    assert.equal(read.commitPackage.worldBasis?.fixtureVersion, "0.2.0");
+    assert.equal(read.commitPackage.worldBasis?.fixtureVersion, "0.3.0");
   } finally {
     store.close();
     await rm(directory, { recursive: true, force: true });

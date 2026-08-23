@@ -1,9 +1,12 @@
 import { createHash } from "node:crypto";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 
 import * as lancedb from "@lancedb/lancedb";
 import type { Connection, Table } from "@lancedb/lancedb";
 
 import type { CommitPackage, TurnAttempt } from "../protocol/types.js";
+import type { WorldCommitment } from "../protocol/types.js";
+import { MaterializedWorld, MaterializedWorldError } from "../world/materializedWorld.js";
 
 const COMMIT_TABLE = "world_commits";
 const ATTEMPT_TABLE = "turn_attempts";
@@ -40,6 +43,10 @@ export interface AppendCommitResult {
   commitId: string;
   packageHash: string;
   tableVersion: number;
+}
+
+export interface CommitAdmissionOptions {
+  seedCommitments?: readonly WorldCommitment[];
 }
 
 export interface RepairTurnAttemptsResult {
@@ -119,16 +126,54 @@ export class LanceCommitStore {
     this.connection = null;
   }
 
-  async append(commitPackage: CommitPackage): Promise<AppendCommitResult> {
+  async append(commitPackage: CommitPackage, admission: CommitAdmissionOptions = {}): Promise<AppendCommitResult> {
     const operation = this.writeTail.then(
-      () => this.appendSerialized(commitPackage),
-      () => this.appendSerialized(commitPackage),
+      () => this.withWorldWriteLock(() => this.appendSerialized(commitPackage, admission)),
+      () => this.withWorldWriteLock(() => this.appendSerialized(commitPackage, admission)),
     );
     this.writeTail = operation.then(
       () => undefined,
       () => undefined,
     );
     return operation;
+  }
+
+  private async withWorldWriteLock<T>(operation: () => Promise<T>): Promise<T> {
+    const lockPath = `${this.uri}.commit.lock`;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      try {
+        await mkdir(lockPath);
+        try {
+          await writeFile(`${lockPath}/owner.json`, JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }), "utf8");
+          return await operation();
+        } finally {
+          await rm(lockPath, { recursive: true, force: true });
+        }
+      } catch (error) {
+        if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST") throw error;
+        let stale = false;
+        try {
+          const owner = JSON.parse(await readFile(`${lockPath}/owner.json`, "utf8")) as { pid?: unknown };
+          if (!Number.isSafeInteger(owner.pid)) stale = (Date.now() - (await stat(lockPath)).mtimeMs) > 30_000;
+          else {
+            try { process.kill(owner.pid as number, 0); }
+            catch (signalError) { stale = signalError instanceof Error && "code" in signalError && signalError.code === "ESRCH"; }
+          }
+        } catch {
+          try { stale = (Date.now() - (await stat(lockPath)).mtimeMs) > 30_000; }
+          catch (statError) {
+            if (statError instanceof Error && "code" in statError && statError.code === "ENOENT") continue;
+            throw statError;
+          }
+        }
+        if (stale) {
+          await rm(lockPath, { recursive: true, force: true });
+          continue;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    }
+    throw new CommitConflictError("Timed out waiting for the world commit writer lock.");
   }
 
   async list(): Promise<CommitPackage[]> {
@@ -239,6 +284,7 @@ export class LanceCommitStore {
 
   private async appendSerialized(
     commitPackage: CommitPackage,
+    admission: CommitAdmissionOptions,
   ): Promise<AppendCommitResult> {
     await this.open();
     const row = rowFromPackage(commitPackage);
@@ -274,6 +320,24 @@ export class LanceCommitStore {
         `Expected commit sequence ${lastSequence + 1}, received ${row.commit_sequence}.`,
       );
     }
+    if (commitPackage.expectedWorldCommitSequence !== undefined && commitPackage.expectedWorldCommitSequence !== lastSequence) {
+      throw new CommitConflictError(`World changed after candidate preparation: expected ${commitPackage.expectedWorldCommitSequence}, found ${lastSequence}.`);
+    }
+
+    const priorPackages = existingRows.map((existing) => JSON.parse(existing.package_json) as CommitPackage);
+    this.validateWorldBasis(priorPackages, commitPackage, admission.seedCommitments ?? []);
+    const currentWorld = MaterializedWorld.replay(priorPackages, admission.seedCommitments ?? []);
+    this.validateStateBridge(commitPackage, currentWorld);
+    this.validateGlobalIdentities(priorPackages, commitPackage);
+    try {
+      const futureWorld = MaterializedWorld.replay([...priorPackages, commitPackage], admission.seedCommitments ?? []);
+      this.validatePackageReferences(priorPackages, commitPackage, futureWorld);
+    } catch (error) {
+      if (error instanceof MaterializedWorldError || error instanceof Error) {
+        throw new CommitConflictError(`World preflight rejected commit: ${error.message}`);
+      }
+      throw error;
+    }
 
     if (!this.connection) {
       throw new Error("LanceDB connection is not open.");
@@ -301,5 +365,89 @@ export class LanceCommitStore {
       packageHash: row.package_hash,
       tableVersion: await this.table.version(),
     };
+  }
+
+  private validateStateBridge(commitPackage: CommitPackage, currentWorld: MaterializedWorld): void {
+    for (const change of commitPackage.stateChanges) {
+      const match = /^entity:([^.]+)\.(.+)$/u.exec(change.projection);
+      if (!match) throw new CommitConflictError(`State change ${change.projection} lacks an entity attribute address.`);
+      const [, entityId, attribute] = match;
+      const bridged = commitPackage.newWorldCommitments.some((commitment) =>
+        commitment.kind === "attribute_set" && commitment.entityId === entityId &&
+        commitment.attribute === attribute && commitment.value === change.to,
+      );
+      if (!bridged) throw new CommitConflictError(`State change ${change.projection} lacks a matching attribute commitment.`);
+      const currentValue = currentWorld.entities.get(entityId!)?.attributes[attribute!];
+      if (change.from !== undefined && currentValue !== change.from) {
+        throw new CommitConflictError(`State change ${change.projection} expected ${change.from}, found ${currentValue ?? "missing"}.`);
+      }
+    }
+  }
+
+  private validateGlobalIdentities(prior: readonly CommitPackage[], next: CommitPackage): void {
+    const eventIds = new Set(prior.flatMap((commit) => commit.events.map((event) => event.eventId)));
+    const evidenceIds = new Set(prior.flatMap((commit) => (commit.evidenceGenerated ?? []).map((evidence) => evidence.evidenceId)));
+    const resolved = new Map(prior.flatMap((commit) => commit.resolvedProjections.map((snapshot) => [snapshot.projection, snapshot.value] as const)));
+    for (const event of next.events) {
+      if (eventIds.has(event.eventId)) throw new CommitConflictError(`Event ID ${event.eventId} already exists.`);
+      eventIds.add(event.eventId);
+    }
+    for (const evidence of next.evidenceGenerated ?? []) {
+      if (evidenceIds.has(evidence.evidenceId)) throw new CommitConflictError(`Evidence ID ${evidence.evidenceId} already exists.`);
+      evidenceIds.add(evidence.evidenceId);
+    }
+    for (const snapshot of next.resolvedProjections) {
+      const fixed = resolved.get(snapshot.projection);
+      if (fixed !== undefined && fixed !== snapshot.value) throw new CommitConflictError(`Projection ${snapshot.projection} was already fixed to ${fixed}.`);
+    }
+  }
+
+  private validateWorldBasis(prior: readonly CommitPackage[], next: CommitPackage, seedCommitments: readonly WorldCommitment[]): void {
+    if (!next.worldBasis) return;
+    const admittedSeedHash = createHash("sha256").update(JSON.stringify(seedCommitments)).digest("hex");
+    if (admittedSeedHash !== next.worldBasis.seedHash) {
+      throw new CommitConflictError("Commit world basis does not match the admitted seed commitments.");
+    }
+    for (const commit of prior) {
+      if (!commit.worldBasis) continue;
+      if (commit.worldBasis.fixtureId !== next.worldBasis.fixtureId ||
+          commit.worldBasis.fixtureVersion !== next.worldBasis.fixtureVersion ||
+          commit.worldBasis.seedHash !== next.worldBasis.seedHash) {
+        throw new CommitConflictError("Commit world basis conflicts with the existing world history.");
+      }
+    }
+  }
+
+  private validatePackageReferences(prior: readonly CommitPackage[], next: CommitPackage, futureWorld: MaterializedWorld): void {
+    const priorEventIds = new Set(prior.flatMap((commit) => commit.events.map((event) => event.eventId)));
+    const nextEventIds = new Set(next.events.map((event) => event.eventId));
+    const allEvidenceIds = new Set([
+      ...prior.flatMap((commit) => (commit.evidenceGenerated ?? []).map((evidence) => evidence.evidenceId)),
+      ...(next.evidenceGenerated ?? []).map((evidence) => evidence.evidenceId),
+    ]);
+    for (const event of next.events) {
+      for (const entityId of [event.subjectRef, event.objectRef]) {
+        if (entityId !== undefined && !futureWorld.entities.has(entityId)) {
+          throw new CommitConflictError(`Event ${event.eventId} references missing entity ${entityId}.`);
+        }
+      }
+    }
+    for (const change of next.stateChanges) {
+      if (!nextEventIds.has(change.causedByEventId)) throw new CommitConflictError(`State change references missing event ${change.causedByEventId}.`);
+    }
+    for (const evidence of next.evidenceGenerated ?? []) {
+      if (!nextEventIds.has(evidence.sourceEventId) && !priorEventIds.has(evidence.sourceEventId)) {
+        throw new CommitConflictError(`Evidence ${evidence.evidenceId} references missing event ${evidence.sourceEventId}.`);
+      }
+      for (const entityId of [evidence.subjectId, evidence.objectId]) {
+        if (entityId !== undefined && !futureWorld.entities.has(entityId)) {
+          throw new CommitConflictError(`Evidence ${evidence.evidenceId} references missing entity ${entityId}.`);
+        }
+      }
+    }
+    for (const change of next.epistemicChanges ?? []) {
+      if (!futureWorld.entities.has(change.agentId)) throw new CommitConflictError(`Epistemic change references missing agent ${change.agentId}.`);
+      if (!allEvidenceIds.has(change.evidenceId)) throw new CommitConflictError(`Epistemic change references missing evidence ${change.evidenceId}.`);
+    }
   }
 }

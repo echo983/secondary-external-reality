@@ -71,6 +71,7 @@ export function prepareCommitPackage(
     commitPackage: {
       turnId,
       commitSequence,
+      expectedWorldCommitSequence: commitSequence - 1,
       selectedCandidateId: selected.candidateId,
       ...(worldBasis ? { worldBasis: structuredClone(worldBasis) } : {}),
       expectedProjectionRevisions,

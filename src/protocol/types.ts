@@ -216,6 +216,7 @@ export interface CommitPackage {
   stepCount?: number;
   attemptedTtd?: string;
   commitSequence: number;
+  expectedWorldCommitSequence?: number;
   selectedCandidateId: string;
   worldBasis?: WorldBasis;
   expectedProjectionRevisions: Record<string, number>;

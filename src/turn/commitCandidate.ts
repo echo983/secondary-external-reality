@@ -1,7 +1,7 @@
 import { prepareCommitPackage } from "../protocol/commit.js";
 import { createJuryBatch, evaluateCandidateEnvelope } from "../protocol/evaluator.js";
 import { selectCandidate } from "../protocol/selector.js";
-import type { CandidateEnvelope, CommitPackage, ProjectionDefinition, ProjectionSnapshot, WorldBasis } from "../protocol/types.js";
+import type { CandidateEnvelope, CommitPackage, ProjectionDefinition, ProjectionSnapshot, WorldBasis, WorldCommitment } from "../protocol/types.js";
 import { validateCandidateEnvelope } from "../protocol/validator.js";
 import type { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import type { BedroomJury } from "./bedroomTurn.js";
@@ -21,6 +21,7 @@ export async function commitCandidateEnvelope(options: {
   stepIndex?: number;
   stepCount?: number;
   attemptedTtd?: string;
+  seedCommitments?: readonly WorldCommitment[];
 }): Promise<CommitPackage> {
   const validation = validateCandidateEnvelope(options.envelope, options.registry);
   if (!validation.valid) throw new CandidateCommitError("Candidate protocol validation failed.");
@@ -34,6 +35,8 @@ export async function commitCandidateEnvelope(options: {
   if (options.stepIndex !== undefined) prepared.commitPackage.stepIndex = options.stepIndex;
   if (options.stepCount !== undefined) prepared.commitPackage.stepCount = options.stepCount;
   if (options.attemptedTtd !== undefined) prepared.commitPackage.attemptedTtd = options.attemptedTtd;
-  await options.store.append(prepared.commitPackage);
+  await options.store.append(prepared.commitPackage, {
+    seedCommitments: options.seedCommitments ?? [],
+  });
   return prepared.commitPackage;
 }

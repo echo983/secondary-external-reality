@@ -15,7 +15,7 @@ export interface ObjectWorldFixture {
 
 export function createObjectWorldFixture(): ObjectWorldFixture {
   const entities: Array<{ id: string; type: string; names: string[]; attributes?: Record<string, string> }> = [
-    { id: "self", type: "person", names: ["我", "自己", "self", "me"] },
+    { id: "self", type: "person", names: ["我", "自己", "self", "me"], attributes: { posture: "sitting_on_bed_edge", position: "bedside" } },
     { id: "bed-1", type: "bed", names: ["床", "bed"] },
     { id: "pillow-1", type: "pillow", names: ["枕头", "pillow"], attributes: { zh_name: "枕头", en_name: "pillow" } },
     { id: "nightstand-1", type: "nightstand", names: ["床头柜", "nightstand"], attributes: { surface: "true", zh_name: "床头柜", en_name: "nightstand" } },
@@ -42,7 +42,7 @@ export function createObjectWorldFixture(): ObjectWorldFixture {
   );
   const worldBasis: WorldBasis = {
     fixtureId: "mvp-bedroom-objects",
-    fixtureVersion: "0.2.0",
+    fixtureVersion: "0.3.0",
     seedHash: createHash("sha256").update(JSON.stringify(seedCommitments)).digest("hex"),
   };
   return { seedCommitments, names: entities.map((entity) => ({ entityId: entity.id, names: entity.names })), worldBasis };

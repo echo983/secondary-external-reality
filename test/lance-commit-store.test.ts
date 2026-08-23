@@ -3,12 +3,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { spawn } from "node:child_process";
 
 import {
   CommitConflictError,
   LanceCommitStore,
 } from "../src/storage/lanceCommitStore.js";
 import type { CommitPackage } from "../src/protocol/types.js";
+import { createObjectWorldFixture } from "../src/world/objectFixture.js";
 
 function commit(turnId: string, commitSequence: number): CommitPackage {
   return {
@@ -27,13 +29,7 @@ function commit(turnId: string, commitSequence: number): CommitPackage {
         outcome: "success",
       },
     ],
-    stateChanges: [
-      {
-        projection: "entity:self.position",
-        to: `position-${commitSequence}`,
-        causedByEventId: `event-${commitSequence}`,
-      },
-    ],
+    stateChanges: [],
     observations: [],
     newWorldCommitments: [],
   };
@@ -198,5 +194,113 @@ test("refuses to overwrite a failed audit that conflicts with a world commit", a
       createdAt: "2026-08-23T00:00:00.000Z",
     });
     await assert.rejects(store.repairTurnAttempts(), CommitConflictError);
+  });
+});
+
+test("preflights schema and referential integrity before persistence", async () => {
+  await withStore(async (store) => {
+    const unknownType = commit("bad-type", 0);
+    unknownType.stateChanges = [];
+    unknownType.newWorldCommitments = [{ kind: "entity_created", entityId: "x", entityType: "alien" }];
+    await assert.rejects(store.append(unknownType), /Unknown entity type/);
+
+    const missingTarget = commit("bad-target", 0);
+    missingTarget.stateChanges = [];
+    missingTarget.newWorldCommitments = [
+      { kind: "entity_created", entityId: "key-1", entityType: "key" },
+      { kind: "relation_asserted", relationId: "r1", subjectId: "key-1", predicate: "located_on", objectId: "missing" },
+    ];
+    await assert.rejects(store.append(missingTarget), /missing object/);
+    assert.deepEqual(await store.list(), []);
+  });
+});
+
+test("requires state changes to be bridged to authoritative entity attributes", async () => {
+  await withStore(async (store) => {
+    const input = commit("unbridged", 0);
+    input.stateChanges = [{ projection: "entity:self.position", to: "doorway", causedByEventId: "event-0" }];
+    await assert.rejects(store.append(input), /matching attribute commitment/);
+    assert.deepEqual(await store.list(), []);
+  });
+});
+
+test("checks bridged state from-values against the authoritative entity", async () => {
+  await withStore(async (store) => {
+    const fixture = createObjectWorldFixture();
+    const input = commit("wrong-from", 0);
+    input.worldBasis = fixture.worldBasis;
+    input.stateChanges = [{ projection: "entity:self.position", from: "elsewhere", to: "doorway", causedByEventId: "event-0" }];
+    input.newWorldCommitments = [{ kind: "attribute_set", entityId: "self", attribute: "position", value: "doorway" }];
+    await assert.rejects(store.append(input, { seedCommitments: fixture.seedCommitments }), /expected elsewhere, found bedside/);
+  });
+});
+
+test("binds a declared world basis to the exact admitted seed", async () => {
+  await withStore(async (store) => {
+    const fixture = createObjectWorldFixture();
+    const input = commit("wrong-seed", 0);
+    input.worldBasis = fixture.worldBasis;
+    await assert.rejects(store.append(input), /does not match the admitted seed/);
+  });
+});
+
+test("rejects a candidate prepared against a stale world sequence", async () => {
+  await withStore(async (store) => {
+    const first = commit("turn-0", 0);
+    first.expectedWorldCommitSequence = -1;
+    await store.append(first);
+    const stale = commit("turn-1", 1);
+    stale.expectedWorldCommitSequence = -1;
+    await assert.rejects(store.append(stale), /World changed after candidate preparation/);
+    assert.equal((await store.list()).length, 1);
+  });
+});
+
+test("allows only one of two stores to claim the same next world sequence", async () => {
+  await withStore(async (store, uri) => {
+    const contender = new LanceCommitStore(uri);
+    try {
+      const left = commit("left", 0);
+      const right = commit("right", 0);
+      left.expectedWorldCommitSequence = -1;
+      right.expectedWorldCommitSequence = -1;
+      const results = await Promise.allSettled([store.append(left), contender.append(right)]);
+      assert.deepEqual(results.map((result) => result.status).sort(), ["fulfilled", "rejected"]);
+      assert.equal((await store.list()).length, 1);
+    } finally {
+      contender.close();
+    }
+  });
+});
+
+test("does not re-resolve an already fixed projection to another value", async () => {
+  await withStore(async (store) => {
+    const first = commit("turn-0", 0);
+    first.resolvedProjections = [{ projection: "entity:self.hidden", value: "a", revision: 1 }];
+    await store.append(first);
+    const second = commit("turn-1", 1);
+    second.resolvedProjections = [{ projection: "entity:self.hidden", value: "b", revision: 1 }];
+    await assert.rejects(store.append(second), /already fixed to a/);
+  });
+});
+
+test("serializes the same next sequence across separate processes", async () => {
+  await withStore(async (store, uri) => {
+    const worker = `
+      import { LanceCommitStore } from ${JSON.stringify(new URL("../src/storage/lanceCommitStore.js", import.meta.url).href)};
+      const [uri, turnId] = process.argv.slice(1);
+      const store = new LanceCommitStore(uri);
+      try {
+        await store.append({ turnId, commitSequence: 0, expectedWorldCommitSequence: -1, selectedCandidateId: turnId,
+          expectedProjectionRevisions: {}, resolvedProjections: [], events: [], stateChanges: [], observations: [], newWorldCommitments: [] });
+      } finally { store.close(); }
+    `;
+    const run = (turnId: string) => new Promise<number | null>((resolve) => {
+      const child = spawn(process.execPath, ["--input-type=module", "-e", worker, uri, turnId], { stdio: "ignore" });
+      child.on("exit", resolve);
+    });
+    const codes = await Promise.all([run("process-left"), run("process-right")]);
+    assert.deepEqual(codes.sort(), [0, 1]);
+    assert.equal((await store.list()).length, 1);
   });
 });

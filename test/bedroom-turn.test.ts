@@ -6,6 +6,8 @@ import test from "node:test";
 import { LanceCommitStore } from "../src/storage/lanceCommitStore.js";
 import { ChineseBedroomRenderer, PassingBedroomJury, runBedroomTurn, BedroomTurnError } from "../src/turn/bedroomTurn.js";
 import { createBedroomFixture } from "../src/world/bedroomFixture.js";
+import { createObjectWorldFixture } from "../src/world/objectFixture.js";
+import { MaterializedWorld } from "../src/world/materializedWorld.js";
 
 test("runs the first complete ttd turn and persists it atomically", async () => {
   const directory = await mkdtemp(join(tmpdir(), "secondary-reality-turn-"));
@@ -27,6 +29,10 @@ test("runs the first complete ttd turn and persists it atomically", async () => 
       { projection: "entity:self.action_outcome.stand_now", value: "unstable_success" },
     ]);
     assert.deepEqual(result.commitPackage.stateChanges.map((change) => change.to), ["standing", "doorway", "open"]);
+    const world = MaterializedWorld.replay([result.commitPackage], createObjectWorldFixture().seedCommitments);
+    assert.equal(world.entities.get("self")?.attributes.posture, "standing");
+    assert.equal(world.entities.get("self")?.attributes.position, "doorway");
+    assert.equal(world.entities.get("door-1")?.attributes.open_state, "open");
     assert.deepEqual(await store.list(), [result.commitPackage]);
   } finally {
     store.close();
