@@ -10,7 +10,8 @@
 4. [Interaction IR active](MVP-interaction-ir-active-v1.0.md)：当前开放语言主链；
 5. [最近放置语义加固](MVP-placement-grounding-hardening-v0.2.0.md)：最新真人失败与结构修复；
 6. [最小空间与移动设计](MVP-minimal-space-movement-design-v0.3.md) 与 [里程碑记录](MILESTONE-minimal-space-movement-v0.3.0.md)：`move` 原语、床边/门口两个 Place、自动化人类模拟测试层；
-7. [Layer A 验收测试设计与完成记录](MVP-layer-a-acceptance-tests-design-v1.0.md)：Query Confluence/Closure Integrity/Minimal Resolution/Replay Consistency，Layer A 骨架的结构化验收，含两个真实抓到的 bug。
+7. [Layer A 验收测试设计与完成记录](MVP-layer-a-acceptance-tests-design-v1.0.md)：Query Confluence/Closure Integrity/Minimal Resolution/Replay Consistency，Layer A 骨架的结构化验收，含两个真实抓到的 bug；
+8. [门外/走廊 PlaceGraph 设计](MVP-hallway-placegraph-design-v0.4.md)：Layer B 第一个真正的 Free 投影与确定性 ΠS 解析，`move` 首个跨实体前置条件（开门才能出去）。
 
 ## GWA 原文与对齐审计
 
