@@ -22,7 +22,7 @@ export interface SshMvpConfig {
   accountId: string;
   apiToken: string;
   dataPath: string;
-  actionIrMode?: "off" | "shadow";
+  actionIrMode?: "off" | "shadow" | "active";
 }
 
 function equalSecret(actual: string, expected: string): boolean {
@@ -84,7 +84,7 @@ export async function startSshMvpFromEnvironment(): Promise<SshServer> {
   const port = Number(process.env.SER_SSH_PORT ?? "2222");
   if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw new Error("SER_SSH_PORT must be a valid TCP port.");
   const actionIrMode = process.env.SER_ACTION_IR_MODE ?? "off";
-  if (actionIrMode !== "off" && actionIrMode !== "shadow") throw new Error("SER_ACTION_IR_MODE must be off or shadow.");
+  if (actionIrMode !== "off" && actionIrMode !== "shadow" && actionIrMode !== "active") throw new Error("SER_ACTION_IR_MODE must be off, shadow, or active.");
   const { server } = createSshMvpServer({
     host: process.env.SER_SSH_HOST ?? "127.0.0.1",
     port,

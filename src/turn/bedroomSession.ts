@@ -4,7 +4,7 @@ import type { BedroomFixture } from "../world/bedroomFixture.js";
 import { createBedroomFixture } from "../world/bedroomFixture.js";
 import type { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import type { BedroomJury, TurnRenderer, TurnResult } from "./bedroomTurn.js";
-import { runBedroomTurn } from "./bedroomTurn.js";
+import { BedroomTurnError, runBedroomTurn } from "./bedroomTurn.js";
 import { isObjectIntent, runObjectTurn } from "./objectTurn.js";
 import { parseMvpIntent } from "../world/intent.js";
 import { parseObjectIntent, splitActionSequence } from "../world/objectIntent.js";
@@ -13,7 +13,10 @@ import { createHash } from "node:crypto";
 import { createObjectWorldFixture } from "../world/objectFixture.js";
 import { MaterializedWorld } from "../world/materializedWorld.js";
 import { groundActionProposal } from "../actionIr/grounding.js";
+import type { ActionProposalEnvelopeV07, ActionStepProposalV07 } from "../actionIr/types.js";
 import type { ActionIrSemanticAuditor } from "../actionIr/semanticAuditor.js";
+import { compileGroundedAction } from "../actionIr/compiler.js";
+import type { ObjectIntent } from "../world/objectIntent.js";
 
 export interface BedroomSessionOptions {
   sessionId: string;
@@ -21,7 +24,7 @@ export interface BedroomSessionOptions {
   jury: BedroomJury;
   renderer: TurnRenderer;
   fixtureFactory?: () => BedroomFixture;
-  actionIr?: { mode: "off" | "shadow"; proposer?: ActionIrProposer; semanticAuditor?: ActionIrSemanticAuditor };
+  actionIr?: { mode: "off" | "shadow" | "active"; proposer?: ActionIrProposer; semanticAuditor?: ActionIrSemanticAuditor };
 }
 
 export class BedroomSession {
@@ -30,6 +33,9 @@ export class BedroomSession {
 
   constructor(private readonly options: BedroomSessionOptions) {
     if (!options.sessionId.trim()) throw new Error("Session ID must be non-empty.");
+    if (options.actionIr?.mode === "active" && (!options.actionIr.proposer || !options.actionIr.semanticAuditor)) {
+      throw new Error("Active Action IR requires both a proposer and semantic auditor.");
+    }
   }
 
   submit(rawTtd: string): Promise<TurnResult> {
@@ -48,7 +54,16 @@ export class BedroomSession {
     const atomicComposite = wholeObjectIntent?.operation === "write_and_hide" || wholeObjectIntent?.operation === "open_and_observe" || wholeObjectIntent?.operation === "read";
     const steps = atomicComposite ? [rawTtd.trim()] : splitActionSequence(rawTtd);
     const rootTurnId = `${this.options.sessionId}:${randomUUID()}`;
-    await this.runActionIrShadow(rawTtd, rootTurnId);
+    const activeProposal = await this.runActionIr(rawTtd, rootTurnId);
+    if (this.options.actionIr?.mode === "active") {
+      if (!activeProposal) throw new BedroomTurnError(this.failureMessage(rawTtd, "这个尝试目前无法可靠地理解。", "This attempt cannot yet be understood reliably."));
+      if (activeProposal.exitKind !== "actions") {
+        throw new BedroomTurnError(activeProposal.exitKind === "not_an_action"
+          ? this.failureMessage(rawTtd, "这不像是一个要尝试执行的动作。", "This does not look like an action to try.")
+          : this.failureMessage(rawTtd, "这个动作还不在当前世界支持的范围内。", "This action is outside the current world's supported scope."));
+      }
+      return this.executeActiveProposal(rawTtd, rootTurnId, activeProposal);
+    }
     if (steps.length <= 1) return this.executeAudited(rawTtd, rootTurnId, 0, 1);
 
     const completed: TurnResult[] = [];
@@ -81,9 +96,13 @@ export class BedroomSession {
     };
   }
 
-  private async runActionIrShadow(rawTtd: string, rootTurnId: string): Promise<void> {
+  private failureMessage(rawTtd: string, zh: string, en: string): string {
+    return /[\u3400-\u9fff]/u.test(rawTtd) ? zh : en;
+  }
+
+  private async runActionIr(rawTtd: string, rootTurnId: string): Promise<ActionProposalEnvelopeV07 | null> {
     const config = this.options.actionIr;
-    if (config?.mode !== "shadow" || !config.proposer) return;
+    if (!config || config.mode === "off" || !config.proposer) return null;
     const auditId = `${rootTurnId}:action-ir`;
     const inputHash = createHash("sha256").update(rawTtd).digest("hex");
     try {
@@ -100,28 +119,63 @@ export class BedroomSession {
         groundingIssues = groundActionProposal(result.validation.proposal, fixture, world).issues;
       }
       await this.options.store.appendActionProposalAudit({
-        auditId, rootTurnId, mode: "shadow", inputHash, outputHash: result.outputHash,
+        auditId, rootTurnId, mode: config.mode, inputHash, outputHash: result.outputHash,
         status: result.validation.valid && groundingIssues.length === 0 && semanticIssues.length === 0 ? "validated" : "rejected",
         proposal: result.validation.proposal ?? undefined,
         validationIssues: result.validation.issues, groundingIssues, semanticIssues,
         model: result.model, latencyMs: result.latencyMs, usage: result.usage,
         createdAt: new Date().toISOString(),
       });
+      if (!result.validation.valid || groundingIssues.length > 0 || semanticIssues.length > 0) return null;
+      return result.validation.proposal;
     } catch {
       try {
         await this.options.store.appendActionProposalAudit({
-          auditId, rootTurnId, mode: "shadow", inputHash, status: "model_error",
+          auditId, rootTurnId, mode: config.mode, inputHash, status: "model_error",
           validationIssues: [], groundingIssues: [], createdAt: new Date().toISOString(),
         });
       } catch { /* Shadow telemetry cannot affect execution. */ }
+      return null;
     }
   }
 
-  private async executeAudited(rawTtd: string, rootTurnId: string, stepIndex: number, stepCount: number): Promise<TurnResult> {
+  private async executeActiveProposal(rawTtd: string, rootTurnId: string, proposal: ActionProposalEnvelopeV07): Promise<TurnResult> {
+    const completed: TurnResult[] = [];
+    for (const [stepIndex, step] of proposal.steps.entries()) {
+      const fixture = createObjectWorldFixture();
+      const commits = await this.options.store.list();
+      const world = MaterializedWorld.replay(commits, fixture.seedCommitments);
+      const single: ActionProposalEnvelopeV07 = { ...proposal, steps: [structuredClone(step)] };
+      const grounded = groundActionProposal(single, fixture, world);
+      if (!grounded.ready || !grounded.steps[0]) {
+        if (completed.length === 0) throw new BedroomTurnError(this.failureMessage(rawTtd, "动作所指的实体不明确或当前不能这样操作。", "The referenced entity is ambiguous or cannot currently be used that way."));
+        return this.partialResult(rawTtd, completed, step);
+      }
+      const compiled = compileGroundedAction(grounded.steps[0], rawTtd, proposal.inputLanguage);
+      try {
+        completed.push(await this.executeAudited(rawTtd, rootTurnId, stepIndex, proposal.steps.length, compiled.intent, compiled.mentionedEntityIds));
+      } catch (error) {
+        if (completed.length === 0) throw error;
+        return this.partialResult(rawTtd, completed, step);
+      }
+    }
+    const last = completed.at(-1)!;
+    return { response: completed.map((item) => item.response).join(""), commitPackage: last.commitPackage,
+      commitPackages: completed.flatMap((item) => item.commitPackages ?? [item.commitPackage]), intent: parseMvpIntent(rawTtd), partial: false };
+  }
+
+  private partialResult(rawTtd: string, completed: TurnResult[], step: ActionStepProposalV07): TurnResult {
+    const last = completed.at(-1)!;
+    const failure = this.failureMessage(rawTtd, `前面的动作已经发生，但“${step.primitive}”未能完成。`, `The earlier actions occurred, but “${step.primitive}” could not be completed.`);
+    return { response: `${completed.map((item) => item.response).join("")} ${failure}`.trim(), commitPackage: last.commitPackage,
+      commitPackages: completed.flatMap((item) => item.commitPackages ?? [item.commitPackage]), intent: parseMvpIntent(rawTtd), partial: true };
+  }
+
+  private async executeAudited(rawTtd: string, rootTurnId: string, stepIndex: number, stepCount: number, objectIntent?: ObjectIntent, mentionedEntityIds?: string[]): Promise<TurnResult> {
     const attemptId = `${rootTurnId}:${stepIndex}`;
     let result: TurnResult;
     try {
-      result = await this.executeSingle(rawTtd, rootTurnId, stepIndex, stepCount);
+      result = await this.executeSingle(rawTtd, rootTurnId, stepIndex, stepCount, objectIntent, mentionedEntityIds);
     } catch (error) {
       await this.options.store.appendTurnAttempt({
         attemptId, rootTurnId, stepIndex, stepCount, rawTtd,
@@ -140,7 +194,7 @@ export class BedroomSession {
     return result;
   }
 
-  private async executeSingle(rawTtd: string, rootTurnId: string, stepIndex: number, stepCount: number): Promise<TurnResult> {
+  private async executeSingle(rawTtd: string, rootTurnId: string, stepIndex: number, stepCount: number, objectIntent?: ObjectIntent, mentionedEntityIds?: string[]): Promise<TurnResult> {
     const commits = await this.options.store.list();
     const fixture = (this.options.fixtureFactory ?? createBedroomFixture)();
     const snapshots = new Map(fixture.committed.map((snapshot) => [snapshot.projection, snapshot]));
@@ -174,7 +228,7 @@ export class BedroomSession {
         rootTurnId, stepIndex, stepCount, attemptedTtd: rawTtd,
       });
     }
-    if (isObjectIntent(rawTtd)) {
+    if (objectIntent || isObjectIntent(rawTtd)) {
       return runObjectTurn({
         rawTtd,
         turnId: `${this.options.sessionId}:${commitSequence}`,
@@ -183,6 +237,8 @@ export class BedroomSession {
         jury: this.options.jury,
         store: this.options.store,
         rootTurnId, stepIndex, stepCount, attemptedTtd: rawTtd,
+        ...(objectIntent ? { objectIntent } : {}),
+        ...(mentionedEntityIds ? { mentionedEntityIds } : {}),
       });
     }
     return runBedroomTurn({

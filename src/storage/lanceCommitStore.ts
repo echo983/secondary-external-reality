@@ -15,7 +15,7 @@ const ACTION_PROPOSAL_TABLE = "action_proposals";
 export interface ActionProposalAudit {
   auditId: string;
   rootTurnId: string;
-  mode: "shadow";
+  mode: "shadow" | "active";
   inputHash: string;
   outputHash?: string;
   status: "validated" | "rejected" | "model_error";
