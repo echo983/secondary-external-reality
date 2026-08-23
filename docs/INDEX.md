@@ -8,7 +8,8 @@
 2. [完整上下文交接](CONTEXT-HANDOFF-2026-08-23.md)：当前架构、边界、验证事实和子任务协同；
 3. [GWA 大结构研究](GWA-larger-architecture-study-after-v0.9.md)：长期架构纲领；
 4. [Interaction IR active](MVP-interaction-ir-active-v1.0.md)：当前开放语言主链；
-5. [最近放置语义加固](MVP-placement-grounding-hardening-v0.2.0.md)：最新真人失败与结构修复。
+5. [最近放置语义加固](MVP-placement-grounding-hardening-v0.2.0.md)：最新真人失败与结构修复；
+6. [最小空间与移动设计](MVP-minimal-space-movement-design-v0.3.md) 与 [里程碑记录](MILESTONE-minimal-space-movement-v0.3.0.md)：`move` 原语、床边/门口两个 Place、自动化人类模拟测试层。
 
 ## GWA 原文与对齐审计
 
@@ -50,7 +51,8 @@
 - [世界基础 v0.6](MILESTONE-world-foundation-v0.6.0.md)，tag `mvp-world-foundation-v0.6.0`；
 - [Open Action IR v0.7](MILESTONE-open-action-ir-v0.7.0.md)，tag `mvp-open-action-ir-v0.7.0`；
 - [Bounded Open World v0.8](MILESTONE-bounded-open-world-v0.8.0.md)，tag `mvp-bounded-open-world-v0.8.0`；
-- [Open Semantic IR v0.9](MILESTONE-open-semantic-ir-v0.9.0.md)，tag `mvp-open-semantic-ir-v0.9.0`。
+- [Open Semantic IR v0.9](MILESTONE-open-semantic-ir-v0.9.0.md)，tag `mvp-open-semantic-ir-v0.9.0`；
+- [最小空间与移动 v0.3.0](MILESTONE-minimal-space-movement-v0.3.0.md)（未打 tag）。
 
 ## 纵向切片与历史实施记录
 
