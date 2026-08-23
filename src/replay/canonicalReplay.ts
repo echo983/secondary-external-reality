@@ -35,7 +35,12 @@ export function replayCanonicalViews(
   const adapted = adaptLegacyCommits(commits, { seedCommitments: options.seedCommitments });
   const commitments = buildCommitmentGraph(adapted.legacyFixedProjections);
   const evidence = buildEvidenceLedger(adapted.observations, adapted.evidence);
-  const epistemic = buildAgentEpistemicGraph(adapted.acquisitions, evidence.view, new Set(materialized.entities.keys()));
+  const epistemicAgentIds = new Set(
+    [...materialized.entities.values()]
+      .filter((entity) => entity.entityType === "person")
+      .map((entity) => entity.entityId),
+  );
+  const epistemic = buildAgentEpistemicGraph(adapted.acquisitions, evidence.view, epistemicAgentIds);
   const issues = structuredClone([
     ...adapted.issues,
     ...commitments.issues,

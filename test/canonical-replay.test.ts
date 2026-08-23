@@ -36,3 +36,11 @@ test("strict replay fails on fatal compatibility issues while diagnostic replay 
   const diagnostic = replayCanonicalViews([broken], { seedCommitments: seed, mode: "diagnostic" });
   assert.deepEqual(diagnostic.issues.map((entry) => entry.code), ["NON_CONTIGUOUS_COMMIT_SEQUENCE"]);
 });
+
+test("does not grant epistemic capability to every existing entity", () => {
+  const invalidAgent = commit();
+  invalidAgent.epistemicChanges = [{ agentId: "note-1", kind: "acquired_evidence", evidenceId: "read-evidence" }];
+  const diagnostic = replayCanonicalViews([invalidAgent], { seedCommitments: seed, mode: "diagnostic" });
+  assert.ok(diagnostic.issues.some((entry) => entry.code === "MISSING_EPISTEMIC_AGENT"));
+  assert.equal(diagnostic.epistemic.allEdges().length, 0);
+});
