@@ -21,6 +21,7 @@
     "eval:placement-failures:live": "npm run build && node dist/src/eval/runPlacementFailureSequenceLiveEval.js",
     "eval:move-sequence:live": "npm run build && node dist/src/eval/runMoveSequenceLiveEval.js",
     "eval:query-confluence:live": "npm run build && node dist/src/eval/runQueryConfluenceLiveEval.js",
+    "eval:hallway-sequence:live": "npm run build && node dist/src/eval/runHallwaySequenceLiveEval.js",
     "eval:human-simulation-corpus:live": "npm run build && node dist/src/eval/runHumanSimulationCorpusLiveEval.js",
     "eval:human-persona-exploration:live": "npm run build && node dist/src/eval/runHumanPersonaExplorationLiveEval.js",
     "start:ssh": "node dist/src/ssh/server.js"

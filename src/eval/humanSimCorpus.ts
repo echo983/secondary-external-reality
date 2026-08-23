@@ -96,14 +96,26 @@ function fragment(rng: () => number): { input: string }[] {
   return [{ input: pick(rng, ["把", "那个...", "呃", "嗯"]) }];
 }
 
-// "走到门口"/"走到床边" are now real, supported move targets (see moveToLandmark);
-// this keeps only destinations still genuinely unmodeled (leaving the bedroom).
+// "走到门口"/"走到床边"/"走到走廊" are now real, supported move targets (see
+// moveToLandmark/hallwayExploration); this keeps only destinations beyond the
+// hallway, which are still genuinely unmodeled (design doc §3.4).
 function unsupportedMove(rng: () => number): { input: string }[] {
-  return [{ input: pick(rng, ["走出这个房间", "走到客厅", "go to the hallway"]) }];
+  return [{ input: pick(rng, ["走出这个房间", "走到客厅", "go to the living room"]) }];
 }
 
-function outsideBoundary(rng: () => number): { input: string }[] {
+// "门外" now resolves to the real hallway-1 entity; whether this commits or
+// stays a boundary depends on door state at the time (untouched by this
+// template — it's just a probe phrase, not a scripted scenario), which is
+// exactly what the invariant checker is for.
+function hallwayQuery(rng: () => number): { input: string }[] {
   return [{ input: pick(rng, ["看看门外", "门外有什么", "what's outside the door"]) }];
+}
+
+// Exercises the actual Free-projection resolution end to end: open the door,
+// walk through, and look around — hallway-1.notable_feature should resolve
+// and commit on the third turn.
+function hallwayExploration(_rng: () => number): { input: string }[] {
+  return [{ input: "打开门" }, { input: "走到走廊" }, { input: "环顾四周" }];
 }
 
 function negation(rng: () => number): { input: string }[] {
@@ -134,7 +146,7 @@ function selfPositionQuery(rng: () => number): { input: string }[] {
 
 const SIMPLE_TEMPLATES: Array<(rng: () => number) => { input: string }[]> = [
   lookAround, inventory, openContainer, closeContainer, containerContents, takeItem, placeItem,
-  writeNote, readNote, capabilityQuery, fragment, unsupportedMove, outsideBoundary, negation,
+  writeNote, readNote, capabilityQuery, fragment, unsupportedMove, hallwayQuery, hallwayExploration, negation,
   hypothetical, chainedThen, greeting, moveToLandmark, selfPositionQuery,
 ];
 

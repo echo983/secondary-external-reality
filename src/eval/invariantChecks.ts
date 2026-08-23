@@ -46,6 +46,21 @@ function checkCommitDiscipline(rows: readonly TurnRecord[]): InvariantViolation[
   return violations;
 }
 
+// A turn that produced no response text at all is a UX bug regardless of
+// which feature caused it — e.g. the hallway Query Confluence live eval
+// caught an observe-compiled query whose canonical envelope silently never
+// got built, leaving the player with a blank reply despite a correct commit.
+function checkNonEmptyResponse(rows: readonly TurnRecord[]): InvariantViolation[] {
+  const violations: InvariantViolation[] = [];
+  for (const row of rows) {
+    if (row.response.trim().length === 0) {
+      violations.push({ code: "empty-response", severity: "fatal", turnId: row.id,
+        message: `Turn "${row.input}" (kind=${row.kind}) produced an empty response.` });
+    }
+  }
+  return violations;
+}
+
 function checkInternalLeakage(rows: readonly TurnRecord[]): InvariantViolation[] {
   const violations: InvariantViolation[] = [];
   for (const row of rows) {
@@ -141,6 +156,7 @@ export interface InvariantCheckInput {
 export function checkInvariants(input: InvariantCheckInput): InvariantViolation[] {
   const violations: InvariantViolation[] = [
     ...checkCommitDiscipline(input.rows),
+    ...checkNonEmptyResponse(input.rows),
     ...checkInternalLeakage(input.rows),
     ...checkClosedContainerNonLeak(input.rows, input.commits, input.fixture),
     ...checkParaphraseInvariance(input.rows, input.fixture),

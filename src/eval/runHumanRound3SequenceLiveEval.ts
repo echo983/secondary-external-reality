@@ -15,8 +15,15 @@ const cases = [
   { input: "笔在哪里", kind: "committed", delta: 1, response: "床头柜" },
   { input: "我手里有什么", kind: "committed", delta: 1, response: "没有" },
   { input: "打开门", kind: "committed", delta: 1, response: "打开了门" },
-  { input: "看看门外", kind: "interface", delta: 0, code: "INTERACTION_UNRESOLVED_REFERENCE" },
-  { input: "门外有什么", kind: "interface", delta: 0, code: "INTERACTION_UNRESOLVED_REFERENCE" },
+  // Door was opened by the previous step, so "门外" now resolves to the real
+  // hallway-1 Place entity. Every committed turn in this suite adds exactly
+  // one row to the store regardless of whether it wrote new WorldTruth (see
+  // e.g. "我手里有什么" above, also delta 1 with zero world commitments) — so
+  // both queries show delta 1 here; what must NOT repeat is the underlying
+  // notable_feature attribute_set itself, which this suite doesn't inspect
+  // directly but test/object-turn.test.ts does (commitPackage.newWorldCommitments).
+  { input: "看看门外", kind: "committed", delta: 1 },
+  { input: "门外有什么", kind: "committed", delta: 1 },
   { input: "走到门口", kind: "committed", delta: 1, response: "门口" },
 ] as const;
 
