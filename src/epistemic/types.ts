@@ -4,7 +4,7 @@ import type { SemanticAddress } from "../world/semanticAddress.js";
 export type ObservationRecord =
   | { observationId: string; kind: "entity_presence"; observerId: string; entityIds: string[]; sourceOccurrenceId: string; provenance: "legacy" | "canonical" }
   | { observationId: string; kind: "attribute_perception"; observerId: string; semanticAddress: SemanticAddress; perceivedValue: JsonScalar; sourceOccurrenceId: string; provenance: "legacy" | "canonical" }
-  | { observationId: string; kind: "relation_perception"; observerId: string; semanticAddress: SemanticAddress; perceivedValue: true; sourceOccurrenceId: string; provenance: "legacy" | "canonical" };
+  | { observationId: string; kind: "relation_perception"; observerId: string; semanticAddress: SemanticAddress; perceivedValue: JsonScalar; sourceOccurrenceId: string; provenance: "legacy" | "canonical" };
 
 export interface CanonicalEvidenceRecord {
   evidenceId: string;

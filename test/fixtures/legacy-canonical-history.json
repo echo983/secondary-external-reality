@@ -1,0 +1,23 @@
+[
+  {
+    "turnId": "legacy:0",
+    "commitSequence": 0,
+    "selectedCandidateId": "legacy-read",
+    "expectedProjectionRevisions": {},
+    "resolvedProjections": [
+      { "projection": "entity:self.action_outcome.stand_now", "value": "stable_success", "revision": 1 }
+    ],
+    "events": [
+      { "eventId": "legacy-event-read", "type": "action_result", "actionKind": "read", "outcome": "success", "subjectRef": "self", "objectRef": "blank-note-1" }
+    ],
+    "stateChanges": [],
+    "observations": [{ "kind": "legacy-untyped-value" }],
+    "evidenceGenerated": [
+      { "evidenceId": "evidence/纸条", "kind": "attribute_observed", "sourceEventId": "legacy-event-read", "subjectId": "blank-note-1", "attribute": "inscription", "value": "001739" }
+    ],
+    "epistemicChanges": [
+      { "agentId": "self", "kind": "acquired_evidence", "evidenceId": "evidence/纸条" }
+    ],
+    "newWorldCommitments": []
+  }
+]
