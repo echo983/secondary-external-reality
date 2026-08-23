@@ -51,6 +51,17 @@ test("consensus ignores non-authoritative roles on zero-arity operations", () =>
   assert.equal(interactionConsensus(base, redundant).agreed, true);
 });
 
+test("validator erases malformed roles only for zero-arity operations", () => {
+  const inventory = { schemaVersion: "1.0.0", inputLanguage: "zh", speechAct: "world_query", actuality: "non_executing", clauses: [
+    { clauseId: "c1", operation: "inventory", verbSpan: "有什么", roles: { role: "target", mention: "我手里" }, queryMode: "inventory" },
+  ] };
+  const normalized = validateInteractionProposal(inventory, "我手里有什么");
+  assert.equal(normalized.valid, true);
+  assert.deepEqual(normalized.proposal?.clauses[0]?.roles, []);
+  inventory.clauses[0]!.operation = "take";
+  assert.equal(validateInteractionProposal(inventory, "我手里有什么").valid, false);
+});
+
 test("mechanically erases non-authoritative query modes from actions", () => {
   const action = { schemaVersion: "1.0.0", inputLanguage: "zh", speechAct: "action_request", actuality: "actual", clauses: [
     { clauseId: "c1", operation: "place", verbSpan: "放下", roles: [{ role: "target", mention: "笔" }], queryMode: null },

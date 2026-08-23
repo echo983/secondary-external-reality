@@ -41,3 +41,8 @@ test("compiler treats inventory as zero-arity even when a workstation emits a re
   const result = compileInteraction(proposal, "我手里有什么");
   assert.deepEqual(result.kind === "executable" ? result.steps[0]?.mentionedEntityIds : null, []);
 });
+
+test("compiler distinguishes an understood move from unresolved language", () => {
+  const proposal = envelope("move", [{ role: "destination", mention: "门口" }]);
+  assert.deepEqual(compileInteraction(proposal, "走到门口"), { kind: "clarification", code: "UNSUPPORTED_OPERATION" });
+});

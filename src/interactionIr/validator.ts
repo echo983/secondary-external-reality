@@ -24,8 +24,9 @@ export function validateInteractionProposal(input: unknown, rawTtd: string): Int
     if (clause.clauseId !== `c${index + 1}`) issues.push({ code: "INVALID_CLAUSE_ID", path: `${path}.clauseId`, message: `Expected c${index + 1}.` });
     if (!INTERACTION_OPERATIONS.includes(clause.operation as never)) issues.push({ code: "INVALID_OPERATION", path: `${path}.operation`, message: "Unknown operation." });
     span(clause.verbSpan, rawTtd, `${path}.verbSpan`, issues);
-    if (!Array.isArray(clause.roles) || clause.roles.length > 4) issues.push({ code: "INVALID_ROLES", path: `${path}.roles`, message: "Expected up to four roles." });
-    else clause.roles.forEach((role, roleIndex) => {
+    const zeroArity = clause.operation === "look_around" || clause.operation === "inventory";
+    if (!zeroArity && (!Array.isArray(clause.roles) || clause.roles.length > 4)) issues.push({ code: "INVALID_ROLES", path: `${path}.roles`, message: "Expected up to four roles." });
+    else if (!zeroArity && Array.isArray(clause.roles)) clause.roles.forEach((role, roleIndex) => {
       const rolePath = `${path}.roles[${roleIndex}]`;
       if (!record(role)) return issues.push({ code: "INVALID_ROLE", path: rolePath, message: "Expected object." });
       exact(role, ["role", "mention"], rolePath, issues);
@@ -45,7 +46,9 @@ export function validateInteractionProposal(input: unknown, rawTtd: string): Int
   if (issues.length) return { valid: false, proposal: null, issues };
   const proposal = structuredClone(input) as Record<string, unknown>;
   if (Array.isArray(proposal.clauses)) proposal.clauses.forEach((clause) => {
-    if (record(clause) && (clause.queryMode === null || speechAct === "action_request")) delete clause.queryMode;
+    if (!record(clause)) return;
+    if (clause.operation === "look_around" || clause.operation === "inventory") clause.roles = [];
+    if (clause.queryMode === null || speechAct === "action_request") delete clause.queryMode;
   });
   return { valid: true, proposal: proposal as unknown as InteractionEnvelopeV10, issues: [] };
 }
