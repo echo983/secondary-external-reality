@@ -15,12 +15,12 @@ export function createObjectWorldFixture(): ObjectWorldFixture {
     { id: "self", type: "person", names: ["我", "自己", "self", "me"] },
     { id: "bed-1", type: "bed", names: ["床", "bed"] },
     { id: "pillow-1", type: "pillow", names: ["枕头", "pillow"] },
-    { id: "nightstand-1", type: "nightstand", names: ["床头柜", "nightstand"] },
-    { id: "drawer-1", type: "drawer", names: ["抽屉", "drawer"], attributes: { container: "true", openable: "true", open_state: "closed" } },
-    { id: "table-1", type: "table", names: ["桌子", "桌上", "table"] },
-    { id: "key-1", type: "key", names: ["钥匙", "key"], attributes: { portable: "true" } },
-    { id: "blank-note-1", type: "paper_note", names: ["空白纸条", "纸条", "note"], attributes: { portable: "true", inscription: "" } },
-    { id: "pen-1", type: "pen", names: ["笔", "pen"], attributes: { portable: "true" } },
+    { id: "nightstand-1", type: "nightstand", names: ["床头柜", "nightstand"], attributes: { surface: "true", zh_name: "床头柜", en_name: "nightstand" } },
+    { id: "drawer-1", type: "drawer", names: ["抽屉", "drawer"], attributes: { container: "true", openable: "true", open_state: "closed", zh_name: "抽屉", en_name: "drawer" } },
+    { id: "table-1", type: "table", names: ["桌子", "桌上", "table"], attributes: { surface: "true", zh_name: "桌子", en_name: "table" } },
+    { id: "key-1", type: "key", names: ["钥匙", "key"], attributes: { portable: "true", zh_name: "钥匙", en_name: "key" } },
+    { id: "blank-note-1", type: "paper_note", names: ["空白纸条", "纸条", "note"], attributes: { portable: "true", inscription: "", zh_name: "纸条", en_name: "note" } },
+    { id: "pen-1", type: "pen", names: ["笔", "pen"], attributes: { portable: "true", zh_name: "笔", en_name: "pen" } },
     { id: "door-1", type: "door", names: ["门", "door"], attributes: { openable: "true", open_state: "closed" } },
   ];
   const seedCommitments: WorldCommitment[] = [];

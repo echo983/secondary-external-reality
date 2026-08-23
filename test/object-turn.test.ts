@@ -68,3 +68,18 @@ test("does not append an impossible close or ambiguous object action", async () 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("places any configured portable object onto a configured surface", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-objects-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    assert.equal((await current.submit("我拿起床头柜上的笔")).response, "你拿起了笔。");
+    assert.equal((await current.submit("我把笔放在桌子上")).response, "你把笔放在桌子上。");
+    const world = MaterializedWorld.replay(await store.list(), createObjectWorldFixture().seedCommitments);
+    assert.equal(world.directLocation("pen-1")?.objectId, "table-1");
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});

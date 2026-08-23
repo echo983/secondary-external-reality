@@ -34,7 +34,7 @@ export class WorkersAiBedroomJury implements BedroomJury {
     const reports: JuryReport[] = [];
     for (const candidate of batch.candidates) {
       const result = await this.client.chat(WORKERS_AI_MODELS.jury, [
-        { role: "system", content: "You are a conservative reality-protocol auditor. Return JSON only. Fail only for a concrete contradiction, causal defect, or unsupported commitment inside the candidate. Do not invent world facts and do not choose an outcome." },
+        { role: "system", content: "You are a conservative reality-protocol auditor. Return JSON only. Fail only for a concrete contradiction, causal defect, or unsupported commitment inside the candidate. Conditions describe the eligible PRE-STATE. Proposed events occur next. State changes and new world commitments describe the POST-STATE caused by those events, so a lawful transition such as closed → open is not a contradiction. Do not invent world facts and do not choose an outcome." },
         { role: "user", content: JSON.stringify({ task: "audit_candidate", projectionRevisions: batch.projectionRevisions, candidate, output: { candidateId: candidate.candidateId, verdict: "pass|fail", violations: [{ code: "string", path: "string", message: "string" }] } }) },
       ], { temperature: 0, max_tokens: 500 });
       const parsed = parseJsonObject(result.content);

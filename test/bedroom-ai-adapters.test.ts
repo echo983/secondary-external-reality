@@ -16,6 +16,17 @@ test("parses a fenced, identity-bound jury report", async () => {
   assert.deepEqual(await jury.review(batch), [{ candidateId: "c1", verdict: "pass", violations: [] }]);
 });
 
+test("tells the jury that conditions and commitments belong to different times", async () => {
+  let systemPrompt = "";
+  const capturing: ChatCompletionClient = { chat: async (_model, messages) => {
+    systemPrompt = messages[0]?.content ?? "";
+    return { model: "jury", usage: {}, content: '{"candidateId":"c1","verdict":"pass","violations":[]}' };
+  } };
+  await new WorkersAiBedroomJury(capturing).review(batch);
+  assert.match(systemPrompt, /PRE-STATE/);
+  assert.match(systemPrompt, /POST-STATE/);
+});
+
 test("rejects malformed or contradictory jury output", async () => {
   await assert.rejects(new WorkersAiBedroomJury(client('{"candidateId":"other","verdict":"pass","violations":[]}')).review(batch));
   await assert.rejects(new WorkersAiBedroomJury(client('{"candidateId":"c1","verdict":"fail","violations":[]}')).review(batch));

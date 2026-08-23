@@ -38,6 +38,10 @@ function currentLocation(world: MaterializedWorld, entity: MaterializedEntity): 
   return location;
 }
 
+function label(entity: MaterializedEntity, language: "zh" | "en"): string {
+  return entity.attributes[language === "zh" ? "zh_name" : "en_name"] ?? entity.entityType;
+}
+
 export async function runObjectTurn(options: {
   rawTtd: string;
   turnId: string;
@@ -80,7 +84,7 @@ export async function runObjectTurn(options: {
     const evidenceId = `evidence-location-${target.entityId}-${options.commitSequence}`;
     evidenceGenerated.push({ evidenceId, kind: "relation_observed", sourceEventId: eventId, subjectId: target.entityId, predicate: location.predicate, objectId: location.objectId });
     epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
-    response = parsed.inputLanguage === "zh" ? "你打开抽屉，在里面找到了钥匙。" : `You open the ${container.entityType} and find the ${target.entityType} inside.`;
+    response = parsed.inputLanguage === "zh" ? `你打开${label(container, "zh")}，在里面找到了${label(target, "zh")}。` : `You open the ${label(container, "en")} and find the ${label(target, "en")} inside.`;
   } else if (parsed.operation === "open" || parsed.operation === "close") {
     const target = exactlyOne(candidatesByCapability(world, mentionedIds, "openable"), "openable object");
     const expected = parsed.operation === "open" ? "closed" : "open";
@@ -90,7 +94,7 @@ export async function runObjectTurn(options: {
     const eventId = `event-${parsed.operation}-${target.entityId}-${options.commitSequence}`;
     events.push({ eventId, type: "action_result", actionKind: parsed.operation, outcome: "success", subjectRef: "self", objectRef: target.entityId });
     commitments.push({ kind: "attribute_set", entityId: target.entityId, attribute: "open_state", value: next });
-    response = parsed.inputLanguage === "zh" ? `你${parsed.operation === "open" ? "打开" : "关上"}了${target.entityType === "drawer" ? "抽屉" : "门"}。` : `You ${parsed.operation} the ${target.entityType}.`;
+    response = parsed.inputLanguage === "zh" ? `你${parsed.operation === "open" ? "打开" : "关上"}了${label(target, "zh")}。` : `You ${parsed.operation} the ${label(target, "en")}.`;
   } else if (parsed.operation === "take") {
     const object = exactlyOne(candidatesByCapability(world, mentionedIds, "portable"), "portable object");
     const location = currentLocation(world, object);
@@ -107,7 +111,20 @@ export async function runObjectTurn(options: {
       { kind: "relation_ended", relationId: location.relationId },
       { kind: "relation_asserted", relationId: `${object.entityId}-location-${options.commitSequence}`, subjectId: object.entityId, predicate: "held_by", objectId: "self" },
     );
-    response = parsed.inputLanguage === "zh" ? `你拿起了${object.entityType === "key" ? "钥匙" : "物品"}。` : `You take the ${object.entityType}.`;
+    response = parsed.inputLanguage === "zh" ? `你拿起了${label(object, "zh")}。` : `You take the ${label(object, "en")}.`;
+  } else if (parsed.operation === "place") {
+    const object = exactlyOne(candidatesByCapability(world, mentionedIds, "portable"), "portable object");
+    const surface = exactlyOne(candidatesByCapability(world, mentionedIds, "surface"), "surface");
+    const location = currentLocation(world, object);
+    if (location.predicate !== "held_by" || location.objectId !== "self") throw new ObjectTurnError(`${object.entityId} is not held by self.`);
+    fact(registry, snapshots, conditions, `relation:${location.relationId}.active`, "true", location.setAtSequence);
+    const eventId = `event-place-${object.entityId}-${options.commitSequence}`;
+    events.push({ eventId, type: "action_result", actionKind: "place", outcome: "success", subjectRef: "self", objectRef: object.entityId });
+    commitments.push(
+      { kind: "relation_ended", relationId: location.relationId },
+      { kind: "relation_asserted", relationId: `${object.entityId}-location-${options.commitSequence}`, subjectId: object.entityId, predicate: "located_on", objectId: surface.entityId },
+    );
+    response = parsed.inputLanguage === "zh" ? `你把${label(object, "zh")}放在${label(surface, "zh")}上。` : `You place the ${label(object, "en")} on the ${label(surface, "en")}.`;
   } else if (parsed.operation === "put_inside") {
     const object = exactlyOne(candidatesByCapability(world, mentionedIds, "portable"), "portable object");
     const containers = candidatesByCapability(world, mentionedIds, "container").filter((entity) => entity.entityId !== object.entityId);
@@ -123,7 +140,7 @@ export async function runObjectTurn(options: {
       { kind: "relation_ended", relationId: location.relationId },
       { kind: "relation_asserted", relationId: `${object.entityId}-location-${options.commitSequence}`, subjectId: object.entityId, predicate: "contained_by", objectId: container.entityId },
     );
-    response = parsed.inputLanguage === "zh" ? "你把钥匙放进了抽屉。" : `You put the ${object.entityType} into the ${container.entityType}.`;
+    response = parsed.inputLanguage === "zh" ? `你把${label(object, "zh")}放进了${label(container, "zh")}。` : `You put the ${label(object, "en")} into the ${label(container, "en")}.`;
   } else {
     const visible = mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity !== undefined);
     const target = exactlyOne(visible.filter((entity) => entity.entityType !== "person"), "observable object");
@@ -138,7 +155,7 @@ export async function runObjectTurn(options: {
     const evidenceId = `evidence-location-${target.entityId}-${options.commitSequence}`;
     evidenceGenerated.push({ evidenceId, kind: "relation_observed", sourceEventId: eventId, subjectId: target.entityId, predicate: location.predicate, objectId: location.objectId });
     epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
-    response = parsed.inputLanguage === "zh" ? `你找到了${target.entityType === "key" ? "钥匙" : "那个物品"}。` : `You find the ${target.entityType}.`;
+    response = parsed.inputLanguage === "zh" ? `你找到了${label(target, "zh")}。` : `You find the ${label(target, "en")}.`;
   }
 
   const candidateId = `object-${parsed.operation}-${options.commitSequence}`;
@@ -148,5 +165,8 @@ export async function runObjectTurn(options: {
 }
 
 export function isObjectIntent(rawTtd: string): boolean {
-  return parseObjectIntent(rawTtd) !== null && /(钥匙|抽屉|key|drawer|table|桌)/iu.test(rawTtd);
+  const parsed = parseObjectIntent(rawTtd);
+  if (!parsed) return false;
+  const ids = resolveFixtureEntity(createObjectWorldFixture(), rawTtd);
+  return ids.some((id) => id !== "door-1");
 }

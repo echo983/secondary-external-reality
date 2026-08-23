@@ -10,6 +10,10 @@ The current vertical slices support opening the bedroom door and writing an
 exact numeric inscription on a paper note, hiding it under the pillow, then
 finding and reading it after unrelated actions or a process restart.
 
+The generic object-operation MVP also supports taking portable objects,
+placing them on surfaces or inside open containers, opening/closing containers,
+and observing them through event-sourced temporal relations.
+
 ## Development
 
 ```sh

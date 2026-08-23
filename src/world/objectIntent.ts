@@ -1,4 +1,4 @@
-export const OBJECT_OPERATION_KINDS = ["take", "put_inside", "open", "close", "observe", "open_and_observe"] as const;
+export const OBJECT_OPERATION_KINDS = ["take", "place", "put_inside", "open", "close", "observe", "open_and_observe"] as const;
 export type ObjectOperationKind = (typeof OBJECT_OPERATION_KINDS)[number];
 
 export interface ObjectIntent {
@@ -13,6 +13,7 @@ export function parseObjectIntent(rawTtd: string): ObjectIntent | null {
   let operation: ObjectOperationKind | null = null;
   if (/(打开|open)/iu.test(text) && /(找|查看|看看|观察|find|look|inspect|observe)/iu.test(text)) operation = "open_and_observe";
   else if (/(放进|放入|装进|put .* (?:in|into))/iu.test(text)) operation = "put_inside";
+  else if (/(放到|放在|搁在|put .* on|place .* on)/iu.test(text)) operation = "place";
   else if (/(拿起|拿到|取出|拿出|pick up|take|remove)/iu.test(text)) operation = "take";
   else if (/(打开|open)/iu.test(text)) operation = "open";
   else if (/(关上|关闭|close|shut)/iu.test(text)) operation = "close";
