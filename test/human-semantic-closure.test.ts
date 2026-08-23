@@ -59,6 +59,17 @@ test("routes high-confidence colloquial perception and location without model in
   });
 });
 
+test("never executes negated, hypothetical, or conditional language on the deterministic path", async () => {
+  await withSession(async (session, store) => {
+    for (const input of ["不要打开抽屉", "如果我打开抽屉会怎样", "假装打开抽屉", "What if I open the drawer?"]) {
+      const result = await session.submit(input);
+      assert.equal(result.kind, "interface");
+      assert.equal(result.kind === "interface" ? result.code : undefined, "UNSUPPORTED_MODIFIER");
+    }
+    assert.equal((await store.list()).length, 0);
+  });
+});
+
 test("resolves an exposed alias in discourse but rechecks visibility after hiding", async () => {
   await withSession(async (session, store) => {
     await session.submit("看看周围");

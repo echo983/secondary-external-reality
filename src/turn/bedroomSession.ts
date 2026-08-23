@@ -175,7 +175,17 @@ export class BedroomSession {
       return { kind: "committed", response: completed.map((item) => item.response).join(""), commitPackage: last.commitPackage,
         commitPackages: completed.flatMap((item) => item.commitPackages ?? [item.commitPackage]), intent: parseMvpIntent(rawTtd), partial: false };
     } catch (error) {
-      if (auditWritten || stage === "compile" || stage === "execution") throw error;
+      if (auditWritten || stage === "compile" || stage === "execution") {
+        try {
+          await this.options.store.appendActionProposalAudit({
+            auditId: `${auditId}:${stage}-error`, rootTurnId, mode: "active", inputHash,
+            status: "rejected", failureStage: stage, validationIssues: [], groundingIssues: normalized.repairs,
+            semanticIssues: [{ code: "SEMANTIC_IR_STAGE_ERROR", stage, message: error instanceof Error ? error.message : String(error) }],
+            createdAt: new Date().toISOString(),
+          });
+        } catch { /* Diagnostic telemetry cannot affect world admission. */ }
+        throw error;
+      }
       try {
         await this.options.store.appendActionProposalAudit({
           auditId, rootTurnId, mode: "active", inputHash, status: "model_error", failureStage: stage,

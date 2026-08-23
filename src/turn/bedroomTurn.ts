@@ -41,7 +41,7 @@ export interface EvidenceTurnResult {
 export interface InterfaceTurnResult {
   kind: "interface";
   response: string;
-  code: "CONVERSATION" | "INCOMPLETE_FRAGMENT" | "UNSUPPORTED_WORLD_SCOPE" | "UNSUPPORTED_CAPABILITY" | "AMBIGUOUS_REFERENCE";
+  code: "CONVERSATION" | "INCOMPLETE_FRAGMENT" | "UNSUPPORTED_WORLD_SCOPE" | "UNSUPPORTED_CAPABILITY" | "UNSUPPORTED_MODIFIER" | "AMBIGUOUS_REFERENCE";
   intent: NormalizedIntent;
   commitPackage: never;
   commitPackages?: never;

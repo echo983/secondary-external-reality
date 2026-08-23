@@ -58,17 +58,18 @@ test("active IR replays current world before every ordered step", async () => {
   } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
-test("active IR semantic rejection and explicit exits produce zero commits", async () => {
+test("negated language and explicit Action IR exits produce zero commits", async () => {
   const directory = await mkdtemp(join(tmpdir(), "secondary-reality-active-"));
   const store = new LanceCommitStore(join(directory, "world.lancedb"));
   try {
     const action: ActionProposalEnvelopeV07 = { schemaVersion: "0.8.0", inputLanguage: "zh", exitKind: "actions",
       steps: [{ stepId: "s1", primitive: "open", actor: "self", roles: [{ role: "target", mention: "抽屉" }], modifiers: {} }] };
     const rejecting: ActionIrSemanticAuditor = { async review() { return { verdict: "fail", violations: [{ code: "INVENTED", path: "$.steps", message: "invented" }] }; } };
-    await assert.rejects(session(store, action, rejecting).submit("看看抽屉是否存在，但不要动它"));
+    const negated = await session(store, action, rejecting).submit("看看抽屉是否存在，但不要动它");
+    assert.equal(negated.kind, "interface");
     const exit: ActionProposalEnvelopeV07 = { schemaVersion: "0.8.0", inputLanguage: "zh", exitKind: "not_an_action", steps: [] };
     await assert.rejects(session(store, exit).submit("今天的房间很安静"));
     assert.equal((await store.list()).length, 0);
-    assert.deepEqual((await store.listActionProposalAudits()).map((audit) => audit.status), ["rejected", "validated"]);
+    assert.deepEqual((await store.listActionProposalAudits()).map((audit) => audit.status), ["validated"]);
   } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
 });
