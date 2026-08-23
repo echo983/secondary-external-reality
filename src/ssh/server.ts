@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import ssh2 from "ssh2";
 import type { AuthContext, Server as SshServer, ServerChannel } from "ssh2";
 import { DualRoleBedroomJury, KernelAwareBedroomJury, WorkersAiBedroomJury, WorkersAiTurnRenderer } from "../ai/bedroomAdapters.js";
+import { DeterministicPresentationRenderer } from "../presentation/renderer.js";
 import { WorkersAiClient } from "../ai/workersAiClient.js";
 import { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import { BedroomSession } from "../turn/bedroomSession.js";
@@ -42,7 +43,8 @@ export function createSshMvpServer(config: SshMvpConfig): { server: SshServer; s
       new WorkersAiBedroomJury(client, "world_causality"),
       new WorkersAiBedroomJury(client, "experience_epistemic"),
     )),
-    renderer: new WorkersAiTurnRenderer(client, new ChineseBedroomRenderer()),
+    renderer: new ChineseBedroomRenderer(),
+    queryRenderer: new WorkersAiTurnRenderer(client, new DeterministicPresentationRenderer()),
     actionIr: {
       mode: config.actionIrMode ?? "off",
       proposer: new WorkersAiActionIrProposer(client),

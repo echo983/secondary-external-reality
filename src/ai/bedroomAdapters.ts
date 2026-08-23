@@ -1,8 +1,9 @@
 import type { ChatMessage, ChatResult } from "./workersAiClient.js";
 import { WORKERS_AI_MODELS } from "./workersAiClient.js";
-import type { BedroomJury, TurnRenderer } from "../turn/bedroomTurn.js";
-import type { CommitPackage, JuryBatch, JuryReport, ValidationIssue } from "../protocol/types.js";
-import type { NormalizedIntent } from "../world/intent.js";
+import type { BedroomJury } from "../turn/bedroomTurn.js";
+import type { JuryBatch, JuryReport, ValidationIssue } from "../protocol/types.js";
+import type { ApprovedPresentationPacket } from "../presentation/types.js";
+import type { ApprovedPresentationRenderer } from "../presentation/renderer.js";
 
 export interface ChatCompletionClient {
   chat(model: string, messages: ChatMessage[], extra?: Record<string, unknown>): Promise<ChatResult>;
@@ -101,18 +102,18 @@ export class KernelAwareBedroomJury implements BedroomJury {
   }
 }
 
-export class WorkersAiTurnRenderer implements TurnRenderer {
-  constructor(private readonly client: ChatCompletionClient, private readonly fallback: TurnRenderer) {}
+export class WorkersAiTurnRenderer implements ApprovedPresentationRenderer {
+  constructor(private readonly client: ChatCompletionClient, private readonly fallback: ApprovedPresentationRenderer) {}
 
-  async render(commitPackage: CommitPackage, intent: NormalizedIntent): Promise<string> {
+  async render(packet: ApprovedPresentationPacket, languageSample: string): Promise<string> {
     try {
       const result = await this.client.chat(WORKERS_AI_MODELS.candidate, [
-        { role: "system", content: "Render committed player-facing events as one brief natural-language response in the same language as the player's input. Mention only supplied events, state changes, and observations. Add no causes, objects, people, sensations, choices, or outcomes. Output plain prose only." },
-        { role: "user", content: JSON.stringify({ inputLanguageSample: intent.rawTtd, events: commitPackage.events, stateChanges: commitPackage.stateChanges, observations: commitPackage.observations, evidenceGenerated: commitPackage.evidenceGenerated ?? [], epistemicChanges: commitPackage.epistemicChanges ?? [] }) },
+        { role: "system", content: "Render the approved player-facing packet as one brief natural-language response matching the language sample. Mention only packet items. Do not infer or add facts. Output plain prose only." },
+        { role: "user", content: JSON.stringify({ inputLanguageSample: languageSample, packet }) },
       ], { temperature: 0.2, max_tokens: 180, chat_template_kwargs: { enable_thinking: false } });
       return result.content;
     } catch {
-      return this.fallback.render(commitPackage, intent);
+      return this.fallback.render(packet, languageSample);
     }
   }
 }

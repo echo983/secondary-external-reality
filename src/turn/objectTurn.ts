@@ -14,6 +14,7 @@ import type { FixedQueryKind, QueryRequest } from "../query/types.js";
 import { buildCanonicalQueryEnvelope, type CompleteRelationSetInput } from "../query/canonicalQueryEnvelope.js";
 import type { ApprovedPresentationItem } from "../presentation/types.js";
 import { entityAttributeAddress, relationSlotAddress } from "../world/semanticAddress.js";
+import { DeterministicPresentationRenderer, type ApprovedPresentationRenderer } from "../presentation/renderer.js";
 
 export class ObjectTurnError extends Error {}
 
@@ -71,10 +72,12 @@ export async function runObjectTurn(options: {
   attemptedTtd?: string;
   objectIntent?: ObjectIntent;
   mentionedEntityIds?: string[];
+  queryRenderer?: ApprovedPresentationRenderer;
 }): Promise<TurnResult> {
   const parsed = options.objectIntent ?? parseObjectIntent(options.rawTtd);
   if (!parsed) throw new ObjectTurnError("Unsupported object intent.");
   const fixture = options.fixture ?? createObjectWorldFixture();
+  const queryRenderer = options.queryRenderer ?? new DeterministicPresentationRenderer();
   for (const commit of options.priorCommits) {
     if (commit.worldBasis && (commit.worldBasis.fixtureId !== fixture.worldBasis.fixtureId || commit.worldBasis.fixtureVersion !== fixture.worldBasis.fixtureVersion || commit.worldBasis.seedHash !== fixture.worldBasis.seedHash)) {
       throw new ObjectTurnError("Committed world basis does not match the active fixture.");
@@ -102,7 +105,7 @@ export async function runObjectTurn(options: {
         UNSUPPORTED_PROJECTION: "The current world cannot answer that yet.", RESOLUTION_DEFERRED: "That fact has not yet been fixed.", AMBIGUOUS_TARGET: "The target is ambiguous.",
       };
       const packet = { packetId: `${options.turnId}:boundary`, outcome: "boundary" as const, language: parsed.inputLanguage, items: [{ kind: "boundary" as const, code }] };
-      return { kind: "boundary", response: parsed.inputLanguage === "zh" ? zh[code] : en[code], packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never };
+      return { kind: "boundary", response: await queryRenderer.render(packet, options.rawTtd), packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never };
     }
   }
   const registry: ProjectionDefinition[] = [];
@@ -346,6 +349,7 @@ export async function runObjectTurn(options: {
   const canonical = (queryKind || parsed.operation === "read") ? buildCanonicalQueryEnvelope({ turnId: options.turnId, commitSequence: options.commitSequence, language: parsed.inputLanguage,
     evidence: evidenceGenerated, presentationItems, ...(completeRelationSet ? { completeRelationSet } : {}) }) : undefined;
   const commitPackage = await commitCandidateEnvelope({ ...options, envelope, registry, snapshots, worldBasis: fixture.worldBasis, seedCommitments: fixture.seedCommitments, ...(canonical ? { canonical } : {}) });
+  if (commitPackage.canonical) response = await queryRenderer.render(commitPackage.canonical.presentationPacket, options.rawTtd);
   return { kind: "committed", response, commitPackage, intent: parseMvpIntent(options.rawTtd) };
 }
 

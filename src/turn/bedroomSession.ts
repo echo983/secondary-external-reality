@@ -20,6 +20,7 @@ import type { ObjectIntent } from "../world/objectIntent.js";
 import type { SemanticIrAuditor, SemanticIrProposer } from "../semanticIr/adapters.js";
 import { compileSemanticIntent } from "../semanticIr/compiler.js";
 import { normalizeSemanticInput } from "../semanticIr/normalization.js";
+import { DeterministicPresentationRenderer, type ApprovedPresentationRenderer } from "../presentation/renderer.js";
 
 export interface BedroomSessionOptions {
   sessionId: string;
@@ -29,6 +30,7 @@ export interface BedroomSessionOptions {
   fixtureFactory?: () => BedroomFixture;
   actionIr?: { mode: "off" | "shadow" | "active"; proposer?: ActionIrProposer; semanticAuditor?: ActionIrSemanticAuditor };
   semanticIr?: { proposer: SemanticIrProposer; auditor: SemanticIrAuditor };
+  queryRenderer?: ApprovedPresentationRenderer;
 }
 
 export class BedroomSession {
@@ -283,6 +285,7 @@ export class BedroomSession {
         priorCommits: commits,
         jury: this.options.jury,
         store: this.options.store,
+        queryRenderer: this.options.queryRenderer ?? new DeterministicPresentationRenderer(),
         rootTurnId, stepIndex, stepCount, attemptedTtd: rawTtd,
         ...(objectIntent ? { objectIntent } : {}),
         ...(mentionedEntityIds ? { mentionedEntityIds } : {}),

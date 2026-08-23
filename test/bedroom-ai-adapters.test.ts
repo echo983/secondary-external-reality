@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DualRoleBedroomJury, KernelAwareBedroomJury, WorkersAiBedroomJury, WorkersAiTurnRenderer, type ChatCompletionClient } from "../src/ai/bedroomAdapters.js";
-import { ChineseBedroomRenderer } from "../src/turn/bedroomTurn.js";
-import type { JuryBatch, CommitPackage, ConditionalCandidate } from "../src/protocol/types.js";
+import { DeterministicPresentationRenderer } from "../src/presentation/renderer.js";
+import type { JuryBatch, ConditionalCandidate } from "../src/protocol/types.js";
 
 const candidate = { candidateId: "c1", outcomeKind: "partial" as const, requiresResolution: [], conditions: [], proposedEvents: [], proposedStateChanges: [], observations: [], newWorldCommitments: [] };
 const batch: JuryBatch = { projectionRevisions: {}, candidates: [candidate] };
@@ -71,10 +71,13 @@ test("mechanically constituted read-only observations do not become probabilisti
 });
 
 test("uses model prose and falls back when rendering fails", async () => {
-  const commit = { turnId: "t", commitSequence: 1, selectedCandidateId: "c1", expectedProjectionRevisions: {}, resolvedProjections: [], events: [], stateChanges: [], observations: [], newWorldCommitments: [] } satisfies CommitPackage;
-  const intent = { actorId: "self" as const, rawTtd: "我去开门", actions: [], inputLanguage: "zh" as const };
-  const rendered = new WorkersAiTurnRenderer(client("你走到门边。"), new ChineseBedroomRenderer());
-  assert.equal(await rendered.render(commit, intent), "你走到门边。");
+  const packet = { packetId: "p", outcome: "boundary" as const, language: "zh" as const, items: [{ kind: "boundary" as const, code: "CONTAINER_CLOSED" as const }] };
+  let payload = "";
+  const capturing: ChatCompletionClient = { chat: async (model, messages) => { payload = messages[1]?.content ?? ""; return { model, usage: {}, content: "容器关着。" }; } };
+  const rendered = new WorkersAiTurnRenderer(capturing, new DeterministicPresentationRenderer());
+  assert.equal(await rendered.render(packet, "看看里面"), "容器关着。");
+  assert.doesNotMatch(payload, /newWorldCommitments|stateChanges|jury|epistemicChanges/u);
+  assert.match(payload, /"packet"/u);
   const broken: ChatCompletionClient = { chat: async () => { throw new Error("offline"); } };
-  assert.match(await new WorkersAiTurnRenderer(broken, new ChineseBedroomRenderer()).render(commit, intent), /左腿/);
+  assert.match(await new WorkersAiTurnRenderer(broken, new DeterministicPresentationRenderer()).render(packet, "看看里面"), /关着/u);
 });
