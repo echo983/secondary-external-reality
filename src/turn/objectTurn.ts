@@ -6,6 +6,7 @@ import { parseMvpIntent } from "../world/intent.js";
 import { parseObjectIntent, type ObjectIntent } from "../world/objectIntent.js";
 import type { BedroomJury, TurnResult } from "./bedroomTurn.js";
 import { commitCandidateEnvelope } from "./commitCandidate.js";
+import { isEntityPerceivable } from "../query/perceptionPolicy.js";
 
 export class ObjectTurnError extends Error {}
 
@@ -41,18 +42,6 @@ function currentLocation(world: MaterializedWorld, entity: MaterializedEntity): 
 function label(entity: MaterializedEntity, language: "zh" | "en"): string {
   const fallbackZh: Record<string, string> = { bed: "床", door: "门", drawer: "抽屉", key: "钥匙", pen: "笔", paper_note: "纸条", pillow: "枕头", table: "桌子", nightstand: "床头柜" };
   return entity.attributes[language === "zh" ? "zh_name" : "en_name"] ?? (language === "zh" ? fallbackZh[entity.entityType] : undefined) ?? entity.entityType;
-}
-
-function isVisible(world: MaterializedWorld, entity: MaterializedEntity, visited = new Set<string>()): boolean {
-  if (visited.has(entity.entityId)) return false;
-  visited.add(entity.entityId);
-  const location = world.directLocation(entity.entityId);
-  if (!location) return entity.entityType !== "person";
-  if (location.predicate === "held_by") return location.objectId === "self";
-  const parent = world.entities.get(location.objectId);
-  if (!parent || !isVisible(world, parent, visited)) return false;
-  if (location.predicate === "contained_by") return parent.attributes.open_state === "open";
-  return true;
 }
 
 function relationWords(relation: MaterializedRelation, object: MaterializedEntity, language: "zh" | "en"): string {
@@ -97,7 +86,7 @@ export async function runObjectTurn(options: {
   let response: string;
 
   if (parsed.operation === "look_around") {
-    const visible = [...world.entities.values()].filter((entity) => isVisible(world, entity)).sort((a, b) => a.entityId.localeCompare(b.entityId));
+    const visible = [...world.entities.values()].filter((entity) => isEntityPerceivable(world, entity)).sort((a, b) => a.entityId.localeCompare(b.entityId));
     const eventId = `event-look-around-${options.commitSequence}`;
     events.push({ eventId, type: "action_result", actionKind: "look_around", outcome: "success", subjectRef: "self" });
     for (const entity of visible) {
@@ -140,7 +129,7 @@ export async function runObjectTurn(options: {
     response = parsed.inputLanguage === "zh" ? (names.length ? `${label(container, "zh")}里面有：${names.join("、")}。` : `${label(container, "zh")}里面是空的。`) : (names.length ? `Inside the ${label(container, "en")} you see: ${names.join(", ")}.` : `The ${label(container, "en")} is empty.`);
   } else if (parsed.operation === "locate") {
     const target = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity !== undefined && entity.entityType !== "person"), "locatable object");
-    if (!isVisible(world, target)) throw new ObjectTurnError(`${target.entityId} is not currently visible.`);
+    if (!isEntityPerceivable(world, target)) throw new ObjectTurnError(`${target.entityId} is not currently visible.`);
     const location = currentLocation(world, target);
     const locationObject = world.entities.get(location.objectId)!;
     fact(registry, snapshots, conditions, `relation:${location.relationId}.active`, "true", location.setAtSequence);
@@ -176,7 +165,7 @@ export async function runObjectTurn(options: {
     response = parsed.inputLanguage === "zh" ? `你在${label(note, "zh")}上写下“${inscription}”，把它放在${label(pillow, "zh")}下面。` : `You write “${inscription}” on the ${label(note, "en")} and place it under the ${label(pillow, "en")}.`;
   } else if (parsed.operation === "inspect_inscription_presence" || parsed.operation === "inspect_inscription_value") {
     const note = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.entityType === "paper_note"), "paper note");
-    if (!isVisible(world, note)) throw new ObjectTurnError(`${note.entityId} is not currently visible.`);
+    if (!isEntityPerceivable(world, note)) throw new ObjectTurnError(`${note.entityId} is not currently visible.`);
     const inscription = note.attributes.inscription ?? "";
     fact(registry, snapshots, conditions, `entity:${note.entityId}.inscription`, inscription, note.attributeRevisions.inscription ?? 0);
     const eventId = `event-inspect-inscription-${note.entityId}-${options.commitSequence}`;
