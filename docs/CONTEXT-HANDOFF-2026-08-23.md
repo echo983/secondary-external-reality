@@ -1,357 +1,263 @@
 # Secondary External Reality：完整现状与上下文交接
 
-日期：2026-08-23  
-用途：上下文压缩后的权威工程交接快照  
-分支：`main`  
-生成前远端 HEAD：`1e88d1f docs: plan canonical epistemic kernel phase 2`
+日期：2026-08-23
+用途：上下文压缩、主代理续接和多子任务协同的权威工程快照
+分支：`main`
+记录基线：`5f32981 fix: ground spatial placement semantics`（本交接更新将在其后提交）
+包版本：`secondary-external-reality@0.2.0`
 
-## 1. 项目目的
+## 1. 一句话现状
 
-项目要提供一个普通 SSH 界面。使用者登录后看到：
+这是一个已可真人 SSH 测试的有界卧室世界：开放自然语言先由两个并行 LLM 工位构成受限 Interaction IR，只有通过严格验证和机械共识后，才由本地实体绑定、世界能力、认识边界、陪审和 append-only 提交链决定是否发生。当前本地测试 177/177，真实 Workers AI 统一门禁 96/96，canonical replay fatal issue 为 0。
 
-```text
-ttd:
-```
+它不是开放世界。门外空间与一般移动仍明确未建模。
 
-`ttd` 表示 try to do：输入是主体意识发出的尝试指令，不是对结果的宣告。服务器端世界根据已经存在的世界事实、身体/空间条件、因果规则和观察能力，返回可信的“第二外部现实回应”，使用与输入相同的语言。
+## 2. 用户目标与产品语义
 
-例如“我下床去开门”可能成功，也可能因腿麻等身体反馈部分失败。LLM 可以理解自然语言、提出候选、审计可信性和呈现结果，但不拥有 WorldTruth 提交权。
+用户通过普通 SSH 连接，看到 `ttd:`。`ttd` 表示 try to do：输入是主体意识的尝试，而不是宣告结果。世界可能让动作成功、失败或只成功一部分，并返回同语言的可信“第二外部现实回应”。
 
-长期系统可能极大，因此工程策略始终是：先建立很窄但真实闭合的 MVP，再逐层开放。
+长期方向可能很庞大，因此始终采用最小闭环策略：先让少量实体、关系、动作、观察和记忆真正自洽，再逐层开放语言、空间和原语。
 
-## 2. 总体设计原则
+## 3. GWA 纲领与不可破坏的不变量
 
-项目以 GWA（Generative World Architecture）为纲，但 MVP 不声称严格或完整实现。
-
-核心纪律：
+本项目以 GWA 为纲，但 MVP 不声称严格完整实现。核心纪律：
 
 - 开放表达，封闭因果原语；
 - 开放提案，不开放提交权；
-- World Kernel 决定什么是真的；
-- Observation 决定什么成为证据；
-- Presentation 决定如何表达，不能反向构成世界事实；
-- query 决定在哪里揭示，不能决定潜在过去是什么；
-- Free 世界语义投影一旦被实际解析，就必须原子固定；
-- 已固定历史只能由后续合法事件推进，不能静默改写；
-- WorldTruth、Evidence、Agent Epistemic Graph 必须分开；
-- 被感知不等于被记住，遗忘不能释放世界事实；
-- LLM 陪审适合语义和经验判断，不能替代确定性一致性验证。
+- Interaction/Action/Semantic IR 是非权威解释，不是 WorldTruth；
+- LLM 不得直接声明实体 ID、能力、状态、成功、证据或 commitment；
+- WorldTruth、Evidence、Agent Epistemic Graph、Presentation、Discourse Context 分层；
+- query 只能揭示，不得决定或改写潜在事实；
+- presentation 只能表达 approved packet，不得反向构成事实；
+- 关闭容器、隐藏对象和未观察 inscription 不得泄露；
+- 已提交历史只能被后续合法事件推进，不能静默改写；
+- 部分成功以已提交前缀为真，不以叙述回滚；
+- invalid、模型失败或双工位分歧必须 fail closed；
+- 真人失败输入先进入语料和结构诊断，不以自然语言 switch/if 无限制封堵。
 
-关键 GWA 原文和本项目研究：
+GWA 原文和项目研究入口见 [INDEX.md](INDEX.md)。
 
-- `docs/GWA-v0.3a-dual-layer.txt`
-- `docs/GWA-v0.3a-P1-P6c-FROZEN-total-patch.txt`
-- `docs/GWA-Core-v0.3b-CMWF-1-formal-consensus.md.docx`
-- `docs/GWA-countersignature-patch-v0.3b-CMWF1.docx`
-- `docs/GWA-larger-architecture-study-after-v0.9.md`
+## 4. 已完成的架构阶段
 
-## 3. 已完成里程碑
-
-### v0.6 世界基础加固
-
-Tag：`mvp-world-foundation-v0.6.0`
+### 世界与持久化基础（v0.1–v0.6）
 
 - LanceDB append-only `world_commits`；
-- seed/basis/hash 与重放；
+- seed/world basis/hash 与确定性重放；
 - 封闭 entity/attribute/relation schema；
-- 提交前 future-world 试应用；
-- state change 与 entity attribute commitment 单一语义桥；
-- 跨进程文件锁与 expected world sequence；
-- event/evidence/epistemic 引用完整性；
-- LLM 无 append 权。
+- candidate validation、future-world 试应用和 commit admission；
+- state change 与 entity attribute commitment 语义桥；
+- expected sequence、进程内队列与跨进程 writer lock；
+- `turn_attempts` 与崩溃后 success audit 修复；
+- 纸条数字在无关动作和进程重启后仍可精确找回。
 
-### v0.7 Open Action IR
+### 开放语言但封闭执行（v0.7–v0.9）
 
-Tag：`mvp-open-action-ir-v0.7.0`
+- Action IR：严格 schema/source span、semantic audit、确定性 grounding、双现实陪审；
+- Bounded Open World：环顾、库存、位置、容器内容与 visibility；
+- Semantic IR：开放 query/perception 语义，本地 capability compiler 独占 executable intent；
+- 支持 `off | shadow | active` 的旧 Action IR 路由。
 
-- LLM 提出受限 Action IR；
-- 严格 schema/source-span validation；
-- semantic auditor；
-- deterministic entity grounding；
-- world-causality 与 experience-epistemic 双角色陪审；
-- `off | shadow | active` 三种模式；
-- 最终仍编译到封闭本地动作能力。
+### Canonical Commitment & Epistemic Kernel（v1.0 Phase 1–2）
 
-### v0.8 Bounded Open World
+- stable SemanticAddress；
+- canonical commitment/evidence/acquisition 类型；
+- legacy-compatible strict/diagnostic replay；
+- CommitmentGraph、EvidenceLedger、AgentEpistemicGraph；
+- QueryRequest / QueryDecision / PerceptionPolicy / Query Triage；
+- complete scoped relation-set observation，可表达“确实检查后为空”；
+- boundary、prior evidence consultation 和 committed observation 分离；
+- ApprovedPresentationPacket 与 risk-aware renderer；
+- canonical/legacy dual-write 等价验证；
+- self position/posture query 与共享 ReferenceLexicon。
 
-Tag：`mvp-bounded-open-world-v0.8.0`
+### 人类语义闭环与门禁（Phase 2.1–2.5）
 
-- `look_around`、`inventory`、`inspect_contents`、`locate`；
-- 从 seed + commits 重放 MaterializedWorld；
-- 隐藏物、关闭容器和 inscription 不泄露；
-- entity catalog 与 state-derived affordances；
-- 观察产生 event/evidence/epistemic change。
+- 闲聊、残句、unsupported scope/capability 成为合法零提交 interface；
+- 否定、假设、条件在确定性动作前被保护；
+- 会话内唯一焦点 `它 / it`，执行前仍重新经过 perception/grounding；
+- 多连接独立 discourse session，共享世界提交串行；
+- ordinary、adversarial、discourse 的真实模型门禁统一聚合。
 
-### v0.9 Open Semantic IR
+### Interaction IR（当前开放输入主链）
 
-Tag：`mvp-open-semantic-ir-v0.9.0`，commit `3279588`。
+- 两个独立 Workers AI 工位：`linguist` 与 `safety_analyst`；
+- speech act、actuality、ordered clauses、operation、source-grounded roles；
+- 严格 validator，未知字段和非原文 mention 拒绝；
+- 两工位完整重采样至多一次，绝不接受单工位结果；
+- mechanical material consensus；
+- `shadow | guard | active` 及独立 `interaction_ir_audits`；
+- active compiler 只负责封闭操作映射、槽位完整性、引用绑定和 literal 检查；
+- world query 与 actual action 才能继续，其余均零提交。
 
-- LLM 开放地提出 query/perception 的语义；
-- 本地 compiler 独占 executable intent 生成权；
-- semantic proposal 非权威审计；
-- inscription presence 与 exact value 分离；
-- 中英文自然改写和相邻重复 CJK 修复；
-- 真实 SSH 验证过写藏 `001739`、隐藏不泄露、找到后精确恢复。
+### 最近真人测试加固（v0.2.0）
 
-### v1.0 Phase 1：规范类型与兼容重放
+- scoped perception 不可丢失：`门外` 不能缩成 `门`，也不能降级为室内环顾；
+- `look_around` / `inventory` 的非权威多余 roles 机械清除；
+- `move` 可被语言层理解，但 compiler 明确返回 unsupported primitive；
+- `抽屉里`、`床上` 被解析为实体 + 空间关系；
+- 放置按目的实体能力生成 `contained_by` 或 `located_on`；
+- `place` / `put_inside` 仅在共识比较中视为同一放置词汇族；
+- bare imperative 与 capability query 明确区分；
+- SSH ANSI CSI 方向键序列不再污染 ttd 输入。
 
-状态：完成，实施记录 `docs/MVP-canonical-epistemic-kernel-phase1-v1.0.md`。
+## 5. 当前权威运行链
 
-相关 commits：
+```text
+SSH input
+→ per-session BedroomSession + global world serialization
+→ two Interaction IR workstations in parallel
+→ schema/source-span validation
+→ mechanical material consensus
+→ deterministic Interaction compiler
+→ ReferenceLexicon exact/spatial binding
+→ replayed MaterializedWorld capability + state checks
+→ candidate validation / jury / selection / commit preparation
+→ LanceDB append admission
+→ canonical observation/evidence/acquisition
+→ ApprovedPresentationPacket / bounded renderer
+```
 
-- `a71a1e6` SemanticAddress 与规范类型；
-- `f64a7c5` legacy canonical adapter；
-- `125c17e` commitment/evidence/epistemic views；
-- `772db13` LanceDB read-only canonical replay；
-- `b61de65` epistemic agent 能力约束；
-- `76f68d0` Phase 1 实施记录。
+注意：代码仍保留历史 Action IR、Semantic IR 和 deterministic fast path，用于兼容、测试和非 Interaction 模式。SSH 推荐同时设置 `SER_INTERACTION_IR_MODE=active` 与 `SER_ACTION_IR_MODE=active`；开放输入的首要构成层是 Interaction IR。
 
-已实现：
+## 6. 当前世界、实体与能力
 
-- 规范 `SemanticAddress`；
-- 长期 `ProjectionCommitment` 等类型合同；
-- legacy commits 确定性、无写入适配；
-- `CommitmentGraphView`；
-- `EvidenceLedgerView`；
-- `AgentEpistemicGraphView`；
-- strict/diagnostic canonical replay；
-- `LanceCommitStore.replayCanonicalViews()`；
-- 当前 MVP 仅 `person` 具有 EpistemicAgent 能力；
-- 旧记录不伪造 operator、MSRC 或 dependency certificate。
+卧室 fixture 的核心实体包括：`self`、床、纸条、门、抽屉、钥匙、床头柜、笔、枕头、桌子。权威位置通过时间化关系表达，例如：
 
-重要：这些 view 当前仅用于 replay/审计，尚未接入玩家事实查询路径。
+- `held_by(object, self)`；
+- `located_on(object, surface)`；
+- `contained_by(object, container)`；
+- `part_of(drawer, nightstand)`。
 
-## 4. 当前验证状态
+玩家当前可尝试：
 
-最近完整验证环境：
+- 环顾、库存、位置、容器内容、纸条 inscription；
+- 打开/关闭门或容器；
+- 拿起 portable 对象；
+- 放入 open container 或放到 surface/bed；
+- 写 1–64 位数字、藏纸条、寻找和读取；
+- 用“然后”连接动作；
+- 在严格条件下用上一轮唯一 focus 的 `它 / it`。
 
-- Node：`v20.19.2`；
-- 自动测试：134/134；
-- TypeScript strict、`noUncheckedIndexedAccess`、`exactOptionalPropertyTypes`；
-- `npm test` 包含 build。
+当前明确边界：
 
-当前真实 `.world/world.lancedb` 的只读验收：
+- 门外/走廊/其他房间没有 PlaceGraph 节点；
+- `move` 没有世界原语；
+- 任意文字 inscription 未开放；
+- 动态实体和动态 affordance 注册未开放；
+- capability query 能被正确识别，但可信回答尚未接入；
+- discourse context 不持久化，不等于长期记忆；
+- Supported+Free Stable Realizer、MSRC、MemoryTrace、NPC/社会证言尚未实现。
 
-- tables：`action_proposals`、`turn_attempts`、`world_commits`；
-- world table version：11；
-- world commits：11，sequence 0–10；
-- canonical observations：33；
-- canonical evidence：33；
-- epistemic edges：33；
-- legacy fixed projections：0；
-- strict canonical replay issues：0；
-- 连续两次 replay 结果一致；
-- replay 前后 table names/version/row count/package-hash aggregate 完全相同。
+## 7. 当前测试事实
 
-真实世界数据和 secret 均被 `.gitignore` 排除，没有进入 Git。
+最近完整验证（2026-08-23）：
 
-## 5. 当前代码结构
+- `npm test`：177/177；
+- Interaction imperative 单句真实双工位：12/12；
+- placement 状态序列真实模型连续三轮：24/24；
+- 统一真实门禁：8 suites、96/96；
+- 每个 suite canonical replay fatal issue：0；
+- placement 最终状态：`key-1 located_on bed-1`，手持集合为空。
 
-### 权威世界和提交
+统一 suites：
 
-- `src/protocol/types.ts`：现有 v0.x CommitPackage/候选协议；
-- `src/protocol/validator.ts`：候选封闭验证；
-- `src/protocol/commit.ts`：准备 immutable commit package；
-- `src/storage/lanceCommitStore.ts`：LanceDB、writer lock、预提交试应用、只读 canonical replay；
-- `src/world/materializedWorld.ts`：seed + world commitments 的权威物化；
-- `src/world/worldSchema.ts`：MVP 封闭 schema。
+1. ordinary-language 16/16；
+2. adversarial-language 13/13；
+3. discourse-contract 11/11；
+4. interaction-ir-shadow 14/14；
+5. interaction-ir-guard 11/11；
+6. interaction-ir-active 16/16；
+7. human-round3-sequence 7/7；
+8. placement-failure-sequence 8/8。
 
-### v1 规范 replay
+```sh
+npm test
+CLOUDFLARE_API_TOKEN_FILE=secret/cftoken.txt npm run eval:mvp-gate:live
+CLOUDFLARE_API_TOKEN_FILE=secret/cftoken.txt npm run eval:human-round3-sequence:live
+CLOUDFLARE_API_TOKEN_FILE=secret/cftoken.txt npm run eval:placement-failures:live
+```
 
-- `src/world/semanticAddress.ts`
-- `src/world/commitmentTypes.ts`
-- `src/world/commitmentGraph.ts`
-- `src/epistemic/types.ts`
-- `src/epistemic/evidenceLedger.ts`
-- `src/epistemic/agentGraph.ts`
-- `src/replay/legacyCanonicalAdapter.ts`
-- `src/replay/canonicalReplay.ts`
+真实门禁会消耗 Workers AI 配额；并行运行多个 live suite 可能造成限流，不建议子任务各自重复跑总门禁。
 
-### 输入理解
-
-- `src/actionIr/*`：v0.7 Action IR；
-- `src/semanticIr/*`：v0.9 Open Semantic IR；
-- `src/world/objectIntent.ts`：封闭对象意图；
-- `src/world/entityCatalog.ts`：实体名称/能力绑定。
-
-### 回合与呈现
-
-- `src/turn/bedroomSession.ts`：序列、审计和路由；
-- `src/turn/objectTurn.ts`：当前对象动作与事实查询；
-- `src/turn/bedroomTurn.ts`：早期 stand→move→open 纵切面；
-- `src/ai/bedroomAdapters.ts`：双陪审与 Workers AI renderer；
-- `src/ssh/server.ts`、`src/ssh/textShell.ts`：SSH 界面。
-
-## 6. 当前玩家能力
-
-SSH `help` 暴露的大致能力：
-
-- look / 环顾；
-- inventory / 查看手中物品；
-- 查询对象位置；
-- 查询打开容器内容；
-- 打开/关闭；
-- 拿起；
-- 放到表面或容器；
-- 查看 inscription 是否存在或精确值；
-- 写数字、藏纸条、稍后找到并读取；
-- 用“然后”连接多动作。
-
-当前事实查询仍主要在 `objectTurn.ts` 中从 MaterializedWorld 读取并预拼自然语言。它们会生成旧式 evidence/epistemic change，但尚未由新 AEG 决定玩家能否回答。
-
-## 7. Cloudflare Workers AI
+## 8. Cloudflare Workers AI 与秘密
 
 当前模型：
 
 ```text
-candidate / semantic / renderer: @cf/qwen/qwen3-30b-a3b-fp8
-jury:                           @cf/mistralai/mistral-small-3.1-24b-instruct
+candidate / Interaction / Semantic / renderer: @cf/qwen/qwen3-30b-a3b-fp8
+jury:                                       @cf/mistralai/mistral-small-3.1-24b-instruct
 ```
 
-Cloudflare account ID 当前默认：`00f6c85f82f6297c8c0bef9460e013d9`。
+token 默认从 `secret/cftoken.txt` 读取。禁止读取后输出、复制到文档、提交或进入测试快照。`.gitignore` 已排除 `secret/`、`.world/`、`dist/`、`node_modules/` 和 `coverage/`。
 
-Token 默认从 `secret/cftoken.txt` 读取。绝不能输出、提交或复制 token 内容。`secret/` 已 git ignored。
+## 9. 代码所有权地图
 
-历史 benchmark 文档位于：
+- `src/ssh/`：协议壳、认证、输入字节处理；
+- `src/turn/bedroomSession.ts`：最关键的路由与审计编排点；
+- `src/turn/objectTurn.ts`：对象动作、查询和 commitment 候选；
+- `src/interactionIr/`：当前自然语言主构成层；
+- `src/actionIr/`、`src/semanticIr/`：历史/兼容 IR 与独立能力；
+- `src/world/`：fixture、schema、物化、实体目录、词典与投影；
+- `src/protocol/`：validator/evaluator/selector/commit admission；
+- `src/query/`：PerceptionPolicy 和 Query Triage；
+- `src/epistemic/`：EvidenceLedger / AEG；
+- `src/presentation/`：approved packet renderer；
+- `src/storage/lanceCommitStore.ts`：LanceDB 表、append/lock/recovery；
+- `src/replay/`：canonical replay；
+- `src/eval/`：真实模型脚手架；
+- `test/`：本地回归。
 
-- `docs/Workers-AI-model-benchmark-round-1.md`
-- `docs/Workers-AI-model-benchmark-round-2.md`
-- `docs/Workers-AI-model-benchmark-round-3.md`
-- `docs/Workers-AI-model-benchmark-round-4-protocol.md`
-- `docs/Workers-AI-model-benchmark-jury-round-1.md`
+高冲突文件是 `bedroomSession.ts`、`objectTurn.ts`、`lanceCommitStore.ts`、`objectFixture.ts`、`package.json`。多子任务不要同时修改这些文件。
 
-## 8. SSH 运行信息
+## 10. 建议的下一阶段
 
-标准命令：
+从结构上，下一主里程碑应是“最小空间与移动纵切面”，而不是继续增加自然语言特判。目标可限定为床边与门口两个 position/Place 节点：
 
-```sh
-npm run build
-SER_SSH_HOST_KEY_PATH=secret/ssh_host_ed25519_key \
-SER_SSH_PASSWORD_FILE=secret/ssh_password \
-SER_ACTION_IR_MODE=active \
-npm run start:ssh
-```
+1. 先写设计：Place/position 身份、邻接/可达性、门状态、主体 posture/position、观察 scope；
+2. 定义 `move` primitive contract、前置条件、事件和 commitment；
+3. 让 `走到门口` 真正提交 position change；
+4. 仍不开放门外，`看看门外` 继续是合法 boundary，直到门外成为正式 Place；
+5. 增加状态化本地测试、真实双工位 sequence 和 canonical replay 门禁；
+6. 真人验证后再考虑 doorway → hall 的第二个空间扩展。
 
-连接：
+不要在设计 PlaceGraph 前直接让 `看看门外` 返回 LLM 想象内容。
 
-```sh
-ssh ttd@127.0.0.1 -p 2222
-```
+## 11. 子任务协同建议
 
-默认只绑定 `127.0.0.1`。如果出现 `EADDRINUSE`，先只读检查已有监听进程，或显式使用其他端口，例如 `SER_SSH_PORT=2223`；不能因此假定世界或 Node 已损坏。
+可并行但应避免共享文件写冲突：
 
-用户曾在缺失 host key 和端口占用错误后看到 shell 输出 `Segmentation fault`。当前 Node v20.19.2 下 build/test 稳定通过；尚未把该 shell 级现象认定为项目代码缺陷。不要为此执行破坏性环境操作。
+- 子任务 A（只读设计）：审计 GWA 空间/连续性原则，产出 `docs/MVP-minimal-space-movement-design-v0.3.md`，不改运行代码；
+- 子任务 B（测试设计）：在独立新文件中设计 move/space corpus 和断言，暂不改 `runMvpLiveGate.ts`；
+- 子任务 C（代码审计）：检查 position/posture、door、visibility 与 relation schema 的复用点，输出建议，不改核心文件；
+- 主任务：整合设计后独占修改 fixture/schema/session/object turn，并统一跑测试。
 
-## 9. v1.0 大设计
+协同纪律：
 
-设计与审查：
+- 每个子任务先读本文件、README 和 `docs/INDEX.md`；
+- 明确文件所有权，避免同时编辑高冲突文件；
+- 子任务不得自行提交/推送，除非主代理明确授权；
+- live Workers AI 总门禁由主任务集中执行；
+- 新失败记录原始输入、公开响应、commit delta 和 replay 结果；
+- 不用秘密文件、真实 `.world` 或 `dist` 作为协作产物。
 
-- `docs/MVP-canonical-epistemic-kernel-plan-v1.0.md`
-- `docs/MVP-canonical-epistemic-kernel-design-review-v1.0.md`
+## 12. 启动与排障
 
-目标是 Canonical Commitment & Epistemic Kernel：
+推荐完整命令见根 README。常见问题：
 
-- stable SemanticAddress；
-- Supported+Free / Supported+Fixed；
-- commitment roots/dependencies/exposure provenance；
-- Query Triage；
-- typed Observation/Evidence/Acquisition；
-- Agent Epistemic Graph；
-- ApprovedPresentationPacket；
-- Stable Realizer 和最小 MSRC；
-- query confluence、closure integrity、epistemic non-leakage。
+- `ENOENT secret/ssh_host_ed25519_key`：先生成 host key；
+- `EADDRINUSE 127.0.0.1:2222`：只读定位监听进程或改用新端口；
+- host identification changed：执行 `ssh-keygen -f "$HOME/.ssh/known_hosts" -R '[127.0.0.1]:2222'`；
+- 旧数据路径出现意外初始库存：换全新 `SER_DATA_PATH`，不要把持久状态误判成幻觉；
+- 双工位偶发不一致：系统应零提交。先抓两份 validated IR 的物质差异，再判断是否是安全机械等价；不要盲目增加重试或放宽单工位执行。
 
-纵向探针规划为纸条的潜在 `fiber_mark`，但它属于 Phase 3，当前绝未实现。
+## 13. 压缩后恢复顺序
 
-## 10. 当前下一阶段：Phase 2
+1. 读 `README.md`；
+2. 读本文件；
+3. 读 `docs/INDEX.md`；
+4. 执行 `git status --short --branch` 与 `git log -5 --oneline`；
+5. 执行 `npm test`；
+6. 若进入空间阶段，先完成设计审查，再改核心代码；
+7. 最后统一运行真实门禁并记录结果。
 
-Phase 2 文档已在 commit `1e88d1f` 推送：
-
-- `docs/MVP-canonical-epistemic-kernel-phase2-admission-review-v1.0.md`
-- `docs/MVP-canonical-epistemic-kernel-phase2-plan-v1.0.md`
-
-目标：把**固定事实查询**迁移到：
-
-```text
-canonical binding
-→ PerceptionPolicy / AEG path
-→ fixed retrieval | evidence consultation | boundary
-→ native typed records
-→ commit（若产生 acquisition）
-→ ApprovedPresentationPacket
-→ renderer
-```
-
-Phase 2 审查发现的 P0：
-
-1. 当前 typed Observation 不能表达“完整检查后的空集合”；
-2. `objectTurn.ts` 查询绕过 renderer，预拼 response；
-3. boundary 目前是异常/失败 attempt，缺少合法零提交结果；
-4. EpistemicEdge 缺 acquisition sequence，无法排序先后证据。
-
-Phase 2 工作包：
-
-1. P2-W1：修订规范合同；
-2. P2-W2：native canonical envelope 与 validator；
-3. P2-W3：PerceptionPolicy 与 Fixed Query Triage；
-4. P2-W4：零提交 boundary/session union；
-5. P2-W5：逐项迁移事实查询并 dual-write；
-6. P2-W6：renderer 只接 approved packet；
-7. P2-W7：性质测试、临时世界人测、阶段报告。
-
-### 压缩后应从这里继续
-
-从 **P2-W1** 开始，不应直接改 `objectTurn.ts`：
-
-- 为 typed Observation 增加 scoped complete relation-set observation；
-- 为 EpistemicEdge 增加 `acquiredAtCommitSequence`；
-- 定义封闭 ApprovedPresentationPacket item union；
-- 定义 QueryRequest/QueryDecision/boundary codes；
-- 只做合同和测试，运行路径保持不变；
-- 门禁通过后再进入 P2-W2。
-
-## 11. 尚未实现，禁止误判为现状
-
-- Phase 2 的 Query Triage 尚未接入；
-- 当前玩家回答尚未由 AEG 统一约束；
-- native canonical envelope 尚未写入 commits；
-- strict ApprovedPresentationPacket renderer 尚未实现；
-- 合法零提交 boundary 尚未实现；
-- Stable Realizer 尚未实现；
-- Supported+Free `fiber_mark` 尚未实现；
-- MSRC 只存在设计，没有 production closure solver；
-- exposure receipt/outbox 尚未实现；
-- MemoryTrace、遗忘、误忆、Recollection 尚未实现；
-- PlaceGraph、多房间移动、NPC 证言和社会关系尚未实现；
-- 完整 Explanation Refactoring/Anomaly Debt 尚未实现；
-- 分布式共识与公网 SSH 部署尚未实现。
-
-## 12. 安全和工作纪律
-
-- 绝不提交 `secret/`、`.world/`、`dist/`、`node_modules/`；
-- 不打印 token、SSH password、玩家 evidence value 或真实世界全文；
-- 对真实 `.world` 的架构验收优先只读；测试使用临时 LanceDB；
-- 不重写已有 world commits 或 package hash；
-- 不用 LLM 修补非法世界；
-- 不把 query 原文、语言、turn sequence 或 narrative utility 放入未来 realizer；
-- 不用 jury 否决后重采样确定性世界值；
-- 发现设计门禁失败时停止当前工作包并修订设计，不扩大范围掩盖问题。
-
-## 13. Git 状态与提交线
-
-生成本快照前：
-
-- `main` 与 `origin/main` 同步在 `1e88d1f`；
-- Phase 2 审查/计划已推送；
-- 最近里程碑 tag 仍为 `mvp-open-semantic-ir-v0.9.0`；
-- v1.0 尚未打 tag，因为只完成 Phase 1，Phase 2 尚未实施。
-
-本文件应作为独立提交推送。压缩后先运行：
-
-```sh
-git status --short
-git log -3 --oneline --decorate
-npm test
-```
-
-确认干净、测试通过后，从 P2-W1 连续推进。
+当前没有已知阻碍。最新运行修复已推送；本交接与索引更新完成后应再提交推送并保持工作区干净。
