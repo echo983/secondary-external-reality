@@ -22,6 +22,7 @@ export function prepareCommitPackage(
   selection: CandidateSelection,
   expectedSnapshots: readonly ProjectionSnapshot[],
   currentSnapshots: readonly ProjectionSnapshot[],
+  worldBasis?: import("./types.js").WorldBasis,
 ): CommitPreparationResult {
   const issues: ValidationIssue[] = [];
 
@@ -71,6 +72,7 @@ export function prepareCommitPackage(
       turnId,
       commitSequence,
       selectedCandidateId: selected.candidateId,
+      ...(worldBasis ? { worldBasis: structuredClone(worldBasis) } : {}),
       expectedProjectionRevisions,
       resolvedProjections: structuredClone(expectedSnapshots.filter((snapshot) =>
         selected.requiresResolution.some((requirement) => requirement.projection === snapshot.projection),

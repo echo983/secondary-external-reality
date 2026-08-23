@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import type { WorldCommitment } from "../protocol/types.js";
+import type { WorldBasis } from "../protocol/types.js";
 
 export interface FixtureEntityName {
   entityId: string;
@@ -8,13 +10,14 @@ export interface FixtureEntityName {
 export interface ObjectWorldFixture {
   seedCommitments: WorldCommitment[];
   names: FixtureEntityName[];
+  worldBasis: WorldBasis;
 }
 
 export function createObjectWorldFixture(): ObjectWorldFixture {
   const entities: Array<{ id: string; type: string; names: string[]; attributes?: Record<string, string> }> = [
     { id: "self", type: "person", names: ["我", "自己", "self", "me"] },
     { id: "bed-1", type: "bed", names: ["床", "bed"] },
-    { id: "pillow-1", type: "pillow", names: ["枕头", "pillow"] },
+    { id: "pillow-1", type: "pillow", names: ["枕头", "pillow"], attributes: { zh_name: "枕头", en_name: "pillow" } },
     { id: "nightstand-1", type: "nightstand", names: ["床头柜", "nightstand"], attributes: { surface: "true", zh_name: "床头柜", en_name: "nightstand" } },
     { id: "drawer-1", type: "drawer", names: ["抽屉", "drawer"], attributes: { container: "true", openable: "true", open_state: "closed", zh_name: "抽屉", en_name: "drawer" } },
     { id: "table-1", type: "table", names: ["桌子", "桌上", "table"], attributes: { surface: "true", zh_name: "桌子", en_name: "table" } },
@@ -37,7 +40,12 @@ export function createObjectWorldFixture(): ObjectWorldFixture {
     { kind: "relation_asserted", relationId: "seed-drawer-part", subjectId: "drawer-1", predicate: "part_of", objectId: "nightstand-1" },
     { kind: "relation_asserted", relationId: "seed-pillow-location", subjectId: "pillow-1", predicate: "located_on", objectId: "bed-1" },
   );
-  return { seedCommitments, names: entities.map((entity) => ({ entityId: entity.id, names: entity.names })) };
+  const worldBasis: WorldBasis = {
+    fixtureId: "mvp-bedroom-objects",
+    fixtureVersion: "0.2.0",
+    seedHash: createHash("sha256").update(JSON.stringify(seedCommitments)).digest("hex"),
+  };
+  return { seedCommitments, names: entities.map((entity) => ({ entityId: entity.id, names: entity.names })), worldBasis };
 }
 
 export function resolveFixtureEntity(fixture: ObjectWorldFixture, reference: string): string[] {

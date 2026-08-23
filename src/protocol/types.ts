@@ -112,6 +112,12 @@ export interface EpistemicChange {
   evidenceId: string;
 }
 
+export interface WorldBasis {
+  fixtureId: string;
+  fixtureVersion: string;
+  seedHash: string;
+}
+
 export interface ConditionalCandidate {
   candidateId: string;
   outcomeKind: OutcomeKind;
@@ -207,6 +213,7 @@ export interface CommitPackage {
   turnId: string;
   commitSequence: number;
   selectedCandidateId: string;
+  worldBasis?: WorldBasis;
   expectedProjectionRevisions: Record<string, number>;
   resolvedProjections: ProjectionSnapshot[];
   events: ProposedEvent[];

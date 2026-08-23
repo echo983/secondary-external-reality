@@ -54,6 +54,11 @@ export async function runObjectTurn(options: {
   const parsed = parseObjectIntent(options.rawTtd);
   if (!parsed) throw new ObjectTurnError("Unsupported object intent.");
   const fixture = options.fixture ?? createObjectWorldFixture();
+  for (const commit of options.priorCommits) {
+    if (commit.worldBasis && (commit.worldBasis.fixtureId !== fixture.worldBasis.fixtureId || commit.worldBasis.fixtureVersion !== fixture.worldBasis.fixtureVersion || commit.worldBasis.seedHash !== fixture.worldBasis.seedHash)) {
+      throw new ObjectTurnError("Committed world basis does not match the active fixture.");
+    }
+  }
   const world = MaterializedWorld.replay(options.priorCommits, fixture.seedCommitments);
   const mentionedIds = resolveFixtureEntity(fixture, parsed.rawTtd);
   const registry: ProjectionDefinition[] = [];
@@ -66,7 +71,62 @@ export async function runObjectTurn(options: {
   const epistemicChanges: EpistemicChange[] = [];
   let response: string;
 
-  if (parsed.operation === "open_and_observe") {
+  if (parsed.operation === "write_and_hide") {
+    const inscription = parsed.rawTtd.match(/[0-9]{1,64}/u)?.[0];
+    if (!inscription) throw new ObjectTurnError("No numeric inscription was supplied.");
+    const note = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.entityType === "paper_note"), "paper note");
+    const pillow = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.entityType === "pillow"), "pillow");
+    const pen = exactlyOne([...world.entities.values()].filter((entity) => entity.entityType === "pen"), "pen");
+    if (note.attributes.inscription !== "") throw new ObjectTurnError(`${note.entityId} already has an inscription.`);
+    const noteLocation = currentLocation(world, note);
+    const penLocation = currentLocation(world, pen);
+    fact(registry, snapshots, conditions, `entity:${note.entityId}.inscription`, "", note.attributeRevisions.inscription ?? 0, ["", inscription]);
+    fact(registry, snapshots, conditions, `relation:${noteLocation.relationId}.active`, "true", noteLocation.setAtSequence);
+    fact(registry, snapshots, conditions, `relation:${penLocation.relationId}.active`, "true", penLocation.setAtSequence);
+    const writeEventId = `event-write-${note.entityId}-${options.commitSequence}`;
+    const placeEventId = `event-place-${note.entityId}-${options.commitSequence}`;
+    events.push(
+      { eventId: writeEventId, type: "action_result", actionKind: "write", outcome: "success", subjectRef: "self", objectRef: note.entityId },
+      { eventId: placeEventId, type: "action_result", actionKind: "place", outcome: "success", subjectRef: "self", objectRef: note.entityId },
+    );
+    commitments.push(
+      { kind: "attribute_set", entityId: note.entityId, attribute: "inscription", value: inscription },
+      { kind: "relation_ended", relationId: noteLocation.relationId },
+      { kind: "relation_asserted", relationId: `${note.entityId}-location-${options.commitSequence}`, subjectId: note.entityId, predicate: "contained_by", objectId: pillow.entityId },
+    );
+    response = parsed.inputLanguage === "zh" ? `你在${label(note, "zh")}上写下“${inscription}”，把它放在${label(pillow, "zh")}下面。` : `You write “${inscription}” on the ${label(note, "en")} and place it under the ${label(pillow, "en")}.`;
+  } else if (parsed.operation === "read") {
+    const mentionedPillow = mentionedIds.find((id) => world.entities.get(id)?.entityType === "pillow");
+    const mentionedNotes = mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.entityType === "paper_note");
+    const allNotes = [...world.entities.values()].filter((entity) => entity.entityType === "paper_note");
+    const readableNotes = (mentionedPillow ? allNotes : mentionedNotes.length > 0 ? mentionedNotes : allNotes).filter((entity) => {
+      const candidateLocation = world.directLocation(entity.entityId);
+      return Boolean(entity.attributes.inscription) && (!mentionedPillow || candidateLocation?.objectId === mentionedPillow);
+    });
+    const note = exactlyOne(readableNotes, "readable paper note");
+    const location = currentLocation(world, note);
+    const inscription = note.attributes.inscription;
+    if (!inscription) throw new ObjectTurnError(`${note.entityId} has no readable inscription.`);
+    fact(registry, snapshots, conditions, `relation:${location.relationId}.active`, "true", location.setAtSequence);
+    fact(registry, snapshots, conditions, `entity:${note.entityId}.inscription`, inscription, note.attributeRevisions.inscription ?? 0);
+    const findEventId = `event-find-${note.entityId}-${options.commitSequence}`;
+    const readEventId = `event-read-${note.entityId}-${options.commitSequence}`;
+    events.push(
+      { eventId: findEventId, type: "action_result", actionKind: "find", outcome: "success", subjectRef: "self", objectRef: note.entityId },
+      { eventId: readEventId, type: "action_result", actionKind: "read", outcome: "success", subjectRef: "self", objectRef: note.entityId },
+    );
+    const locationEvidenceId = `evidence-location-${note.entityId}-${options.commitSequence}`;
+    const inscriptionEvidenceId = `evidence-inscription-${note.entityId}-${options.commitSequence}`;
+    evidenceGenerated.push(
+      { evidenceId: locationEvidenceId, kind: "relation_observed", sourceEventId: findEventId, subjectId: note.entityId, predicate: location.predicate, objectId: location.objectId },
+      { evidenceId: inscriptionEvidenceId, kind: "attribute_observed", sourceEventId: readEventId, subjectId: note.entityId, attribute: "inscription", value: inscription },
+    );
+    epistemicChanges.push(
+      { agentId: "self", kind: "acquired_evidence", evidenceId: locationEvidenceId },
+      { agentId: "self", kind: "acquired_evidence", evidenceId: inscriptionEvidenceId },
+    );
+    response = parsed.inputLanguage === "zh" ? `你在${location.objectId === "pillow-1" ? "枕头下面" : "那里"}找到${label(note, "zh")}。上面写着“${inscription}”。` : `You find the ${label(note, "en")} and read “${inscription}”.`;
+  } else if (parsed.operation === "open_and_observe") {
     const container = exactlyOne(candidatesByCapability(world, mentionedIds, "openable").filter((entity) => entity.attributes.container === "true"), "openable container");
     const target = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.attributes.portable === "true"), "observable object");
     const location = currentLocation(world, target);
@@ -160,7 +220,7 @@ export async function runObjectTurn(options: {
 
   const candidateId = `object-${parsed.operation}-${options.commitSequence}`;
   const envelope: CandidateEnvelope = { candidates: [{ candidateId, outcomeKind: "success", requiresResolution: [], conditions, proposedEvents: events, proposedStateChanges: [], observations, evidenceGenerated, epistemicChanges, newWorldCommitments: commitments }] };
-  const commitPackage = await commitCandidateEnvelope({ ...options, envelope, registry, snapshots });
+  const commitPackage = await commitCandidateEnvelope({ ...options, envelope, registry, snapshots, worldBasis: fixture.worldBasis });
   return { response, commitPackage, intent: parseMvpIntent(options.rawTtd) };
 }
 
