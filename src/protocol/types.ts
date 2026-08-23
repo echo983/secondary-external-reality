@@ -227,6 +227,15 @@ export interface CommitPackage {
   evidenceGenerated?: EvidenceRecord[];
   epistemicChanges?: EpistemicChange[];
   newWorldCommitments: WorldCommitment[];
+  canonical?: CanonicalCommitEnvelopeV1;
+}
+
+export interface CanonicalCommitEnvelopeV1 {
+  schemaVersion: "1.0";
+  observations: ObservationRecord[];
+  evidence: CanonicalEvidenceRecord[];
+  acquisitions: EpistemicAcquisition[];
+  presentationPacket: ApprovedPresentationPacket;
 }
 
 export interface TurnAttempt {
@@ -247,3 +256,5 @@ export interface CommitPreparationResult {
   issues: ValidationIssue[];
   commitPackage: CommitPackage | null;
 }
+import type { CanonicalEvidenceRecord, EpistemicAcquisition, ObservationRecord } from "../epistemic/types.js";
+import type { ApprovedPresentationPacket } from "../presentation/types.js";

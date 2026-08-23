@@ -7,6 +7,7 @@ import type { Connection, Table } from "@lancedb/lancedb";
 import type { CommitPackage, TurnAttempt } from "../protocol/types.js";
 import type { WorldCommitment } from "../protocol/types.js";
 import { replayCanonicalViews, type CanonicalReplayMode, type CanonicalReplayViews } from "../replay/canonicalReplay.js";
+import { validateCanonicalEnvelope } from "../protocol/canonicalValidator.js";
 import { MaterializedWorld, MaterializedWorldError } from "../world/materializedWorld.js";
 
 const COMMIT_TABLE = "world_commits";
@@ -409,6 +410,14 @@ export class LanceCommitStore {
     try {
       const futureWorld = MaterializedWorld.replay([...priorPackages, commitPackage], admission.seedCommitments ?? []);
       this.validatePackageReferences(priorPackages, commitPackage, futureWorld);
+      if (commitPackage.canonical) {
+        const canonicalIssues = validateCanonicalEnvelope(commitPackage.canonical, {
+          commitSequence: commitPackage.commitSequence,
+          eventIds: new Set(commitPackage.events.map((event) => event.eventId)),
+          knownAgentIds: new Set([...futureWorld.entities.values()].filter((entity) => entity.entityType === "person").map((entity) => entity.entityId)),
+        });
+        if (canonicalIssues.length > 0) throw new CommitConflictError(`Canonical envelope rejected: ${canonicalIssues.map((entry) => `${entry.code} at ${entry.path}`).join("; ")}`);
+      }
     } catch (error) {
       if (error instanceof MaterializedWorldError || error instanceof Error) {
         throw new CommitConflictError(`World preflight rejected commit: ${error.message}`);

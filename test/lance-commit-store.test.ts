@@ -11,6 +11,7 @@ import {
 } from "../src/storage/lanceCommitStore.js";
 import type { CommitPackage } from "../src/protocol/types.js";
 import { createObjectWorldFixture } from "../src/world/objectFixture.js";
+import { entityAttributeAddress } from "../src/world/semanticAddress.js";
 
 function commit(turnId: string, commitSequence: number): CommitPackage {
   return {
@@ -57,6 +58,24 @@ test("appends and reads a complete commit package", async () => {
     assert.equal(result.commitId, "turn-0:0");
     assert.match(result.packageHash, /^[a-f0-9]{64}$/);
     assert.deepEqual(await store.list(), [input]);
+  });
+});
+
+test("rejects a canonical envelope with presentation data that is not evidenced", async () => {
+  await withStore(async (store) => {
+    const fixture = createObjectWorldFixture();
+    const input = commit("canonical-bad", 0);
+    input.events[0]!.subjectRef = "self";
+    const address = entityAttributeAddress("blank-note-1", "inscription");
+    input.canonical = {
+      schemaVersion: "1.0",
+      observations: [{ observationId: "o", kind: "attribute_perception", observerId: "self", semanticAddress: address, perceivedValue: "", sourceOccurrenceId: "event-0", provenance: "canonical" }],
+      evidence: [{ evidenceId: "e", propositionAddress: address, representedValue: "", sourceObservationId: "o", provenance: "canonical" }],
+      acquisitions: [{ acquisitionId: "a", agentId: "self", evidenceId: "e", mode: "direct_perception", acquiredAtCommitSequence: 0, provenance: "canonical" }],
+      presentationPacket: { packetId: "p", outcome: "answer", language: "en", items: [{ kind: "attribute_evidence", semanticAddress: address, value: "secret", evidenceId: "e" }] },
+    };
+    await assert.rejects(store.append(input, { seedCommitments: fixture.seedCommitments }), /PRESENTATION_EVIDENCE_MISMATCH/);
+    assert.deepEqual(await store.list(), []);
   });
 });
 

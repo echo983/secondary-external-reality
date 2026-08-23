@@ -77,6 +77,13 @@ export function adaptLegacyCommits(
       });
     }
 
+    if (commit.canonical) {
+      observations.push(...structuredClone(commit.canonical.observations));
+      evidence.push(...structuredClone(commit.canonical.evidence));
+      acquisitions.push(...structuredClone(commit.canonical.acquisitions));
+      continue;
+    }
+
     const changes = commit.epistemicChanges ?? [];
     const agentByEvidence = new Map<string, string>();
     for (const change of changes) {
