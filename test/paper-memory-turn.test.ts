@@ -21,15 +21,16 @@ test("writes, restarts, finds, and reads the exact inscription", async () => {
   const store = new LanceCommitStore(join(directory, "world.lancedb"));
   try {
     const firstProcess = new BedroomSession({ sessionId: "player", store, jury: new PassingBedroomJury(), renderer: new ChineseBedroomRenderer() });
+    await firstProcess.submit("我拿起笔");
     const written = await firstProcess.submit("我在纸条上写下数字001739，然后把纸条放在枕头下面");
     assert.match(written.response, /001739/);
     assert.deepEqual(written.commitPackage.newWorldCommitments, [
       { kind: "attribute_set", entityId: "blank-note-1", attribute: "inscription", value: "001739" },
       { kind: "relation_ended", relationId: "seed-note-location" },
-      { kind: "relation_asserted", relationId: "blank-note-1-location-0", subjectId: "blank-note-1", predicate: "contained_by", objectId: "pillow-1" },
+      { kind: "relation_asserted", relationId: "blank-note-1-location-1", subjectId: "blank-note-1", predicate: "contained_by", objectId: "pillow-1" },
     ]);
     const unrelated = await firstProcess.submit("我下床走到门边开门");
-    assert.equal(unrelated.commitPackage.commitSequence, 1);
+    assert.equal(unrelated.commitPackage.commitSequence, 2);
 
     store.close();
     const reopenedStore = new LanceCommitStore(join(directory, "world.lancedb"));
@@ -38,8 +39,8 @@ test("writes, restarts, finds, and reads the exact inscription", async () => {
       const read = await restartedProcess.submit("我翻开枕头看看下面，并读纸条");
       assert.equal(read.response, "你在枕头下面找到纸条。上面写着“001739”。");
       assert.equal(read.commitPackage.evidenceGenerated?.find((evidence) => evidence.kind === "attribute_observed")?.value, "001739");
-      assert.equal(read.commitPackage.commitSequence, 2);
-      assert.equal((await reopenedStore.list()).length, 3);
+      assert.equal(read.commitPackage.commitSequence, 3);
+      assert.equal((await reopenedStore.list()).length, 4);
     } finally {
       reopenedStore.close();
     }

@@ -14,13 +14,13 @@ test("never delegates epistemic boundaries or prior evidence to a low-risk LLM r
   assert.equal(calls, 0);
 });
 
-test("allows only grounded low-risk presentation and falls back on IDs or missing entity labels", async () => {
+test("renders closed world enumerations deterministically instead of allowing extra names", async () => {
   let calls = 0;
   const lowRisk: ApprovedPresentationRenderer = { async render() { calls += 1; return "You can see the bed."; } };
   const renderer = new RiskAwarePresentationRenderer(lowRisk);
   const packet = { packetId: "p", outcome: "answer" as const, language: "en" as const, items: [{ kind: "observed_entities" as const, entityIds: ["bed-1"] }] };
-  assert.equal(await renderer.render(packet, "look"), "You can see the bed.");
-  assert.equal(calls, 1);
+  assert.equal(await renderer.render(packet, "look"), "You look around and can see: bed.");
+  assert.equal(calls, 0);
 
   const leaked: ApprovedPresentationRenderer = { async render() { return "You can see bed-1."; } };
   assert.equal(await new RiskAwarePresentationRenderer(leaked).render(packet, "look"), "You look around and can see: bed.");

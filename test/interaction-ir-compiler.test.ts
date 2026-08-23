@@ -21,3 +21,10 @@ test("compiler emits structured slot clarifications and preserves numeric litera
   assert.equal(written.kind, "executable");
   assert.equal(written.kind === "executable" ? written.steps[0]?.objectIntent.content : undefined, "2236");
 });
+
+test("compiler derives inscription queries from query mode instead of model operation wording", () => {
+  const proposal = envelope("observe", [{ role: "target", mention: "便签" }], "world_query");
+  proposal.clauses[0]!.queryMode = "value";
+  const result = compileInteraction(proposal, "便签上有什么");
+  assert.equal(result.kind === "executable" ? result.steps[0]?.objectIntent.operation : "", "inspect_inscription_value");
+});

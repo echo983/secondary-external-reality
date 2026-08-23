@@ -30,6 +30,7 @@ Exact example: {"schemaVersion":"1.0.0","inputLanguage":"zh","speechAct":"capabi
 "我在哪里" is world_query/non_executing, locate, target 我, queryMode location. "你好" is conversation/non_executing with no clauses. "我向" is incomplete/non_executing with no clauses.
 "我向空白便签写2236" is action_request/actual, write, target 空白便签, content 2236, and no queryMode.
 "纸条上写着什么" is world_query/non_executing, read, target 纸条, queryMode value. Asking for an inscription value is read/value, not generic observe.
+"便签上有什么" asks for the note's inscription value: world_query/non_executing, read, target 便签, queryMode value. It is not inspect_contents because a note is not being treated as a container.
 "我拿起桌子" is a syntactically complete action_request/actual with take and target 桌子 even if the world may later reject it. Never classify an utterance from physical feasibility.
 For taking an unspecified physical thing such as 东西, use target, not content.
 "不要打开抽屉" is action_request/negated. "如果抽屉里有东西就拿出来" is action_request/conditional.

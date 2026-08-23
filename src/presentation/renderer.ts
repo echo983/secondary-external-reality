@@ -10,7 +10,7 @@ export class RiskAwarePresentationRenderer implements ApprovedPresentationRender
   async render(packet: ApprovedPresentationPacket, languageSample: string): Promise<string> {
     const highRisk = packet.outcome === "boundary" || packet.items.some((item) =>
       item.kind === "boundary" || item.kind === "prior_evidence" || item.kind === "attribute_evidence" ||
-      (item.kind === "bounded_relation_set" && item.subjectIds.length === 0),
+      item.kind === "observed_entities" || item.kind === "bounded_relation_set" || item.kind === "relation_evidence",
     );
     if (highRisk) return this.deterministic.render(packet, languageSample);
     const rendered = await this.lowRisk.render(packet, languageSample);

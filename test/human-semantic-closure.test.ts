@@ -101,6 +101,7 @@ test("rechecks perception when a focused entity becomes hidden before the pronou
   await withSession(async (session, store) => {
     await session.submit("纸条在哪里");
     const other = new BedroomSession({ sessionId: "other", store, jury: new PassingBedroomJury(), renderer: new ChineseBedroomRenderer() });
+    await other.submit("拿起笔");
     await other.submit("在纸条上写下731并藏到枕头下面");
     const before = (await store.list()).length;
     const result = await session.submit("它在哪里");
@@ -115,6 +116,7 @@ test("resolves an exposed alias in discourse but rechecks visibility after hidin
     const located = await session.submit("便签呢");
     assert.equal(located.kind, "committed");
     assert.match(located.response, /纸条.*床头柜/u);
+    await session.submit("拿起笔");
     await session.submit("我在便签上写下001739并藏到枕头下面");
     const before = (await store.list()).length;
     const hidden = await session.submit("便签呢");

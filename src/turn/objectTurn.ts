@@ -217,6 +217,9 @@ export async function runObjectTurn(options: {
     const noteLocation = currentLocation(world, note);
     const penLocation = currentLocation(world, pen);
     if (!isEntityPerceivable(world, note) || !isEntityPerceivable(world, pen)) throw new ObjectTurnError("Writing requires a perceivable note and pen.");
+    if (penLocation.predicate !== "held_by" || penLocation.objectId !== "self") {
+      throw new ObjectTurnError(parsed.inputLanguage === "zh" ? "你需要先拿起笔才能写字。" : "You need to take the pen before writing.");
+    }
     fact(registry, snapshots, conditions, `entity:${note.entityId}.inscription`, "", note.attributeRevisions.inscription ?? 0, ["", inscription]);
     fact(registry, snapshots, conditions, `relation:${noteLocation.relationId}.active`, "true", noteLocation.setAtSequence);
     fact(registry, snapshots, conditions, `relation:${penLocation.relationId}.active`, "true", penLocation.setAtSequence);

@@ -93,7 +93,7 @@ test("active mode compiles agreed open language and fails closed on missing slot
   const store = new LanceCommitStore(join(directory, "world.lancedb"));
   const proposal = (raw: string, operation: string, roles: Array<{ role: string; mention: string }>, speechAct = "action_request", queryMode?: string) => ({
     schemaVersion: "1.0.0", inputLanguage: "zh", speechAct, actuality: speechAct === "action_request" ? "actual" : "non_executing",
-    clauses: [{ clauseId: "c1", operation, verbSpan: raw.includes("写") ? "写" : raw.includes("在哪") ? "在哪" : raw.includes("放下") ? "放下" : "看", roles, ...(queryMode ? { queryMode } : {}) }],
+    clauses: [{ clauseId: "c1", operation, verbSpan: raw.includes("写") ? "写" : raw.includes("在哪") ? "在哪" : raw.includes("放下") ? "放下" : raw.includes("拿起") ? "拿起" : "看", roles, ...(queryMode ? { queryMode } : {}) }],
   });
   const session = (value: unknown) => new BedroomSession({ sessionId: `active-${Math.random()}`, store, jury: new PassingBedroomJury(), renderer: new ChineseBedroomRenderer(),
     interactionIr: { mode: "active", left: fixed(value), right: fixed(value) } });
@@ -106,6 +106,9 @@ test("active mode compiles agreed open language and fails closed on missing slot
     assert.equal(clarified.kind === "interface" ? clarified.code : "", "INTERACTION_MISSING_DESTINATION");
 
     const write = proposal("我向空白便签写2236", "write", [{ role: "target", mention: "空白便签" }, { role: "content", mention: "2236" }]);
+    await assert.rejects(session(write).submit("我向空白便签写2236"), /先拿起笔/u);
+    const take = proposal("我拿起笔", "take", [{ role: "target", mention: "笔" }]);
+    assert.equal((await session(take).submit("我拿起笔")).kind, "committed");
     assert.equal((await session(write).submit("我向空白便签写2236")).kind, "committed");
     const read = proposal("看看便签", "read", [{ role: "target", mention: "便签" }], "world_query", "value");
     const readResult = await session(read).submit("看看便签");

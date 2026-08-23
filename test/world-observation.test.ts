@@ -16,6 +16,7 @@ test("looks around without leaking hidden contents or inscriptions", async () =>
   const store = new LanceCommitStore(join(directory, "world.lancedb"));
   try {
     const session = createSession(store);
+    await session.submit("拿起笔");
     await session.submit("我在纸条上写下001739并藏到枕头下面");
     const looked = await session.submit("看能看到什么");
     assert.match(looked.response, /床|桌子|抽屉/u);
@@ -67,6 +68,7 @@ test("distinguishes blank inscription presence from exact inscription value", as
     const session = createSession(store);
     assert.equal((await session.submit("纸条上有字吗")).response, "纸条上没有字。");
     assert.equal((await session.submit("纸条上写着什么")).response, "纸条上没有字。");
+    await session.submit("拿起笔");
     await session.submit("我在纸条上写下001739并藏到枕头下面");
     const before = (await store.list()).length;
     const hidden = await session.submit("纸条上写着什么");

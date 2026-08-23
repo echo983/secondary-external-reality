@@ -21,7 +21,10 @@ export function compileInteraction(proposal: InteractionEnvelopeV10, rawTtd: str
   const lexicon = new ReferenceLexicon(createObjectWorldFixture());
   const steps: Array<{ objectIntent: ObjectIntent; mentionedEntityIds: string[] }> = [];
   for (const clause of proposal.clauses) {
-    const operation = operationMap[clause.operation];
+    const queriedAttributeOperation: ObjectOperationKind | undefined = proposal.speechAct === "world_query" && clause.queryMode === "presence"
+      ? "inspect_inscription_presence"
+      : proposal.speechAct === "world_query" && clause.queryMode === "value" ? "inspect_inscription_value" : undefined;
+    const operation = queriedAttributeOperation ?? operationMap[clause.operation];
     if (!operation) return { kind: "clarification", code: "UNSUPPORTED_OPERATION" };
     const targetMentions = rolesOf(clause, "target");
     const destinationMentions = rolesOf(clause, "destination");
