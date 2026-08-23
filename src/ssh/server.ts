@@ -12,6 +12,7 @@ import { TtdTextShell } from "./textShell.js";
 import { WorkersAiActionIrProposer } from "../actionIr/proposer.js";
 import { WorkersAiActionIrSemanticAuditor } from "../actionIr/semanticAuditor.js";
 import { WorkersAiSemanticIrAuditor, WorkersAiSemanticIrProposer } from "../semanticIr/adapters.js";
+import { WorkersAiInteractionWorkstation } from "../interactionIr/workstations.js";
 
 const { Server } = ssh2;
 
@@ -25,6 +26,7 @@ export interface SshMvpConfig {
   apiToken: string;
   dataPath: string;
   actionIrMode?: "off" | "shadow" | "active";
+  interactionIrMode?: "off" | "shadow";
 }
 
 function equalSecret(actual: string, expected: string): boolean {
@@ -47,6 +49,8 @@ export function createSshMvpServer(config: SshMvpConfig): { server: SshServer; s
       semanticAuditor: new WorkersAiActionIrSemanticAuditor(client),
     } as const;
   const semanticIr = { proposer: new WorkersAiSemanticIrProposer(client), auditor: new WorkersAiSemanticIrAuditor(client) };
+  const interactionIr = config.interactionIrMode === "shadow" ? { mode: "shadow" as const,
+    left: new WorkersAiInteractionWorkstation(client, "linguist"), right: new WorkersAiInteractionWorkstation(client, "safety_analyst") } : { mode: "off" as const };
   let worldTail: Promise<void> = Promise.resolve();
   const server = new Server({ hostKeys: [config.hostKey] }, (connection) => {
     connection.on("authentication", (context: AuthContext) => {
@@ -60,7 +64,7 @@ export function createSshMvpServer(config: SshMvpConfig): { server: SshServer; s
         sshSession.once("shell", (acceptShell) => {
           const channel: ServerChannel = acceptShell();
           const session = new BedroomSession({
-            sessionId: `ssh-${randomUUID()}`, store, jury, renderer: new ChineseBedroomRenderer(), queryRenderer, actionIr, semanticIr,
+            sessionId: `ssh-${randomUUID()}`, store, jury, renderer: new ChineseBedroomRenderer(), queryRenderer, actionIr, semanticIr, interactionIr,
           });
           const handler = { submit(input: string) {
             const turn = worldTail.then(() => session.submit(input), () => session.submit(input));
@@ -93,6 +97,8 @@ export async function startSshMvpFromEnvironment(): Promise<SshServer> {
   if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw new Error("SER_SSH_PORT must be a valid TCP port.");
   const actionIrMode = process.env.SER_ACTION_IR_MODE ?? "off";
   if (actionIrMode !== "off" && actionIrMode !== "shadow" && actionIrMode !== "active") throw new Error("SER_ACTION_IR_MODE must be off, shadow, or active.");
+  const interactionIrMode = process.env.SER_INTERACTION_IR_MODE ?? "off";
+  if (interactionIrMode !== "off" && interactionIrMode !== "shadow") throw new Error("SER_INTERACTION_IR_MODE must be off or shadow.");
   const { server } = createSshMvpServer({
     host: process.env.SER_SSH_HOST ?? "127.0.0.1",
     port,
@@ -103,6 +109,7 @@ export async function startSshMvpFromEnvironment(): Promise<SshServer> {
     apiToken,
     dataPath: process.env.SER_DATA_PATH ?? ".world/world.lancedb",
     actionIrMode,
+    interactionIrMode,
   });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);

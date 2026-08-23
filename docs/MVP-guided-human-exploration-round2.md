@@ -24,6 +24,7 @@ SER_SSH_HOST_KEY_PATH=secret/ssh_host_ed25519_key \
 SER_SSH_PASSWORD_FILE=secret/ssh_password \
 CLOUDFLARE_API_TOKEN_FILE=secret/cftoken.txt \
 SER_ACTION_IR_MODE=active \
+SER_INTERACTION_IR_MODE=shadow \
 SER_DATA_PATH=.world/human-round2.lancedb \
 SER_SSH_PORT=2222 \
 npm run start:ssh

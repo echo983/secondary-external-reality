@@ -24,6 +24,7 @@ import { DeterministicPresentationRenderer, type ApprovedPresentationRenderer } 
 import { classifyInterfaceInput, interfaceResponse } from "./inputClassification.js";
 import { ReferenceLexicon } from "../world/referenceLexicon.js";
 import { DiscourseContext } from "./discourseContext.js";
+import { runInteractionShadow, type InteractionShadowOutcome, type InteractionWorkstation } from "../interactionIr/workstations.js";
 
 export interface BedroomSessionOptions {
   sessionId: string;
@@ -34,6 +35,7 @@ export interface BedroomSessionOptions {
   actionIr?: { mode: "off" | "shadow" | "active"; proposer?: ActionIrProposer; semanticAuditor?: ActionIrSemanticAuditor };
   semanticIr?: { proposer: SemanticIrProposer; auditor: SemanticIrAuditor };
   queryRenderer?: ApprovedPresentationRenderer;
+  interactionIr?: { mode: "off" | "shadow"; left?: InteractionWorkstation; right?: InteractionWorkstation };
 }
 
 export class BedroomSession {
@@ -45,6 +47,9 @@ export class BedroomSession {
     if (!options.sessionId.trim()) throw new Error("Session ID must be non-empty.");
     if (options.actionIr?.mode === "active" && (!options.actionIr.proposer || !options.actionIr.semanticAuditor)) {
       throw new Error("Active Action IR requires both a proposer and semantic auditor.");
+    }
+    if (options.interactionIr?.mode === "shadow" && (!options.interactionIr.left || !options.interactionIr.right)) {
+      throw new Error("Shadow Interaction IR requires two independent workstations.");
     }
   }
 
@@ -62,6 +67,20 @@ export class BedroomSession {
     await this.auditRepair;
     const rootTurnId = `${this.options.sessionId}:${randomUUID()}`;
     const priorFocus = this.discourseContext.consumeFocus();
+    const shadow = this.options.interactionIr?.mode === "shadow"
+      ? runInteractionShadow(rawTtd, this.options.interactionIr.left!, this.options.interactionIr.right!)
+      : null;
+    try {
+      const result = await this.submitRouted(rawTtd, rootTurnId, priorFocus);
+      await this.persistInteractionShadow(rootTurnId, rawTtd, result.kind, shadow);
+      return result;
+    } catch (error) {
+      await this.persistInteractionShadow(rootTurnId, rawTtd, "rejected", shadow);
+      throw error;
+    }
+  }
+
+  private async submitRouted(rawTtd: string, rootTurnId: string, priorFocus: readonly string[]): Promise<TurnResult> {
     const interfaceClass = classifyInterfaceInput(rawTtd);
     if (interfaceClass) {
       await this.options.store.appendTurnAttempt({ attemptId: `${rootTurnId}:0`, rootTurnId, stepIndex: 0, stepCount: 1, rawTtd,
@@ -126,6 +145,27 @@ export class BedroomSession {
       intent: parseMvpIntent(rawTtd),
       partial: false,
     };
+  }
+
+  private async persistInteractionShadow(
+    rootTurnId: string,
+    rawTtd: string,
+    legacyOutcome: "committed" | "boundary" | "evidence" | "interface" | "rejected",
+    pending: Promise<InteractionShadowOutcome> | null,
+  ): Promise<void> {
+    if (!pending) return;
+    try {
+      const outcome = await pending;
+      await this.options.store.appendInteractionIrAudit({
+        auditId: `${rootTurnId}:interaction-ir`, rootTurnId, mode: "shadow",
+        inputHash: createHash("sha256").update(rawTtd).digest("hex"), status: outcome.status,
+        ...(outcome.proposal ? { proposal: outcome.proposal } : {}),
+        ...(outcome.workstations ? { workstations: outcome.workstations.map((result) => ({ outputHash: result.outputHash,
+          valid: result.validation.valid, issueCodes: result.validation.issues.map((issue) => issue.code), model: result.model,
+          latencyMs: result.latencyMs, usage: result.usage })) } : {}),
+        legacyOutcome, createdAt: new Date().toISOString(),
+      });
+    } catch { /* Shadow interpretation and telemetry cannot affect execution. */ }
   }
 
   private async executeSemanticFallback(rawTtd: string, rootTurnId: string): Promise<TurnResult | null> {

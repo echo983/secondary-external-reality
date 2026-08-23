@@ -13,6 +13,7 @@ import { MaterializedWorld, MaterializedWorldError } from "../world/materialized
 const COMMIT_TABLE = "world_commits";
 const ATTEMPT_TABLE = "turn_attempts";
 const ACTION_PROPOSAL_TABLE = "action_proposals";
+const INTERACTION_AUDIT_TABLE = "interaction_ir_audits";
 
 export interface ActionProposalAudit {
   auditId: string;
@@ -29,6 +30,18 @@ export interface ActionProposalAudit {
   model?: string;
   latencyMs?: number;
   usage?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface InteractionIrAudit {
+  auditId: string;
+  rootTurnId: string;
+  mode: "shadow";
+  inputHash: string;
+  status: "agreed" | "disagreed" | "invalid" | "model_error";
+  proposal?: unknown;
+  workstations?: Array<{ outputHash: string; valid: boolean; issueCodes: string[]; model: string; latencyMs: number; usage: Record<string, unknown> }>;
+  legacyOutcome: "committed" | "boundary" | "evidence" | "interface" | "rejected";
   createdAt: string;
 }
 
@@ -60,6 +73,15 @@ interface AttemptRow extends Record<string, unknown> {
 }
 
 interface ActionProposalRow extends Record<string, unknown> {
+  audit_id: string;
+  root_turn_id: string;
+  status: string;
+  record_json: string;
+  record_hash: string;
+  created_at: string;
+}
+
+interface InteractionAuditRow extends Record<string, unknown> {
   audit_id: string;
   root_turn_id: string;
   status: string;
@@ -133,6 +155,7 @@ export class LanceCommitStore {
   private table: Table | null = null;
   private attemptTable: Table | null = null;
   private actionProposalTable: Table | null = null;
+  private interactionAuditTable: Table | null = null;
   private writeTail: Promise<void> = Promise.resolve();
 
   constructor(private readonly uri: string) {}
@@ -149,16 +172,21 @@ export class LanceCommitStore {
     if ((await this.connection.tableNames()).includes(ACTION_PROPOSAL_TABLE)) {
       this.actionProposalTable = await this.connection.openTable(ACTION_PROPOSAL_TABLE);
     }
+    if ((await this.connection.tableNames()).includes(INTERACTION_AUDIT_TABLE)) {
+      this.interactionAuditTable = await this.connection.openTable(INTERACTION_AUDIT_TABLE);
+    }
   }
 
   close(): void {
     this.table?.close();
     this.attemptTable?.close();
     this.actionProposalTable?.close();
+    this.interactionAuditTable?.close();
     this.connection?.close();
     this.table = null;
     this.attemptTable = null;
     this.actionProposalTable = null;
+    this.interactionAuditTable = null;
     this.connection = null;
   }
 
@@ -281,6 +309,40 @@ export class LanceCommitStore {
     }
     if (!this.actionProposalTable) this.actionProposalTable = await this.connection.createTable(ACTION_PROPOSAL_TABLE, [row]);
     else await this.actionProposalTable.add([row]);
+  }
+
+  async appendInteractionIrAudit(audit: InteractionIrAudit): Promise<void> {
+    const operation = this.writeTail.then(
+      () => this.appendInteractionIrAuditSerialized(audit),
+      () => this.appendInteractionIrAuditSerialized(audit),
+    );
+    this.writeTail = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
+  async listInteractionIrAudits(rootTurnId?: string): Promise<InteractionIrAudit[]> {
+    await this.open();
+    if (!this.interactionAuditTable) return [];
+    const rows = await this.interactionAuditTable.query().toArray() as InteractionAuditRow[];
+    return rows.map((row) => JSON.parse(row.record_json) as InteractionIrAudit)
+      .filter((audit) => rootTurnId === undefined || audit.rootTurnId === rootTurnId)
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  }
+
+  private async appendInteractionIrAuditSerialized(audit: InteractionIrAudit): Promise<void> {
+    await this.open();
+    if (!this.connection) throw new Error("LanceDB connection is not open.");
+    const recordJson = JSON.stringify(audit);
+    const row: InteractionAuditRow = { audit_id: audit.auditId, root_turn_id: audit.rootTurnId, status: audit.status,
+      record_json: recordJson, record_hash: hashPackage(recordJson), created_at: audit.createdAt };
+    const rows = this.interactionAuditTable ? await this.interactionAuditTable.query().toArray() as InteractionAuditRow[] : [];
+    const existing = rows.find((candidate) => candidate.audit_id === row.audit_id);
+    if (existing) {
+      if (existing.record_hash !== row.record_hash) throw new CommitConflictError(`Interaction IR audit ${row.audit_id} already exists with different content.`);
+      return;
+    }
+    if (!this.interactionAuditTable) this.interactionAuditTable = await this.connection.createTable(INTERACTION_AUDIT_TABLE, [row]);
+    else await this.interactionAuditTable.add([row]);
   }
 
   async repairTurnAttempts(): Promise<RepairTurnAttemptsResult> {
