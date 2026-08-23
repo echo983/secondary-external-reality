@@ -23,6 +23,14 @@ const attributesByType: Readonly<Record<string, ReadonlySet<string>>> = {
 };
 
 export const HALLWAY_NOTABLE_FEATURES = ["none", "framed_photo", "umbrella_stand", "wall_lamp"] as const;
+export const LIVING_ROOM_NOTABLE_FEATURES = ["none", "bookshelf", "floor_lamp", "framed_painting"] as const;
+// notable_feature is validated against the union of every place's value
+// domain, not per-instance — schema validates "is this a plausible value for
+// this attribute at all", the same way it doesn't check that a posture value
+// logically follows from a position value. Each place's own resolver
+// (resolvePlaceNotableFeature) is what guarantees a given entity only ever
+// gets a value from its own domain.
+const PLACE_NOTABLE_FEATURES = new Set<string>([...HALLWAY_NOTABLE_FEATURES, ...LIVING_ROOM_NOTABLE_FEATURES]);
 
 const predicates = new Set(["located_on", "contained_by", "held_by", "part_of"]);
 const booleanAttributes = new Set(["surface", "container", "openable", "portable"]);
@@ -43,10 +51,10 @@ export function validateAttribute(entityType: string, attribute: string, value: 
   if (attribute === "posture" && !["sitting_on_bed_edge", "standing"].includes(value)) {
     throw new WorldSchemaError(`Unsupported posture ${value}.`);
   }
-  if (attribute === "position" && !["bedside", "doorway", "hallway"].includes(value)) {
+  if (attribute === "position" && !["bedside", "doorway", "hallway", "living_room"].includes(value)) {
     throw new WorldSchemaError(`Unsupported position ${value}.`);
   }
-  if (attribute === "notable_feature" && !(HALLWAY_NOTABLE_FEATURES as readonly string[]).includes(value)) {
+  if (attribute === "notable_feature" && !PLACE_NOTABLE_FEATURES.has(value)) {
     throw new WorldSchemaError(`Unsupported notable_feature ${value}.`);
   }
   if (attribute === "inscription" && value !== "" && !/^[0-9]{1,64}$/u.test(value)) {

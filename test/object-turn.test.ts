@@ -216,6 +216,74 @@ test("resolves the same notable_feature whether reached by walking in or observe
   assert.equal(walkedInValue, observedValue);
 });
 
+test("closing the door from the hallway side blocks walking back until it is reopened (bidirectional door regression)", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-hallway-door-regression-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    await current.submit("打开门");
+    await current.submit("走到走廊");
+    await current.submit("关上门");
+    await assert.rejects(current.submit("走到床边"), ObjectTurnError);
+    await assert.rejects(current.submit("走到门口"), ObjectTurnError);
+    const stillInHallway = MaterializedWorld.replay(await store.list(), createObjectWorldFixture().seedCommitments);
+    assert.equal(stillInHallway.entities.get("self")?.attributes.position, "hallway");
+    await current.submit("打开门");
+    assert.equal((await current.submit("走到床边")).response, "你走到了床边。");
+    const backAtBedside = MaterializedWorld.replay(await store.list(), createObjectWorldFixture().seedCommitments);
+    assert.equal(backAtBedside.entities.get("self")?.attributes.position, "bedside");
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("living room and hallway each resolve their own independent, non-colliding notable_feature", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-living-room-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    await current.submit("打开门");
+    await current.submit("走到走廊");
+    const hallwayResult = await current.submit("环顾四周");
+    assert.equal(hallwayResult.kind, "committed");
+    assert.equal((await current.submit("走到客厅")).response, "你走到了客厅。");
+    const livingRoomResult = await current.submit("环顾四周");
+    assert.equal(livingRoomResult.kind, "committed");
+    assert.equal(livingRoomResult.commitPackage.newWorldCommitments.length, 1, "first look_around in the living room must resolve and commit exactly once");
+    const repeat = await current.submit("环顾四周");
+    assert.equal(repeat.commitPackage.newWorldCommitments.length, 0, "a second look_around must not re-resolve or re-commit");
+    assert.equal(livingRoomResult.response, repeat.response);
+    const world = MaterializedWorld.replay(await store.list(), createObjectWorldFixture().seedCommitments);
+    const hallwayFeature = world.entities.get("hallway-1")?.attributes.notable_feature;
+    const livingRoomFeature = world.entities.get("living-room-1")?.attributes.notable_feature;
+    assert.match(hallwayFeature ?? "", /^(none|framed_photo|umbrella_stand|wall_lamp)$/u);
+    assert.match(livingRoomFeature ?? "", /^(none|bookshelf|floor_lamp|framed_painting)$/u);
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("living room is visible from the hallway without a door, but not reachable or observable from the bedroom directly (no multi-hop)", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-living-room-visibility-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    await assert.rejects(current.submit("走到客厅"), ObjectTurnError);
+    const bedroomBoundary = await current.submit("看看客厅");
+    assert.equal(bedroomBoundary.kind, "boundary");
+    assert.equal((await store.list()).length, 0);
+    await current.submit("打开门");
+    await current.submit("走到走廊");
+    const fromHallway = await current.submit("看看客厅");
+    assert.equal(fromHallway.kind, "committed");
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("rejects moving to the current position and to a non-landmark destination", async () => {
   const directory = await mkdtemp(join(tmpdir(), "secondary-reality-move-reject-"));
   const store = new LanceCommitStore(join(directory, "world.lancedb"));

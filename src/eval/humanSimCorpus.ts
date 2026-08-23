@@ -96,11 +96,16 @@ function fragment(rng: () => number): { input: string }[] {
   return [{ input: pick(rng, ["把", "那个...", "呃", "嗯"]) }];
 }
 
-// "走到门口"/"走到床边"/"走到走廊" are now real, supported move targets (see
-// moveToLandmark/hallwayExploration); this keeps only destinations beyond the
-// hallway, which are still genuinely unmodeled (design doc §3.4).
+// "走到门口"/"走到床边"/"走到走廊"/"走到客厅" are all now real, supported move
+// targets (see moveToLandmark/hallwayExploration/livingRoomExploration) —
+// "走到客厅" used to live here as the placeholder unmodeled destination until
+// the living-room PlaceGraph made it real (-living-room-design-v0.5.md §3),
+// exactly like "门外" before it. The chain is deliberately capped at
+// living-room-1 (design §5: no third space), so this keeps only a target
+// that will never become real within this MVP's scope, per that same design
+// doc's own suggestion to stop leaning on "the next place" as the example.
 function unsupportedMove(rng: () => number): { input: string }[] {
-  return [{ input: pick(rng, ["走出这个房间", "走到客厅", "go to the living room"]) }];
+  return [{ input: pick(rng, ["走出这个房间", "走到阳台", "go to the balcony"]) }];
 }
 
 // "门外" now resolves to the real hallway-1 entity; whether this commits or
@@ -116,6 +121,13 @@ function hallwayQuery(rng: () => number): { input: string }[] {
 // and commit on the third turn.
 function hallwayExploration(_rng: () => number): { input: string }[] {
   return [{ input: "打开门" }, { input: "走到走廊" }, { input: "环顾四周" }];
+}
+
+// Same as hallwayExploration, one place further along the chain — proves the
+// generalized Free-projection mechanism resolves living-room-1 independently
+// (docs/MVP-living-room-placegraph-design-v0.5.md §3), not just hallway-1.
+function livingRoomExploration(_rng: () => number): { input: string }[] {
+  return [{ input: "打开门" }, { input: "走到走廊" }, { input: "走到客厅" }, { input: "环顾四周" }];
 }
 
 function negation(rng: () => number): { input: string }[] {
@@ -136,7 +148,7 @@ function greeting(rng: () => number): { input: string }[] {
 }
 
 function moveToLandmark(rng: () => number): { input: string }[] {
-  const options = ["走到门口", "走到床边", "go to the door", "go to the bed", "移动到门口", "回到床边"];
+  const options = ["走到门口", "走到床边", "go to the door", "go to the bed", "移动到门口", "回到床边", "走到客厅", "走到走廊", "go to the living room"];
   return [{ input: pick(rng, options) }];
 }
 
@@ -146,7 +158,7 @@ function selfPositionQuery(rng: () => number): { input: string }[] {
 
 const SIMPLE_TEMPLATES: Array<(rng: () => number) => { input: string }[]> = [
   lookAround, inventory, openContainer, closeContainer, containerContents, takeItem, placeItem,
-  writeNote, readNote, capabilityQuery, fragment, unsupportedMove, hallwayQuery, hallwayExploration, negation,
+  writeNote, readNote, capabilityQuery, fragment, unsupportedMove, hallwayQuery, hallwayExploration, livingRoomExploration, negation,
   hypothetical, chainedThen, greeting, moveToLandmark, selfPositionQuery,
 ];
 

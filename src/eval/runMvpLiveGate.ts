@@ -16,6 +16,7 @@ const suites = [
   { name: "move-sequence", module: "./runMoveSequenceLiveEval.js" },
   { name: "query-confluence", module: "./runQueryConfluenceLiveEval.js" },
   { name: "hallway-sequence", module: "./runHallwaySequenceLiveEval.js" },
+  { name: "living-room-sequence", module: "./runLivingRoomSequenceLiveEval.js" },
   { name: "human-simulation-corpus", module: "./runHumanSimulationCorpusLiveEval.js" },
 ] as const;
 

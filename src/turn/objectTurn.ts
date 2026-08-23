@@ -3,12 +3,12 @@ import type { CandidateEnvelope, EpistemicChange, EvidenceRecord, ProjectionDefi
 import type { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import { MaterializedWorld, type MaterializedEntity, type MaterializedRelation } from "../world/materializedWorld.js";
 import { createObjectWorldFixture, resolveFixtureEntity, type ObjectWorldFixture } from "../world/objectFixture.js";
-import { HALLWAY_NOTABLE_FEATURES } from "../world/worldSchema.js";
+import { HALLWAY_NOTABLE_FEATURES, LIVING_ROOM_NOTABLE_FEATURES } from "../world/worldSchema.js";
 import { parseMvpIntent } from "../world/intent.js";
 import { parseObjectIntent, type ObjectIntent } from "../world/objectIntent.js";
 import type { BedroomJury, TurnResult } from "./bedroomTurn.js";
 import { commitCandidateEnvelope } from "./commitCandidate.js";
-import { isEntityPerceivable } from "../query/perceptionPolicy.js";
+import { isEntityPerceivable, roomForPosition, PLACE_VISIBILITY_EXCEPTIONS } from "../query/perceptionPolicy.js";
 import { triageFixedQuery } from "../query/queryTriage.js";
 import { replayCanonicalViews } from "../replay/canonicalReplay.js";
 import type { PublicBoundaryCode } from "../presentation/types.js";
@@ -21,18 +21,58 @@ import { DeterministicPresentationRenderer, RiskAwarePresentationRenderer, type 
 export class ObjectTurnError extends Error {}
 
 // Doorway/bedside are anchored to the existing door/bed landmark entities;
-// hallway-1 is a real Place entity (docs/MVP-hallway-placegraph-design-v0.4.md).
-const MOVE_DESTINATIONS: Readonly<Record<string, "bedside" | "doorway" | "hallway">> = { "door-1": "doorway", "bed-1": "bedside", "hallway-1": "hallway" };
+// hallway-1/living-room-1 are real Place entities (docs/MVP-hallway-placegraph-design-v0.4.md,
+// -living-room-design-v0.5.md). Still a strictly linear chain — a full graph
+// data structure would be premature for four nodes on one path.
+type PositionValue = "bedside" | "doorway" | "hallway" | "living_room";
 
-// Deterministic ΠS/LazyRealizer: hallway-1.notable_feature is genuinely Free
-// until the first time it is operationally addressed (first look_around while
-// in the hallway). Seeded from the committed worldBasis.seedHash, so the same
-// world always resolves the same value, and it is never re-resolved once
-// committed (I6 CounterfactualStability) — see design doc §3.2.
-function resolveHallwayNotableFeature(seedHash: string): (typeof HALLWAY_NOTABLE_FEATURES)[number] {
-  const digest = createHash("sha256").update(`${seedHash}:hallway-1.notable_feature`).digest();
-  const index = digest.readUInt32BE(0) % HALLWAY_NOTABLE_FEATURES.length;
-  return HALLWAY_NOTABLE_FEATURES[index]!;
+const MOVE_DESTINATIONS: Readonly<Record<string, PositionValue>> = {
+  "door-1": "doorway", "bed-1": "bedside", "hallway-1": "hallway", "living-room-1": "living_room",
+};
+
+// Reverse of the two place rows above, restricted to positions that host a
+// Free-projection place — used to detect "self is currently standing inside
+// a place with unresolved content" without hardcoding which place that is.
+const POSITION_PLACE_ID: Readonly<Partial<Record<PositionValue, string>>> = {
+  hallway: "hallway-1", living_room: "living-room-1",
+};
+
+// Adjacency between position values, with an optional door entity that must
+// be open to cross that edge. Both directions of a door-gated edge are
+// listed explicitly and independently — closing the door from either side
+// blocks crossing from either side, not just outbound. bedside and doorway
+// are both treated as directly reachable from hallway (matching the
+// pre-existing, already-tested bedroom-side UX where you can walk straight
+// out to or in from the hallway without a separate doorway stop — the same
+// two-position collapse perceptionPolicy's "bedroom" room already makes);
+// what changed from the pre-generalization version is that ALL FOUR
+// directions across door-1 are now gated, not just bedroom->hallway.
+interface MoveEdge { to: PositionValue; requiresOpenDoor?: string }
+const PLACE_ADJACENCY: Readonly<Record<PositionValue, readonly MoveEdge[]>> = {
+  bedside: [{ to: "doorway" }, { to: "hallway", requiresOpenDoor: "door-1" }],
+  doorway: [{ to: "bedside" }, { to: "hallway", requiresOpenDoor: "door-1" }],
+  hallway: [{ to: "doorway", requiresOpenDoor: "door-1" }, { to: "bedside", requiresOpenDoor: "door-1" }, { to: "living_room" }],
+  living_room: [{ to: "hallway" }],
+};
+
+// Every Place entity with a genuinely Free notable_feature projection, and
+// the closed value domain ΠS may resolve it into. Both entries share the one
+// resolver below — nothing here is hallway- or living-room-specific.
+const PLACE_FREE_PROJECTIONS: Readonly<Record<string, { valueDomain: readonly string[] }>> = {
+  "hallway-1": { valueDomain: HALLWAY_NOTABLE_FEATURES },
+  "living-room-1": { valueDomain: LIVING_ROOM_NOTABLE_FEATURES },
+};
+
+// Deterministic ΠS/LazyRealizer: a place's notable_feature is genuinely Free
+// until the first time it is operationally addressed. Seeded from the
+// committed worldBasis.seedHash plus the place's own id (so two places never
+// accidentally resolve in lockstep even if they share a value domain), so
+// the same world always resolves the same value, and it is never re-resolved
+// once committed (I6 CounterfactualStability) — see design doc §3.2/§3.
+function resolvePlaceNotableFeature(placeId: string, seedHash: string, valueDomain: readonly string[]): string {
+  const digest = createHash("sha256").update(`${seedHash}:${placeId}.notable_feature`).digest();
+  const index = digest.readUInt32BE(0) % valueDomain.length;
+  return valueDomain[index]!;
 }
 
 function candidatesByCapability(world: MaterializedWorld, ids: string[], attribute: string): MaterializedEntity[] {
@@ -104,13 +144,19 @@ export async function runObjectTurn(options: {
   const world = MaterializedWorld.replay(options.priorCommits, fixture.seedCommitments);
   const mentionedIds = options.mentionedEntityIds ?? resolveFixtureEntity(fixture, parsed.rawTtd);
   const selfQuery = parsed.operation === "self_position" || parsed.operation === "self_posture" || parsed.operation === "self_bed_status" || (parsed.operation === "locate" && mentionedIds.length === 1 && mentionedIds[0] === "self");
-  // Matches the branch below that resolves/reads hallway-1.notable_feature.
+  // Matches the branch below that resolves/reads a place's notable_feature.
   // "observe" has no queryKind (unmapped), so without this the canonical
   // envelope (and therefore any rendered response text) would silently never
   // get built for that compiled shape — the same observe/inspect_contents
   // inconsistency the drawer-contents Query Confluence finding surfaced.
-  const hallwayContentQuery = (parsed.operation === "look_around" && world.entities.get("self")?.attributes.position === "hallway")
-    || (["observe", "inspect_contents", "locate"].includes(parsed.operation) && mentionedIds.length === 1 && mentionedIds[0] === "hallway-1");
+  // look_around triggers on whichever Free-projection place self currently
+  // stands in (if any); the other query verbs trigger on an explicit mention
+  // of a place entity, from anywhere it happens to be reachable/visible from.
+  const currentPlaceId = POSITION_PLACE_ID[world.entities.get("self")?.attributes.position as PositionValue];
+  const mentionedPlaceId = mentionedIds.length === 1 && Object.hasOwn(PLACE_FREE_PROJECTIONS, mentionedIds[0]!) ? mentionedIds[0] : undefined;
+  const targetPlaceId = parsed.operation === "look_around" ? currentPlaceId : mentionedPlaceId;
+  const placeContentQuery = (parsed.operation === "look_around" && currentPlaceId !== undefined)
+    || (["observe", "inspect_contents", "locate"].includes(parsed.operation) && mentionedPlaceId !== undefined);
   const queryKind: FixedQueryKind | undefined = parsed.operation === "inspect_contents" ? "inspect_contents"
     : parsed.operation === "locate" ? "locate"
       : parsed.operation === "inspect_inscription_presence" || parsed.operation === "inspect_inscription_value" ? "inspect_attribute"
@@ -168,40 +214,45 @@ export async function runObjectTurn(options: {
     epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
     presentationItems.push({ kind: "attribute_evidence", semanticAddress: entityAttributeAddress("self", attribute), value, evidenceId });
     response = "";
-  } else if (hallwayContentQuery) {
-    // The one genuinely Free projection in this world (design doc §3.2): resolve
-    // it deterministically the first time it is operationally addressed, commit
-    // it as part of THIS turn, and never re-resolve once committed (I6). This
-    // branch covers both "environ this while standing in the hallway" and
-    // "看看门外 from the bedroom" — the model compiles the latter as observe,
+  } else if (placeContentQuery && targetPlaceId) {
+    // A genuinely Free projection (design doc §3.2/-living-room-design-v0.5.md
+    // §3): resolve it deterministically the first time it is operationally
+    // addressed, commit it as part of THIS turn, and never re-resolve once
+    // committed (I6). This branch covers both "look around while standing in
+    // the place" and "observe/locate it from wherever it happens to be
+    // perceivable from" — the model compiles the latter as observe,
     // inspect_contents, or occasionally locate, all with the same semantics
     // (see the drawer-contents Query Confluence finding: a query for "what's
-    // inside X" is not reliably compiled into one single operation).
-    const atHallway = world.entities.get("self")?.attributes.position === "hallway";
-    const door = world.entities.get("door-1")!;
-    if (!atHallway) {
-      fact(registry, snapshots, conditions, "entity:door-1.open_state", door.attributes.open_state ?? "closed", door.attributeRevisions.open_state ?? 0, ["closed", "open"]);
-      if (door.attributes.open_state !== "open") {
-        const code: PublicBoundaryCode = "TARGET_NOT_PERCEIVABLE";
-        const packet = { packetId: `${options.turnId}:boundary`, outcome: "boundary" as const, language: parsed.inputLanguage, items: [{ kind: "boundary" as const, code }] };
-        return { kind: "boundary", response: await queryRenderer.render(packet, options.rawTtd), packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never };
-      }
+    // inside X" is not reliably compiled into one single operation). Shared by
+    // every place in PLACE_FREE_PROJECTIONS — hallway-1 and living-room-1 run
+    // through the exact same logic below, parameterized only by targetPlaceId.
+    const placeEntity = world.entities.get(targetPlaceId)!;
+    const selfRoom = roomForPosition(world.entities.get("self")?.attributes.position);
+    const exception = PLACE_VISIBILITY_EXCEPTIONS[targetPlaceId];
+    if (exception?.requiresOpenDoor && exception.fromRoom === selfRoom) {
+      const door = world.entities.get(exception.requiresOpenDoor)!;
+      fact(registry, snapshots, conditions, `entity:${exception.requiresOpenDoor}.open_state`, door.attributes.open_state ?? "closed", door.attributeRevisions.open_state ?? 0, ["closed", "open"]);
     }
-    const hallway = world.entities.get("hallway-1")!;
-    const priorValue = hallway.attributes.notable_feature;
-    const value = priorValue || resolveHallwayNotableFeature(fixture.worldBasis.seedHash);
+    if (!isEntityPerceivable(world, placeEntity)) {
+      const code: PublicBoundaryCode = "TARGET_NOT_PERCEIVABLE";
+      const packet = { packetId: `${options.turnId}:boundary`, outcome: "boundary" as const, language: parsed.inputLanguage, items: [{ kind: "boundary" as const, code }] };
+      return { kind: "boundary", response: await queryRenderer.render(packet, options.rawTtd), packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never };
+    }
+    const { valueDomain } = PLACE_FREE_PROJECTIONS[targetPlaceId]!;
+    const priorValue = placeEntity.attributes.notable_feature;
+    const value = priorValue || resolvePlaceNotableFeature(targetPlaceId, fixture.worldBasis.seedHash, valueDomain);
     if (priorValue) {
-      fact(registry, snapshots, conditions, "entity:hallway-1.notable_feature", priorValue, hallway.attributeRevisions.notable_feature ?? 0);
+      fact(registry, snapshots, conditions, `entity:${targetPlaceId}.notable_feature`, priorValue, placeEntity.attributeRevisions.notable_feature ?? 0);
     } else {
-      fact(registry, snapshots, conditions, "entity:hallway-1.notable_feature", "", hallway.attributeRevisions.notable_feature ?? 0, ["", ...HALLWAY_NOTABLE_FEATURES]);
-      commitments.push({ kind: "attribute_set", entityId: "hallway-1", attribute: "notable_feature", value });
+      fact(registry, snapshots, conditions, `entity:${targetPlaceId}.notable_feature`, "", placeEntity.attributeRevisions.notable_feature ?? 0, ["", ...valueDomain]);
+      commitments.push({ kind: "attribute_set", entityId: targetPlaceId, attribute: "notable_feature", value });
     }
-    const eventId = `event-look-around-hallway-${options.commitSequence}`;
-    const evidenceId = `evidence-hallway-feature-${options.commitSequence}`;
-    events.push({ eventId, type: "action_result", actionKind: "look_around", outcome: "success", subjectRef: "self", objectRef: "hallway-1" });
-    evidenceGenerated.push({ evidenceId, kind: "attribute_observed", sourceEventId: eventId, subjectId: "hallway-1", attribute: "notable_feature", value });
+    const eventId = `event-look-around-${targetPlaceId}-${options.commitSequence}`;
+    const evidenceId = `evidence-place-feature-${targetPlaceId}-${options.commitSequence}`;
+    events.push({ eventId, type: "action_result", actionKind: "look_around", outcome: "success", subjectRef: "self", objectRef: targetPlaceId });
+    evidenceGenerated.push({ evidenceId, kind: "attribute_observed", sourceEventId: eventId, subjectId: targetPlaceId, attribute: "notable_feature", value });
     epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
-    presentationItems.push({ kind: "attribute_evidence", semanticAddress: entityAttributeAddress("hallway-1", "notable_feature"), value, evidenceId });
+    presentationItems.push({ kind: "attribute_evidence", semanticAddress: entityAttributeAddress(targetPlaceId, "notable_feature"), value, evidenceId });
     response = "";
   } else if (parsed.operation === "look_around") {
     const visible = [...world.entities.values()].filter((entity) => isEntityPerceivable(world, entity)).sort((a, b) => a.entityId.localeCompare(b.entityId));
@@ -409,16 +460,25 @@ export async function runObjectTurn(options: {
     );
     const destination = MOVE_DESTINATIONS[landmark.entityId]!;
     const self = world.entities.get("self")!;
-    const currentPosition = self.attributes.position;
+    const currentPosition = self.attributes.position as PositionValue | undefined;
     if (!currentPosition) throw new ObjectTurnError("self has no position.");
-    const destinationLabel = destination === "doorway" ? { zh: "门口", en: "the doorway" }
-      : destination === "hallway" ? { zh: "走廊", en: "the hallway" } : { zh: "床边", en: "the bedside" };
+    const destinationLabel: Readonly<Record<PositionValue, { zh: string; en: string }>> = {
+      bedside: { zh: "床边", en: "the bedside" }, doorway: { zh: "门口", en: "the doorway" },
+      hallway: { zh: "走廊", en: "the hallway" }, living_room: { zh: "客厅", en: "the living room" },
+    };
     if (currentPosition === destination) {
-      throw new ObjectTurnError(parsed.inputLanguage === "zh" ? `你已经在${destinationLabel.zh}了。` : `You are already at ${destinationLabel.en}.`);
+      throw new ObjectTurnError(parsed.inputLanguage === "zh" ? `你已经在${destinationLabel[destination].zh}了。` : `You are already at ${destinationLabel[destination].en}.`);
     }
-    const door = world.entities.get("door-1")!;
-    if (destination === "hallway") {
-      fact(registry, snapshots, conditions, "entity:door-1.open_state", door.attributes.open_state ?? "closed", door.attributeRevisions.open_state ?? 0, ["closed", "open"]);
+    // Adjacency-table-driven, and checked in whichever direction is actually
+    // being crossed — fixes a real bug the hallway-only version had: closing
+    // the door from the hallway side used to leave the doorway/hallway edge
+    // completely unchecked (only the bedroom->hallway direction was ever
+    // gated), so you could still walk straight back through a closed door.
+    const edge = PLACE_ADJACENCY[currentPosition].find((candidate) => candidate.to === destination);
+    if (!edge) throw new ObjectTurnError(parsed.inputLanguage === "zh" ? "那里走不过去。" : "You can't walk there from here.");
+    if (edge.requiresOpenDoor) {
+      const door = world.entities.get(edge.requiresOpenDoor)!;
+      fact(registry, snapshots, conditions, `entity:${edge.requiresOpenDoor}.open_state`, door.attributes.open_state ?? "closed", door.attributeRevisions.open_state ?? 0, ["closed", "open"]);
       if (door.attributes.open_state !== "open") {
         throw new ObjectTurnError(parsed.inputLanguage === "zh" ? "门还关着，你出不去。" : "The door is still closed; you can't go through.");
       }
@@ -427,7 +487,7 @@ export async function runObjectTurn(options: {
     const eventId = `event-move-${options.commitSequence}`;
     events.push({ eventId, type: "action_result", actionKind: "move", outcome: "success", subjectRef: "self", objectRef: landmark.entityId });
     commitments.push({ kind: "attribute_set", entityId: "self", attribute: "position", value: destination });
-    response = parsed.inputLanguage === "zh" ? `你走到了${destinationLabel.zh}。` : `You walk to ${destinationLabel.en}.`;
+    response = parsed.inputLanguage === "zh" ? `你走到了${destinationLabel[destination].zh}。` : `You walk to ${destinationLabel[destination].en}.`;
   } else if (parsed.operation === "take") {
     const object = exactlyOne(candidatesByCapability(world, mentionedIds, "portable"), "portable object");
     const location = currentLocation(world, object);
@@ -486,7 +546,7 @@ export async function runObjectTurn(options: {
 
   const candidateId = `object-${parsed.operation}-${options.commitSequence}`;
   const envelope: CandidateEnvelope = { candidates: [{ candidateId, outcomeKind: "success", requiresResolution: [], conditions, proposedEvents: events, proposedStateChanges: [], observations, evidenceGenerated, epistemicChanges, newWorldCommitments: commitments }] };
-  const canonical = (queryKind || selfQuery || hallwayContentQuery || parsed.operation === "read") ? buildCanonicalQueryEnvelope({ turnId: options.turnId, commitSequence: options.commitSequence, language: parsed.inputLanguage,
+  const canonical = (queryKind || selfQuery || placeContentQuery || parsed.operation === "read") ? buildCanonicalQueryEnvelope({ turnId: options.turnId, commitSequence: options.commitSequence, language: parsed.inputLanguage,
     evidence: evidenceGenerated, presentationItems, ...(completeRelationSet ? { completeRelationSet } : {}) }) : undefined;
   const commitPackage = await commitCandidateEnvelope({ ...options, envelope, registry, snapshots, worldBasis: fixture.worldBasis, seedCommitments: fixture.seedCommitments, ...(canonical ? { canonical } : {}) });
   if (commitPackage.canonical) response = await queryRenderer.render(commitPackage.canonical.presentationPacket, options.rawTtd);

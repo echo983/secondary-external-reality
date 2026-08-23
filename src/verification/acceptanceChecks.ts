@@ -83,18 +83,20 @@ function inscriptionAndRelocate(): ShapeCheck {
   };
 }
 
-// look_around commits nothing UNLESS it is the first time hallway-1's Free
+// look_around commits nothing UNLESS it is the first time some place's Free
 // notable_feature projection is operationally addressed, in which case it
-// commits exactly that one attribute_set (design doc §3.2/§3.3) — a
-// legitimate example of one actionKind having two lawful closure shapes
-// depending on whether the world has already resolved this projection.
-function emptyOrFirstHallwayResolution(): ShapeCheck {
+// commits exactly that one attribute_set (design doc §3.2/§3.3, and
+// -living-room-design-v0.5.md §3 for the second place reusing this same
+// shape) — a legitimate example of one actionKind having two lawful closure
+// shapes depending on whether the world has already resolved this projection.
+const PLACES_WITH_FREE_NOTABLE_FEATURE = new Set(["hallway-1", "living-room-1"]);
+function emptyOrFirstPlaceResolution(): ShapeCheck {
   return (commitments) => {
     if (commitments.length === 0) return null;
     if (commitments.length !== 1) return `expected 0 or 1 commitments, found ${commitments.length}`;
     const only = commitments[0]!;
-    if (only.kind !== "attribute_set" || only.entityId !== "hallway-1" || only.attribute !== "notable_feature") {
-      return "the only commitment look_around may make is hallway-1's first-resolution notable_feature";
+    if (only.kind !== "attribute_set" || !PLACES_WITH_FREE_NOTABLE_FEATURE.has(only.entityId) || only.attribute !== "notable_feature") {
+      return "the only commitment look_around may make is a place's first-resolution notable_feature";
     }
     return null;
   };
@@ -112,7 +114,7 @@ const CLOSURE_TEMPLATES: Record<string, ShapeCheck> = {
   "inspect_inscription_value": exactlyEmpty(),
   "inventory": exactlyEmpty(),
   "locate": exactlyEmpty(),
-  "look_around": emptyOrFirstHallwayResolution(),
+  "look_around": emptyOrFirstPlaceResolution(),
   "move": singlePositionChange(),
   "observe": exactlyEmpty(),
   "observe,open": singleOpenStateChange(),

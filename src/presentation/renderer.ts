@@ -71,15 +71,24 @@ export class DeterministicPresentationRenderer implements ApprovedPresentationRe
     if (evidence.kind === "attribute_evidence") {
       const value = String(evidence.value ?? "");
       if (String(evidence.semanticAddress) === "entity:self.attribute:position") {
-        const zhPosition = value === "doorway" ? "门口" : value === "hallway" ? "走廊" : "床边";
-        const enPosition = value === "doorway" ? "at the doorway" : value === "hallway" ? "in the hallway" : "beside the bed";
+        const zhPosition = value === "doorway" ? "门口" : value === "hallway" ? "走廊" : value === "living_room" ? "客厅" : "床边";
+        const enPosition = value === "doorway" ? "at the doorway" : value === "hallway" ? "in the hallway" : value === "living_room" ? "in the living room" : "beside the bed";
         return packet.language === "zh" ? `你在${zhPosition}。` : `You are ${enPosition}.`;
       }
       if (String(evidence.semanticAddress) === "entity:self.attribute:posture") return packet.language === "zh" ? (value === "sitting_on_bed_edge" ? "你正坐在床沿。" : `你的姿势是${value}。`) : (value === "sitting_on_bed_edge" ? "You are sitting on the edge of the bed." : `Your posture is ${value}.`);
-      if (String(evidence.semanticAddress) === "entity:hallway-1.attribute:notable_feature") {
-        const zh: Record<string, string> = { none: "走廊里没什么特别的。", framed_photo: "走廊墙上挂着一幅装裱好的照片。", umbrella_stand: "走廊角落里放着一个伞架。", wall_lamp: "走廊墙上装着一盏壁灯。" };
-        const en: Record<string, string> = { none: "There is nothing notable in the hallway.", framed_photo: "A framed photo hangs on the hallway wall.", umbrella_stand: "There's an umbrella stand in the corner of the hallway.", wall_lamp: "A wall lamp is mounted on the hallway wall." };
-        return (packet.language === "zh" ? zh[value] : en[value]) ?? (packet.language === "zh" ? "走廊里没什么特别的。" : "There is nothing notable in the hallway.");
+      const placeFeatureMatch = String(evidence.semanticAddress).match(/^entity:(hallway-1|living-room-1)\.attribute:notable_feature$/u);
+      if (placeFeatureMatch) {
+        const placeWords: Record<string, { zh: string; en: string }> = { "hallway-1": { zh: "走廊", en: "hallway" }, "living-room-1": { zh: "客厅", en: "living room" } };
+        const { zh: zhPlace, en: enPlace } = placeWords[placeFeatureMatch[1]!]!;
+        const zh: Record<string, string> = {
+          none: `${zhPlace}里没什么特别的。`, framed_photo: `${zhPlace}墙上挂着一幅装裱好的照片。`, umbrella_stand: `${zhPlace}角落里放着一个伞架。`, wall_lamp: `${zhPlace}墙上装着一盏壁灯。`,
+          bookshelf: `${zhPlace}里有一个书架。`, floor_lamp: `${zhPlace}里立着一盏落地灯。`, framed_painting: `${zhPlace}墙上挂着一幅装裱好的画。`,
+        };
+        const en: Record<string, string> = {
+          none: `There is nothing notable in the ${enPlace}.`, framed_photo: `A framed photo hangs on the ${enPlace} wall.`, umbrella_stand: `There's an umbrella stand in the corner of the ${enPlace}.`, wall_lamp: `A wall lamp is mounted on the ${enPlace} wall.`,
+          bookshelf: `There's a bookshelf in the ${enPlace}.`, floor_lamp: `A floor lamp stands in the ${enPlace}.`, framed_painting: `A framed painting hangs on the ${enPlace} wall.`,
+        };
+        return (packet.language === "zh" ? zh[value] : en[value]) ?? (packet.language === "zh" ? `${zhPlace}里没什么特别的。` : `There is nothing notable in the ${enPlace}.`);
       }
       const presence = /有字|writing on/iu.test(languageSample);
       return packet.language === "zh" ? (value ? (presence ? "纸条上有字。" : `纸条上写着“${value}”。`) : "纸条上没有字。") : (value ? (presence ? "There is writing on the note." : `The note reads “${value}”.`) : "There is no writing on the note.");
