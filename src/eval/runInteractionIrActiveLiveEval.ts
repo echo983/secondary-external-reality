@@ -11,6 +11,7 @@ import { createObjectWorldFixture } from "../world/objectFixture.js";
 
 const cases = [
   { id: "conversation", input: "你好", kind: "interface", delta: 0, code: "INTERACTION_CONVERSATION" },
+  { id: "look-around", input: "看看周围", kind: "committed", delta: 1, response: "床" },
   { id: "capability", input: "我能拿起笔吗", kind: "interface", delta: 0, code: "INTERACTION_CAPABILITY_QUERY" },
   { id: "drawer-location", input: "抽屉在哪", kind: "committed", delta: 1, response: "床头柜" },
   { id: "outside-scope", input: "看看门外", kind: "interface", delta: 0, code: "INTERACTION_UNRESOLVED_REFERENCE" },
@@ -42,7 +43,8 @@ try {
       const codeCorrect = !("code" in item) || (result.kind === "interface" && result.code === item.code);
       const responseCorrect = !("response" in item) || result.response.includes(item.response);
       rows.push({ id: item.id, expectedKind: item.kind, actualKind: result.kind, expectedCommitDelta: item.delta, actualCommitDelta: delta,
-        codeCorrect, responseCorrect, correct: result.kind === item.kind && delta === item.delta && codeCorrect && responseCorrect });
+        ...(result.kind === "interface" ? { actualCode: result.code } : {}), codeCorrect, responseCorrect,
+        correct: result.kind === item.kind && delta === item.delta && codeCorrect && responseCorrect });
     } catch {
       const delta = (await store.list()).length - before;
       rows.push({ id: item.id, expectedKind: item.kind, actualKind: "rejected", expectedCommitDelta: item.delta,

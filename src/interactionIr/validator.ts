@@ -32,17 +32,21 @@ export function validateInteractionProposal(input: unknown, rawTtd: string): Int
       if (!INTERACTION_ROLES.includes(role.role as never)) issues.push({ code: "INVALID_ROLE", path: `${rolePath}.role`, message: "Unknown role." });
       span(role.mention, rawTtd, `${rolePath}.mention`, issues);
     });
-    if (clause.queryMode !== undefined && clause.queryMode !== null && !INTERACTION_QUERY_MODES.includes(clause.queryMode as never)) issues.push({ code: "INVALID_QUERY_MODE", path: `${path}.queryMode`, message: "Unknown query mode." });
+    if (input.speechAct !== "action_request" && clause.queryMode !== undefined && clause.queryMode !== null && !INTERACTION_QUERY_MODES.includes(clause.queryMode as never)) issues.push({ code: "INVALID_QUERY_MODE", path: `${path}.queryMode`, message: "Unknown query mode." });
   });
   const speechAct = String(input.speechAct);
   const clauseCount = Array.isArray(input.clauses) ? input.clauses.length : 0;
   if (["action_request", "world_query", "capability_query"].includes(speechAct) && clauseCount === 0) issues.push({ code: "CLAUSE_REQUIRED", path: "$.clauses", message: "This speech act requires at least one clause." });
   if (speechAct === "action_request" && input.actuality === "non_executing") issues.push({ code: "ACTUALITY_CONTRADICTION", path: "$.actuality", message: "Action expressions must preserve actual, negated, hypothetical, or conditional actuality." });
   if (speechAct !== "action_request" && input.actuality !== "non_executing") issues.push({ code: "ACTUALITY_CONTRADICTION", path: "$.actuality", message: "Every non-action speech act must be non_executing." });
-  if (speechAct === "action_request" && Array.isArray(input.clauses) && input.clauses.some((clause) => record(clause) && clause.queryMode !== undefined && clause.queryMode !== null)) issues.push({ code: "QUERY_MODE_ON_ACTION", path: "$.clauses", message: "Action clauses cannot carry queryMode." });
+  if (speechAct === "action_request" && Array.isArray(input.clauses) && input.clauses.some((clause) => record(clause) && clause.queryMode === "capability")) {
+    issues.push({ code: "CAPABILITY_MODE_ON_ACTION", path: "$.clauses", message: "Capability questions cannot be admitted as actions." });
+  }
   if (issues.length) return { valid: false, proposal: null, issues };
   const proposal = structuredClone(input) as Record<string, unknown>;
-  if (Array.isArray(proposal.clauses)) proposal.clauses.forEach((clause) => { if (record(clause) && clause.queryMode === null) delete clause.queryMode; });
+  if (Array.isArray(proposal.clauses)) proposal.clauses.forEach((clause) => {
+    if (record(clause) && (clause.queryMode === null || speechAct === "action_request")) delete clause.queryMode;
+  });
   return { valid: true, proposal: proposal as unknown as InteractionEnvelopeV10, issues: [] };
 }
 

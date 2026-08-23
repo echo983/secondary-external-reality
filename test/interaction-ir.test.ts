@@ -37,13 +37,25 @@ test("mechanical consensus ignores harmless verb-span differences but rejects ma
   assert.equal(interactionConsensus(left, unsafe).agreed, false);
 });
 
-test("canonicalizes a null optional query mode to omission without allowing a real mode on actions", () => {
+test("consensus ignores redundant query modes but preserves compiler-relevant attribute modes", () => {
+  const base = proposal({ speechAct: "world_query", clauses: [{ clauseId: "c1", operation: "observe", verbSpan: "看看", roles: [{ role: "target", mention: "门外" }] }] });
+  const contents = structuredClone(base); contents.clauses[0]!.queryMode = "contents";
+  assert.equal(interactionConsensus(base, contents).agreed, true);
+  const value = structuredClone(base); value.clauses[0]!.queryMode = "value";
+  assert.equal(interactionConsensus(base, value).agreed, false);
+});
+
+test("mechanically erases non-authoritative query modes from actions", () => {
   const action = { schemaVersion: "1.0.0", inputLanguage: "zh", speechAct: "action_request", actuality: "actual", clauses: [
     { clauseId: "c1", operation: "place", verbSpan: "放下", roles: [{ role: "target", mention: "笔" }], queryMode: null },
   ] };
   const result = validateInteractionProposal(action, "我放下笔");
   assert.equal(result.valid, true);
   assert.equal(result.proposal?.clauses[0]?.queryMode, undefined);
+  (action.clauses[0] as { queryMode: string | null }).queryMode = "contents";
+  const redundant = validateInteractionProposal(action, "我放下笔");
+  assert.equal(redundant.valid, true);
+  assert.equal(redundant.proposal?.clauses[0]?.queryMode, undefined);
 });
 
 test("retries the complete two-workstation consensus once but never accepts one station", async () => {
