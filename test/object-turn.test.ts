@@ -6,7 +6,7 @@ import test from "node:test";
 import { LanceCommitStore } from "../src/storage/lanceCommitStore.js";
 import { BedroomSession } from "../src/turn/bedroomSession.js";
 import { ChineseBedroomRenderer, PassingBedroomJury } from "../src/turn/bedroomTurn.js";
-import { ObjectTurnError } from "../src/turn/objectTurn.js";
+import { ObjectTurnError, runObjectTurn } from "../src/turn/objectTurn.js";
 import { MaterializedWorld } from "../src/world/materializedWorld.js";
 import { createObjectWorldFixture } from "../src/world/objectFixture.js";
 
@@ -78,6 +78,29 @@ test("places any configured portable object onto a configured surface", async ()
     assert.equal((await current.submit("我把笔放在桌子上")).response, "你把笔放在桌子上。");
     const world = MaterializedWorld.replay(await store.list(), createObjectWorldFixture().seedCommitments);
     assert.equal(world.directLocation("pen-1")?.objectId, "table-1");
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("rejects replay under a different world-basis version", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-basis-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    await session(store).submit("我拿起桌上的钥匙");
+    const fixture = createObjectWorldFixture();
+    fixture.worldBasis = { ...fixture.worldBasis, fixtureVersion: "incompatible" };
+    await assert.rejects(runObjectTurn({
+      rawTtd: "我打开抽屉",
+      turnId: "objects:1",
+      commitSequence: 1,
+      priorCommits: await store.list(),
+      jury: new PassingBedroomJury(),
+      store,
+      fixture,
+    }), /world basis does not match/);
+    assert.equal((await store.list()).length, 1);
   } finally {
     store.close();
     await rm(directory, { recursive: true, force: true });

@@ -69,4 +69,4 @@ Mistral 首次把 `drawer=closed` 前置条件和 `drawer=open` 后置承诺误�
 - 名称解析仍是有限模式，不处理代词、复杂修饰和上下文指代；
 - 没有完整 Agent Epistemic Graph、Query Triage 或 Commitment Closure。
 
-v0.2 应优先把纸条 `write/read` 迁入通用能力操作，并为 seed commitments 增加可审计的版本身份。
+以上两项已在 [v0.2](MVP-generic-object-operations-v0.2.md) 完成。
