@@ -1,0 +1,3 @@
+# Local credentials and other secrets must never be committed.
+secret/
+

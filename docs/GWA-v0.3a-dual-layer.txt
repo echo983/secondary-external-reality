@@ -1,0 +1,871 @@
+GENERATIVE-WORLD-ARCHITECTURE :: FROZEN CONSENSUS v0.3a
+=======================================================
+
+ARCHIVE FORMAT: dual-layer
+  Layer S  ::  SCL-HG[v0.1-eng-min :: base=SCL[v1.2.4c-LLM:min:q-safe]]
+               normative core, machine-consumed
+  Layer N  ::  natural language, precedent + rationale, human-consumed
+
+BINDING: every Layer-N entry carries idxref → Layer-S node/rule.
+         Layer S is normative. Layer N is non-normative but LOAD-BEARING:
+         it stores the counterexamples that motivated each rule.
+         Deleting Layer N does not change the spec; it removes the reason
+         the spec is that way, which historically causes regression.
+
+SCOPE: free-text interactive world (street / relationship / ambient).
+       RE2-class structured level generation moved off mainline → APX-B.
+
+STATUS: proposed formal stage-freeze. Mainline → Query Triage.
+
+
+================================================================
+LAYER S · NORMATIVE CORE (SCL)
+================================================================
+
+SCL-GWA[v0.3a-eng :: base=SCL-HG[v0.1-eng-min]]
+
+U:{N,E,HE,P,A}
+T:{ent,op,st,val,rl,vs,q,ct,dl,pf,idx,pol,inv,cost,exit,axis}
+R:{part,def,dep,cond,ask,check,merge,stab,anchor,ab,iv,ver,du,idxref,
+   port,role,arity,proj,pack,unpack,derive,view,price,gate,resolve,expose}
+
+
+---- N: WORLD ONTOLOGY -------------------------------------------
+
+n1{α:W,β:WorldState,t:ent,A{form:"⟨C_t, H_Ct, μ_S⟩"}}
+n2{α:C,β:CommitStore,t:ent}
+n3{α:H,β:PossibleHistorySet,t:vs,A{def:"{H | H ⊨ C_t}"}}
+n4{α:μS,β:ExogenousMeasure,t:rl,A{seeded:true,theoretical:true}}
+n5{α:ΠS,β:LazyRealizer,t:op,A{operational:true,realizes:n4}}
+
+n10{α:Root,β:CommitRootSet,t:vs,
+    A{kind:["μ","struct","exp"],
+      μ:"ΠS-fixed, unexposed, no external dependency",
+      struct:"depended on by other world facts",
+      exp:"exposed to player AND acted upon"}}
+n11{α:CClos,β:CommitmentClosure,t:rl,
+    A{def:"Closure(Root(C_t))",
+      includes:"type integrity + referential integrity + transitive deps",
+      note:"ALL THREE ROOTS. not struct+exp only."}}
+
+n12{α:AxD,β:DeterminationAxis,t:axis,A{seq:["Free","CounterfactuallyFixed"]}}
+n13{α:AxE,β:ExposureAxis,t:axis,
+    A{seq:["Unexposed","StructurallyReferenced","ExperientiallyExposed"]}}
+n14{α:StateVec,β:ProjectionState,t:vs,A{orthogonal:[n12,n13]}}
+
+n15{α:OpAddr,β:OperationalAddressability,t:rl,
+    A{trigger:"first time a latent projection acquires a canonical semantic
+               address in ACTUAL EXECUTION and is about to be referenced by
+               Query / internal dependency / Evidence / Event",
+      not:"theoretical askability"}}
+
+n16{α:Seed,β:SeedLayer,t:vs,
+    A{layer:["SeededCommitment","SeededLatent","FreeSlack"]}}
+
+n17{α:Addr,β:SemanticAddress,t:idx,
+    A{anchor:"stable world structure",
+      forbid:["player phrasing","not-yet-existing entity names","query order"],
+      ex:"HanMeimei→romantic_history→latent_slot κ17→partner→entity#8F31"}}
+n18{α:EPool,β:LatentEntityPool,t:idx,
+    A{rule:"relations REFERENCE entity ids; relations do not OWN persons"}}
+
+
+---- N: FACT LAYERS ----------------------------------------------
+
+n20{α:WT,β:WorldTruth,t:st,A{instantiation:"minimal; primarily a constraint set"}}
+n21{α:Ev,β:Evidence,t:st,A{immutable:true,availability:"A(e,t) bidirectional"}}
+n22{α:AEG,β:AgentEpistemicGraph,t:st,A{shape:"graph, not field"}}
+n23{α:XM,β:ExplanationModel,t:st,A{replaceable:true,budget:n61}}
+n24{α:EL,β:EventLedger,t:st,A{irrevocable:true}}
+n25{α:MS,β:MaterializedState,t:st,A{mutable_by:"new lawful Event only"}}
+n26{α:PG,β:PlaceGraph,t:st,A{fidelity:"coarse coords + adjacency + described features"}}
+
+n27{α:Hist,β:HistoricalRecord,t:st,
+    A{note:"history books / encyclopedias / archives are EVIDENCE, not WorldTruth"}}
+
+
+---- N: EPISTEMIC STRUCTURE --------------------------------------
+
+n30{α:EProj,β:EpistemicProjection,t:rl,
+    A{forbid:"knows(event)=bool",
+      grain:"same as projection-level hardening"}}
+n31{α:OWA,β:OpenWorldAssumption,t:rl,
+    A{missing_edge:"no basis to assert knowledge",
+      not:"asserted ignorance",
+      corollary:"explicit ignorance itself requires evidence"}}
+n32{α:Prov,β:BeliefProvenanceDAG,t:st}
+
+n33{α:Trace,β:MemoryTrace,t:st,A{fields:["encoding_quality","age","interference"]}}
+n34{α:Rcl,β:Recollection,t:st,A{per_retrieval:true,itself_an_event:true}}
+
+n35{α:ESlack,β:EpistemicSlack,t:vs,
+    A{producible_by:["forgetting","blur","misrecall","untraced propagation"]}}
+n36{α:WSlack,β:WorldSemanticSlack,t:vs,
+    A{non_regenerable_once_committed:true}}
+
+n37{α:EPath,β:EpistemicPath,t:st}
+n38{α:EPS,β:EpistemicPathSet,t:vs,A{replaces:"scalar ER"}}
+
+
+---- N: COST & HORIZON -------------------------------------------
+
+n40{α:VH,β:VerificationHorizon,t:cost,A{dir:"forward: time until checkable"}}
+n41{α:RH,β:ResolutionHorizon,t:cost,
+    A{dir:"threshold",
+      floats_with:"dramatic load",
+      constraint:"raises DEPTH allowed, never biases CONTENT"}}
+n42{α:CCV,β:CommitmentCostVector,t:cost,
+    A{dims:["semantic_footprint","causal_reach","persistence",
+            "social_impact","verification_horizon","reversibility","exposure"]}}
+n43{α:CF,β:CommitmentFootprint,t:cost,A{def:"projection of n42 onto new-world-commitment"}}
+n44{α:AD,β:AnomalyDebt,t:cost,
+    A{form:"D = Σ w_i · cost(anomaly_i)",
+      w_from:["exp_commitment","struct_commitment","VH","causal_reach","salience"],
+      forbid:"unweighted count"}}
+n45{α:Load,β:HistoricalLoad,t:cost,
+    A{def:"irrevocable dependency mass pointing at a fact",
+      axis:"INDEPENDENT of determination axis",
+      weight:"exp-root >> struct-root"}}
+
+
+---- N: QUERY --------------------------------------------------
+
+n50{α:Q,β:QueryRequest,t:q}
+n51{α:QD,β:QueryDecision,t:dl}
+n52{α:Exit,β:ExitKind,t:exit,
+    A{kind:["Zoom","Redirect","Boundary","EntailedRefusal","ResolvedRefusal"],
+      all_priced:true}}
+n53{α:MSRC,β:MinimalSufficientResolutionClosure,t:rl}
+n54{α:EvReq,β:EvidenceRequest,t:rl,
+    A{note:"Query is an evidence request, NOT a fact request"}}
+
+
+---- N: SPEECH & ACTION ------------------------------------------
+
+n55{α:EK,β:EffectKind,t:vs,
+    A{kind:["Null","Query","PhysicalAct","Utterance","SocialAct"],
+      ordering:"NONE. semantic category only, not cost rank"}}
+n56{α:EB,β:EffectBundle,t:st,
+    A{fields:["physical[]","queries[]","utterances[]","social_moves[]"]}}
+n57{α:Illoc,β:IllocutionType,t:rl,
+    A{fields:["standing_rule","felicity_rule","transition_rule"],
+      registry:"closed; generator may not invent illocution types"}}
+n58{α:Claim,β:ClaimRecord,t:st,
+    A{symmetry:"player and NPC both may only assert claims"}}
+
+
+---- N: EXPLANATION & COMPRESSION --------------------------------
+
+n60{α:XR,β:ExplanationRefactoring,t:op,
+    A{replaces:"XM_v1 → XM_v2",
+      forbid_rewrite:["CommittedFact","Evidence","irrevocable Event"]}}
+n61{α:XB,β:ExplanationBudget,t:rl}
+n62{α:RComp,β:RepresentationalCompression,t:op,
+    A{allow:["cache drop","hi-res intermediate drop","episode summary merge",
+             "index deprioritize","drop ΠS-recoverable materialization"],
+      require:"re-query recovers IDENTICAL counterfactual result"}}
+n63{α:SRel,β:SemanticRelease,t:op,
+    A{allow_iff:"FreeSlack ∧ ¬CClos ∧ ¬CounterfactuallyFixed"}}
+n64{α:Cert,β:CommitmentCertificate,t:idx,
+    A{fields:["SemanticAddress","selected latent id/value","schema_version","dependency_footprint"],
+      principle:"semantic commitment permanent; representation compressible"}}
+n65{α:OSlack,β:OpenSlack,t:vs,A{pressure:"none; no contradiction observed"}}
+
+
+---- N: EVENT REIFICATION ----------------------------------------
+
+n70{α:PWE,β:PersistentWorldEvent,t:rl,A{gate:n71}}
+n71{α:CAddr,β:CausalAddressability,t:rl,
+    A{test:"may future discourse need to stably reference this?",
+      admit:["changes persistent EntityState","changes Relationship/SocialState",
+             "creates/removes persistent trace","long-referenced utterance/claim/performative",
+             "is cause of another persistent event","referenced by persistent Memory/Belief",
+             "player has explicitly acted on it"],
+      status:"ENUMERATION, not yet a decision procedure — see OPEN-6"}}
+n72{α:EAcq,β:EpistemicAcquisition,t:rl,A{target:n22,creates_world_event:false}}
+n73{α:TP,β:TransientPercept,t:rl,
+    A{persist:false,
+      note:"non-persistence ≠ assertion of non-occurrence; stays Free"}}
+
+
+---- N: OBSERVATION ----------------------------------------------
+
+n80{α:OBW,β:ObservationBandwidth,t:rl,
+    A{def:"how many world projections may enter the observer's evidence set per turn",
+      impl:{fixed_camera:"spatial", text:"semantic"}}}
+n81{α:DescCommit,β:DescriptionIsCommitment,t:rl,
+    A{omission:"constraint-defined but unresolved; NOT nonexistent"}}
+
+
+---- Blk: STRUCTURE ----------------------------------------------
+
+Blk:
+Ontology:{n1→{n2,n3,n4,n5,n10,n11}}
+StateAxes:{n14→{n12,n13},n15→n14,n16→n12}
+Addressing:{n17→{n18,n5}}
+FactLayers:{n20,n21,n22,n23,n24,n25,n26,n27}
+Epistemic:{n22→{n30,n31,n32,n33,n34,n37,n38},n35↔n36}
+Cost:{n42→{n43,n40,n41},n44→n61,n45→n62}
+QueryBlk:{n50→{n38,n43,n41,n52,n53}→n51}
+ActionBlk:{n56→{n55,n57,n58}}
+XBlk:{n23→{n60,n61,n44,n65}}
+CompressBlk:{n62↔n64,n63→n16,n45→n62}
+EventBlk:{n24→{n70,n71},n72→n22,n73→n16}
+
+
+---- S: SCHEMAS --------------------------------------------------
+
+S.Belief:{
+  id, agent, proposition_or_projection,
+  grounds:[EvidenceRef|ClaimRef|MemoryRef|BeliefRef],
+  derivation: direct_perception | testimony | memory_retrieval | inference(rule_id),
+  confidence
+}
+
+S.MemoryTrace:{ id, agent, event_ref, encoding_quality, age, interference }
+
+S.Recollection:{ id, agent, derived_from:MemoryTraceRef, recalled_value,
+                 confidence, ts, A{itself_irrevocable:true} }
+
+S.EpistemicPath:{ target_projection, source, acquisition_mode,
+                  availability, reliability, prerequisites, commitment_cost }
+
+S.Event:{ id, type, participants, time, location, causes[], effects[],
+          A{irrevocable:true} }
+
+S.Claim:{ speaker, proposition, time, confidence, reliability,
+          status: unverified|corroborated|verified|contradicted }
+
+S.Evidence:{ id, content, source_event, availability:A(e,t),
+             A{immutable:true} }
+
+S.QueryRequest:{ observer, utterance_context, normalized_target, current_scene }
+
+S.QueryDecision:{ exit_kind, evidence_generated[], new_actions[],
+                  commitments[], epistemic_changes[], explanation }
+
+S.CommitmentCertificate:{ semantic_address, selected_latent_id_or_value,
+                          schema_version, dependency_footprint }
+
+
+---- Inv: SEVEN INVARIANTS ---------------------------------------
+
+Inv:
+I1{HardConsistency:      H_Ct ≠ ∅ ; hard commitments never mutually conflict}
+I2{ExplanatoryAdmissibility:
+     conflicting Evidence PERMITTED;
+     ∃X: X ⊨ C_t ∧ ΔD<0 ∧ Complexity(X)<B ∧ TestableConsequences(X)>0}
+I3{QueryIndependence:
+     Query determines WHERE to reveal;
+     never WHAT the unexposed past turns out to be}
+I4{ProjectiveConsistency: A⊆B ⇒ ΠS(B)|A = ΠS(A)}
+I5{CommitmentMonotonicity:
+     μ / struct / exp roots and their closure never silently relaxed;
+     forward change only via new Event on State; never deletion of past}
+I6{CounterfactualStability:
+     once operationally addressable, a projection holds a stable,
+     query-path-independent counterfactual value — even while unexposed}
+I7{MinimalCommitment:
+     any resolution commits only MSRC — the minimal sufficient closure
+     required for the current operation to be lawfully constituted}
+
+Inv.note:
+  I1–I6 ⇒ world does not drift.
+  I7    ⇒ world does not freeze solid in unobserved regions
+           as a side effect of not drifting.
+
+
+---- Rl: RULES ---------------------------------------------------
+
+Rl:
+
+// principles
+P1 : boundary need not be announced; must be COLLIDABLE with feedback
+P2 : world-pushed info bears higher consistency duty than probe-pulled negative
+P3 : facts the observer has ACTED ON carry maximal commitment weight
+P4 : consistency budget ∝ cost × query-probability; proxy = n40 (VH)
+P5 : hardening is projection-level, never whole-object binary
+P6a: I1  (consistency)
+P6b: I2  (explanatory admissibility)
+P6c: I3  (independence)
+P7 : language directly establishes ONLY "who said what"
+P8 : generator freedom at layer L ∝ inverse(verification semantic gap at L)
+P9 : expression space open; causal primitives finite
+P10: costliest operation = maintaining what the observer already judged on
+P11: player investment sets DEPTH, never CONTENT
+P12: unexposed ≠ unconstrained  (⇒ I6)
+
+// commitment
+C1 : Root(C_t) = C^μ ∪ C^struct ∪ C^exp
+C2 : CClos = Closure(Root(C_t))                              [n11]
+C3 : all three roots enter I1 check; none silently mutable
+C4 : roots differ ONLY in provenance, Load, retention priority
+C5 : Free → CounterfactuallyFixed  ⇔  OperationalAddressability   [n15]
+C6 : ΠS conditioning applies ONLY to still-Free x:
+       x := ΠS(x | C_t) ; then C_{t+1} = C_t ∪ {x=v}
+       thereafter x is a CONSTRAINT, never re-sampled
+C7 : ∀ΔC: commit ⇔ H_{C_t ∪ ΔC} ≠ ∅
+       on conflict REJECT ΔC ; never roll back a fixed μ-root
+C8 : C_t growth is PROJECTION-level, not object-level
+       (fixing κ17.partner=#8F31 does not expand #8F31.name/face/job)
+
+// transactions
+T1 : CommitBeforeExpose ::
+       candidate → canonical semantic normalization → consistency check
+       → commit(C^μ|C^struct) → render/expose
+       FORBID: LLM utters first, world is patched after
+T2 : AtomicCommit :: resolution and commit are one transaction;
+       no "cache latent_value, decide later"
+T3 : MinimalSufficientResolution ::
+       ΠS resolves NOT "fields to output" but
+       "minimal sufficient closure for the output to lawfully exist"
+T3.MSRC(A_q) preserves:
+       {type integrity, entity referential integrity, causal referential
+        integrity, ProjectiveConsistency, QueryPathInvariance, schema invariants}
+T4 : explanation field of S.QueryDecision is NOT a render input.
+       renderer may read only {evidence_generated, new_actions, epistemic_changes}.
+       explanation → log / debug / acceptance only.
+       [mirror of T1: T1 blocks unchecked output; T4 blocks internal leakage]
+
+// query
+Q1 : Query = EvidenceRequest, not FactRequest                [n54]
+Q2 : Query is ADMITTED UNCONDITIONALLY into triage.
+       ER is NOT a gate. ER=0 is frequently the correct answer.
+Q3 : ER realized as EpistemicPathSet, not scalar              [n38]
+Q4 : all five exits priced                                    [n52]
+       Zoom             → price
+       Redirect         → price   ["ask her mother" cheap;
+                                   "an old neighbour who knows the truth" expensive]
+       Boundary         → price   ["she doesn't know" cheap;
+                                   "she never knew who her father was" heavy]
+       EntailedRefusal  → ≈0      [C_t already entails nonexistence]
+       ResolvedRefusal  → price   [sibling_count fixed to 0 THIS TIME → new μ-root]
+Q5 : stop condition = CF exceeds RH ∨ EpistemicPathSet exhausted
+       the STOPPING POINT ITSELF must become part of the world
+Q6 : query_target ∈ {world,event,evidence,agent_knowledge,agent_belief,agent_memory}
+Q7 : good evidence introduces UNEXPLAINED TOKENS, not ENTITIES
+       [engraving "M. 2019" ≫ "her ex-boyfriend gave it to her"]
+Q8 : deep query need not yield an answer; should often yield a NEW LINE OF INQUIRY
+
+// speech
+S1 : illocutionary force = f(speaker, target_state, situation)
+       NOT a property of the language                          [n57]
+S2 : no universal felicity rule; each IllocutionType carries its own
+S3 : utterance always produces an Event; state transition is a SEPARATE
+       downstream step performed by social rules reading that Event
+S4 : Event irrevocable; State derived from it may change via new lawful Event
+S5 : player false assertion → Claim(speaker=player), not an operation
+
+// explanation
+X1 : Refactoring targets EXPLANATION MODEL, never Evidence or Committed Fact
+X2 : goal = explain the GENERATION PROCESS of existing evidence
+       NOT to make evidence mutually agree
+       [red coat / blue coat may both stand; "B observed under blue light"]
+X3 : admission = ΔD<0 ∧ Complexity<B ∧ TestableConsequences>0
+X4 : two ledgers: OpenSlack (no pressure) vs AnomalyDebt (must be repaid)
+       good: Debt↓↓↓ / Slack↑ ; bad: Debt↓1 / Debt↑2
+X5 : new model must re-explain SEVERAL prior details (convergence),
+       else it is exposed as a patch
+X6 : must not cancel load-bearing facts
+
+// memory & compression
+M1 : Event → encoding → MemoryTrace → retrieval(t) → Recollection(t)
+M2 : forbid silent overwrite of memory fields
+M3 : a wrong Recollection is ITSELF an irrevocable event
+M4 : forgetting generates EpistemicSlack, never WorldSemanticSlack
+M5 : RepresentationalCompression ⇒ storage↓ ∧ H_C unchanged     [n62]
+M6 : SemanticRelease allowed iff FreeSlack ∧ ¬CClos ∧ ¬fixed    [n63]
+M7 : Cooling acts on Load axis only; never re-rolls the past
+M8 : determination axis ⊥ Load axis                             [n45]
+
+// events
+E1 : PersistentWorldEvent gate = CausalAddressability            [n71]
+E2 : EpistemicAcquisition → AgentEpistemicGraph, no world event  [n72]
+E3 : TransientPercept may be non-persisted                       [n73]
+E4 : perceived ≠ remembered ; remembered ≠ new world event
+E5 : non-persisted occurrence projection = UNEVALUATED historical
+       degree of freedom, NOT deleted history
+
+
+---- Ex: QUERY TRIAGE PIPELINE -----------------------------------
+
+Ex.QueryTriage:
+  in  : S.QueryRequest
+  read: {C_t, EventLedger, MaterializedState, Evidence/Claims,
+         AgentEpistemicGraph, ExplanationModel, PlaceGraph, ΠS}
+
+  1 normalize semantic target                        [n17, forbid player phrasing]
+  2 resolve EpistemicPathSet                          [n38]
+  3 estimate CF bounds per candidate exit             [CF_min/CF_expected/CF_max]
+  4 compare against RH                                [n41]
+  5 enumerate exits                                   [n52, all five]
+  6 price all feasible exits                          [Q4]
+  7 if resolution required:
+        ΠS resolve MSRC(target)                       [T3]
+        → consistency check vs C_t                    [C7]
+        → atomic commit                               [T2]
+  8 produce world response                            [T1 order enforced]
+
+  out : S.QueryDecision
+  note: explanation ∈ out is decision provenance; NOT player-facing  [T4]
+
+
+---- Ver: ACCEPTANCE ---------------------------------------------
+
+Ver:
+V1{QueryConfluenceTest:
+    randomize order of a set of pure-retrospective queries over N orderings;
+    require exposed world subgraph isomorphic: G1 ≅ G2 ≅ …
+    catches: query-order pollution, ad-hoc entity creation,
+             address non-canonicity, shared-latent inconsistency
+    LIMIT: only the REVELATION component must confluence.
+           causal component (that the question was asked) may order-differ.
+    status: closest thing to a zero-gap acceptance function currently held}
+
+V2{MinimalResolutionTest:
+    |ΔC^μ| ≈ |MSRC(A_q)|
+    permit schema/reference-driven expansion; forbid unrelated pre-generation
+    status: ⚠ unvalidated}
+
+V3{CommitmentMonotonicityCheck:
+    error on any compression or rewrite touching CClos}
+
+V4{ExplanationBudgetCheck:
+    status: ⚠ automation is a GOAL. strong automatic acceptance requires
+    Complexity / AnomalyDebt / TestableConsequences confined to a
+    managed formal language; otherwise verification semantic gap persists}
+
+V5{DramaticStructureAcceptance:
+    status: ⚠ no solver. open technical debt}
+
+V6{DecodeConfluenceCheck:
+    each party's assistant independently decodes Layer S → NL;
+    require semantic isomorphism on {I5, I7, Q2, T3, Q4}
+    failure ⇒ encoding insufficient, not architecture insufficient
+    status: PROPOSED, run before adopting SCL as the working format}
+
+
+---- Open: UNRESOLVED --------------------------------------------
+
+Open:
+O1{QueryTriage :: all inputs landed. READY TO BUILD}
+O2{MinimalResolution operationalization :: T3 / V2 ⚠}
+O3{RelationshipState concrete structure :: undefined}
+O4{DramaticStructureAcceptance :: V5}
+O5{ExplanationRefactoring trigger & scheduling; plus X3 into managed formalism}
+O6{CausalAddressability :: n71 is an ENUMERATION, not a decision procedure}
+O7{motif learning :: RE2 mainline, deferred. MDL + held-out,
+   weight cross-family generalization and cross-presentation isomorphism}
+
+
+================================================================
+LAYER N · PRECEDENT & RATIONALE
+================================================================
+
+NON-NORMATIVE. LOAD-BEARING.
+
+Each entry: [idxref] · CLAIM · WHY. The WHY is the payload. A rule
+without its counterexample gets re-proposed within months, because the
+rejected version usually looks reasonable in isolation.
+
+
+---- N.1 · REPEALED FORMULATIONS ---------------------------------
+
+Ordered roughly by how costly re-proposing them would be.
+
+[I1,I2 / P6] "player finds a contradiction ⇒ H_C = ∅"
+  WHY REPEALED: conflates three different things — evidence conflicting
+  with evidence, the current explanation failing, and committed hard facts
+  being jointly unsatisfiable. Two witnesses contradicting each other does
+  not mean no lawful history exists. Only the third is I1 failure, and only
+  the third is unfixable by explanation.
+
+[X1,X2] "find an upper-level explanation that makes all old evidence
+         mutually consistent again"
+  WHY REPEALED: evidence may conflict permanently. Witness A: red coat.
+  Witness B: blue coat. The good model is "coat was red; B observed under
+  blue lighting." Both pieces of evidence still disagree — what got
+  explained is how they came to disagree. Requiring evidence to agree
+  amounts to rewriting evidence, contradicting Evidence-immutable.
+
+[X1] naming: "Truth Refactoring"
+  WHY REPEALED: it does not refactor truth. It replaces the explanation
+  model. The name invited exactly the error above. → Explanation Refactoring.
+
+[Q2] "ER > 0 as an admission gate for Query"
+  WHY REPEALED: ER = 0 is very often the correct answer. "Can I tell who
+  gave her this necklace just by looking at it?" — no current epistemic
+  path, and "you can't tell from the outside" is a perfectly good Boundary.
+  Gating on ER classifies correct Boundaries as query failures.
+
+[C5,n15] "fix before the projection could first enter external observation"
+  WHY REPEALED: in a free-text world the player can ask about her twelfth
+  birthday breakfast in the first second. Under theoretical askability,
+  everything is addressable from world creation, and laziness dies
+  entirely. → Operational Addressability: actual execution, actual
+  canonical address.
+
+[C5] "promote Free → fixed when in-edge count ≥ 2"
+  WHY REPEALED: a single path queried twice on two different days demands
+  the same stability. Multi-path reachability raises exposure risk; it is
+  not the logical precondition of counterfactual fixation.
+
+[C1,C3] Latent-fixed treated as OUTSIDE C_t
+  WHY REPEALED: then I1 and I6 bite each other. Concretely:
+    t1  κ17.met_year resolved to 2003 (unexposed)
+    t2  another path commits "she was abroad 2001–2005"
+    t3  player asks about the necklace
+  I6 demands 2003; I1 demands re-collapse. Resolved by putting μ-root
+  inside C_t: the t2 commitment is REJECTED AT t2, not discovered at t3.
+
+[n12,n13] three-state gradient Free / Latent-fixed / Committed
+  WHY REPEALED: it fused two orthogonal axes. "Has a value" and "who
+  depends on it" vary independently. counterfactually-fixed + unexposed is
+  a perfectly ordinary state and the old gradient had no room for it.
+
+[n44] "Δ(unexplained evidence) < 0" as the refactoring test
+  WHY REPEALED: counting is gameable. Seven small anomalies, then one new
+  explanation — "there is a secret organization that can alter memories" —
+  resolves all seven and introduces one. 7 → 1 looks excellent. The world
+  just got much worse. Weight, don't count.
+
+[n55] 0–4 ordered Commitment Class (Null < Query < Mark < Speech < Commit)
+  WHY REPEALED: no general cost ordering exists. A Query can generate half
+  a life. "Hello" is an Utterance and nearly free. A PhysicalAct can burn
+  down a building. Semantic kind and price are independent dimensions.
+
+[S4] "Commit is irrevocable" (as a statement about state)
+  WHY REPEALED: E1044 breakup is irrevocable; Relationship(Peter, HMM)
+  returning to romantic after E2018 reconciliation is normal. The event
+  is permanent, the state it produced is not.
+
+[M1,M2] memory field drifts directly to a wrong value
+  WHY REPEALED: silent overwrite destroys the history of the memory
+  itself. R91 recalled restaurant_23 with low confidence — that
+  recollection HAPPENED, and a later recollection may differ. Both are
+  events. Overwriting loses the trace and makes "she misremembers" a
+  template rather than a computed consequence of encoding quality, age
+  and interference.
+
+[E1,E4] "any event perceived by any Agent creates an Event"
+  WHY REPEALED: Event Ledger degenerates into a sensory log. Our original
+  reason for the rule — "who saw it is the origin of all later epistemic
+  propagation, miss it and you can't recover" — is satisfied instead by
+  EpistemicAcquisition into the epistemic graph, with no world event.
+
+[M5,M6] "compression is not deletion, it is returning degrees of freedom"
+  WHY REPEALED: too broad; collides with I6. Must split into
+  RepresentationalCompression (storage down, possibility set unchanged,
+  re-query must recover the identical counterfactual result) and
+  SemanticRelease (genuinely widening a domain — permitted only on Free
+  Slack outside the closure and not counterfactually fixed).
+
+[M8] "compression and promotion are the same operator in two directions"
+  WHY REPEALED: Peter studied in Madrid in 1998 — settled for thirty
+  years. He is elected president; Historical Load explodes; not one new
+  constraint was added and the possibility set is untouched. Conversely,
+  "what colour are her socks today" collapses a value while historical
+  importance stays near zero. Two axes.
+
+[n52 / Q4] "Redirect ≈ 0, Boundary ≈ 0"
+  WHY REPEALED: "go ask her mother" is cheap only if the mother exists.
+  "There's an old neighbour, gone for decades, who knows the truth"
+  invents a person, a relationship and a history. Redirect is the most
+  insidious cost leak precisely because it appears to generate nothing.
+  Likewise "she never knew who her father was" is a heavy commitment.
+
+[Q4] Refusal treated as uniformly free
+  WHY REPEALED: "she has no brother" is free if C_t already entails it
+  (EntailedRefusal), but costs a new μ-root if sibling_count was Free and
+  is being fixed to 0 right now (ResolvedRefusal). Absence can be a new fact.
+
+[S2] a single universal felicity rule
+  WHY REPEALED: promise, breakup, refuse, forgive and confess have
+  genuinely different standing and felicity conditions. One rule for all
+  illocutions is wrong at the first case examined.
+
+[n32] "inference is the only channel that cheaply produces correct-but-wrong
+       beliefs"
+  WHY REPEALED: mishearing, misidentification, unreliable testimony and
+  faulty recall produce structurally sound false beliefs just as well.
+  The important property is not the channel but that false beliefs are
+  allowed to have VALID PROVENANCE.
+
+[n80] "make the observable a finite set"
+  WHY REPEALED: fine for fixed cameras, wrong as a general principle —
+  a text world has unbounded potential queries. What is actually
+  controlled is bandwidth: how many projections enter the evidence set
+  per turn. Fixed camera limits it spatially; text limits it semantically.
+
+[n81] "what is not described does not even count as undetermined"
+  WHY REPEALED: "she is wearing a red dress" already entails a garment
+  exists, is on her, is red where visible, and is dress-like. Omission
+  leaves things constraint-defined but unresolved, not absent.
+
+[V1] "the only zero-gap acceptance function"
+  WHY REPEALED: overclaimed. Closest currently held, not unique and not
+  provably zero-gap.
+
+[V4] "Explanation Budget's three conditions are automatically checkable"
+  WHY REPEALED: only once all three are confined to a managed formal
+  language. Otherwise the verification semantic gap is still there.
+
+[n43] "the CF ⚠ has been fully discharged by the constraint-store view"
+  WHY REPEALED: over-optimistic. Pre-generation you can only bound.
+  Answering "her mother" (already exists) versus "her university
+  boyfriend" (needs person, relationship, interval, gift event, ownership
+  history, memories) differ by orders of magnitude. Hence two-stage triage.
+
+[T3] "resolve only the fields to be output"
+  WHY REPEALED: produces dangling facts. Answering "Peter gave it to her"
+  cannot commit only necklace.giver_name. It must also constitute the
+  entity identity, the gift event, the giver edge and the item provenance
+  relation — otherwise the Latent Entity Pool, projective consistency and
+  referential integrity all break. → MSRC.
+
+[APX-B Flow] "Flow needs two-sided hard constraints: sufficient AND not abundant"
+  WHY REPEALED: a skilled player hoarding resources through good play must
+  not render the world illegal. Survival lower bound is a hard constraint;
+  scarcity pressure is a quality objective. Note this is an instance of P8:
+  the lower bound is decidable, "too abundant" has no objective threshold.
+
+[misc, earlier rounds]
+  "dynamically generating a credible RE2 is impossible"
+    → the ORIGINAL architecture was insufficient; with global design
+      constraints it is feasible, though possibly not worth the complexity.
+  "the trigger side决定一切"
+    → too strong; duty also depends on assigned certainty, player
+      investment, repeated confirmation, and whether a causal account exists.
+  "consistency need only cover the trajectory paid for"
+    → "only" too strong; players also judge by ANTICIPATED verifiability.
+      A building outside the window that changes colour daily breaks trust
+      even if never entered.
+  "claims don't hit the ledger"
+    → wrong. The utterance event is itself a hard fact. What stays free is
+      the distant fact it refers to.
+  "space should not exist in coordinate form"
+    → rhetorical overreach. Three layers: coordinates below, capability
+      abstraction in the middle, capability requests above.
+  "what can be infinite is exactly what need not be remembered"
+    → wrong. F(seed, coord) + sparse delta is a counterexample. Infinity is
+      cheap; INCOMPRESSIBLE PERSISTENT CHANGE over an infinite region is not.
+  "lazy determination is the only implementation of on-demand resolution"
+    → too strong. deterministic_program(seed, query) is another route.
+      Signed as: the most natural implementation in practice.
+  "make the observer concede"
+    → conceding is a psychological state, separable from verification.
+      The standard is that the observer CAN VERIFY the boundary.
+  "a convergent flaw is a reveal"
+    → insufficient. Convergence can also be one repeated error. The test is
+      whether convergence yields a CHECKABLE COMMON CAUSE.
+  "Relationship State is the only strongly-consistent component"
+    → wrong. Anything in the commitment closure demands consistency. The
+      ring the player threw in the river last night cannot reappear in a
+      drawer unexplained; that is the same violation as forgetting a breakup.
+  "seeded commitment" as a standalone solution
+    → strictly dominated by μ_S. Retained as the strongest of three
+      seeded layers.
+  "the exposed projection may not be relaxed" as the compression floor
+    → insufficient. The floor is the whole Commitment Closure. A hidden
+      wall the player never saw is already load-bearing if the system used
+      it to establish that sound doesn't carry.
+
+
+---- N.2 · WORKED COUNTEREXAMPLES --------------------------------
+
+Kept verbatim because they are the shortest proof of their rule.
+
+[n44] SECRET ORGANIZATION
+  Seven small anomalies. New explanation: a secret organization that can
+  alter memories. All seven explained; one new open question. Count
+  7 → 1, beautiful. The world is worse. ⇒ Anomaly Debt must be weighted.
+
+[X2] RED COAT / BLUE COAT
+  Witness A: red. Witness B: blue. Good explanation: the coat was red, B
+  observed under blue lighting. The two testimonies still disagree
+  forever. ⇒ Refactoring explains the generative process of evidence, not
+  the evidence away.
+
+[C7] MET_YEAR 2003
+  t1: κ17.met_year resolved 2003, never exposed.
+  t2: "she was abroad 2001–2005" is proposed.
+  t3: player asks about the necklace.
+  ⇒ reject at t2. Never roll back a fixed μ-root.
+
+[Q7] THE ENGRAVING
+  "Who gave her the necklace?" Bad answer: her ex-boyfriend — one field on
+  paper, but the player leaves believing a whole person exists. Good
+  answer: the inside of the ring is engraved "M. 2019" — a token, not a
+  person. Tokens can stay unexplained indefinitely; people cannot.
+
+[T3] DANGLING GIVER
+  Committing necklace.giver_name = "Peter" alone leaves an unconstituted
+  person, no gift event, no provenance edge. Referential integrity gone.
+  ⇒ MSRC.
+
+[M1] R91
+  Maria recalls restaurant_23, confidence low, derived from a trace with
+  medium encoding, 8y age, high interference. E1042.location is still
+  restaurant_17 and always will be. R91 happened and is itself permanent.
+
+[E5] THE WAITER
+  Did the waiter hear the argument? Never operationally addressable, so it
+  stayed Free. Two hours later the player asks. ΠS resolves it from
+  committed position, distance, loudness and attention state, commits to
+  C^μ, then exposes. Nothing was lost earlier — that propagation
+  projection had simply never been evaluated.
+
+[Q2] THE NECKLACE, LOOKED AT
+  "Can I tell who gave it to her just by looking?" ER = 0 on the direct
+  path. The correct world response is "you can't tell from the outside."
+  A Boundary, not a failure.
+
+[P3, strong-consistency] THE RING IN THE RIVER
+  Player throws the ring in the river. It reappears in a drawer with no
+  explanation. Equivalent in severity to a character forgetting a breakup.
+
+[APX-B] THE HOARDING PLAYER
+  Excellent play accumulates a large resource surplus. The world must not
+  become illegal because of it.
+
+
+---- N.3 · PROJECT DESIGN CONSTRAINTS ----------------------------
+
+NOT theorems. Not derivable from P1–P12 / Inv. Project-level value
+choices, recorded so implementers do not mistake them for invariants.
+
+D1 · No preset morality INSIDE the world.
+  The player may do wrong, be refused, lose, and regret. A character who
+  cannot hate you cannot really accept you either.
+
+D2 · Boundaries AT THE MACHINE LAYER.
+  - leaving must be mechanically cheap
+  - the fiction/reality line must not be blurred
+  - no tuning against an individual's vulnerabilities to raise engagement
+
+NOTE ON PROVENANCE: earlier drafts wrote that D1/D2 are "derived from
+feasibility". They are not derivations. They are COGNATE with P1 and P3 —
+a character who cannot refuse you and a world whose boundaries cannot be
+collided with fail in the same way, and the failure mode of D2 is the same
+as the detective-player-after-the-reveal case: once trust flips to
+adversarial, it does not flip back. Cognate, not entailed.
+
+
+---- N.4 · RESIDUAL DISAGREEMENT ---------------------------------
+
+Can improvisation by AI outrun a human's limited attention?
+  Breadth: yes, all parties agree.
+  Depth: no, all parties agree.
+  REASON: one improvisation need only fool one judgement. After a hundred
+  interactions the model faces the constraint set jointly formed by all
+  hundred. TIME TURNS COMMITMENTS INTO A TEST SET.
+  Does not affect engineering conclusions; both positions imply the same
+  resource allocation.
+
+
+---- N.5 · WHAT THIS SYSTEM ACTUALLY AUTOMATES --------------------
+
+Not the world. Given a world, it automates organizing an experience in it.
+
+  offline / authored : place graph, asset primitives, behaviour DSL,
+                       illocution registry, seeded commitments
+  online / generated : motif selection & embedding (RE2 line), semantic
+                       reduction, causal history, encounters, camera,
+                       dialogue, on-demand historical resolution
+
+This is not a retreat. Drawing a plausible police station is weeks of art.
+Tuning it into a level with interlocking locks, an exact resource curve
+and rewarding revisits is months of the least outsourceable design work
+there is.
+
+
+---- N.6 · CLOSING FORMULATION -----------------------------------
+
+The world is a lazy possible world with a stable counterfactual structure,
+developed only where required.
+
+  Laziness applies to WHEN a fact is evaluated.
+  Minimality applies to HOW MUCH is evaluated.
+  Stability applies to the fact ONCE evaluated.
+
+Four boundaries fixed:
+  conflicting evidence is not a contradictory world
+  forgetting cannot rewrite the past
+  being perceived does not require entering world history
+  the unexposed past may remain uninstantiated, but once operationally
+    addressable it may not be re-decided to suit the player's present
+
+Operating discipline, compressed:
+
+  world holds large Free Slack
+        ↓
+  a projection becomes operationally addressable in actual execution
+        ↓
+  ΠS resolves the minimal sufficient closure
+        ↓
+  check, then atomically commit
+        ↓
+  only then expose
+        ↓
+  the new fact permanently joins the world's counterfactual structure
+
+
+================================================================
+APX-B · RE2 MAINLINE (DEFERRED)
+================================================================
+
+Retained for later retrieval. Not part of the frozen mainline.
+
+B1 Progression / Topology / Metric mutually constrain; not pipelineable.
+   Dependency graph is a DAG; the spatial graph must contain many cycles.
+B2 Atom is the MOTIF, not the room: a typed-port graph rewrite rule
+   carrying Guard / Flow / Embed / Slack.
+B3 Flow verification is a GAME, not an ILP: ∃strategy ∀adversary.
+   Practical contraction = STRATEGY ENVELOPE (hit-rate bounds, evasion,
+   knife usage). Survival lower bound is a hard constraint; scarcity
+   pressure is a quality objective, NOT a legality condition.
+B4 Geometry must be BOOKKEEPING, not solving. A motif carries a family of
+   pre-certified embeddings; runtime does match + rigid transform +
+   occupancy check only.
+B5 Certified Local Embedding plus capability-abstraction soundness
+   (conservativeness + monotonicity) are library admission proof
+   obligations, discharged once offline.
+B6 Latent adjacency defaults to fully connected and is progressively
+   sealed; sealing COSTS. This avoids the chicken-and-egg of deciding
+   where to reserve closure slots.
+B7 World Causal History is a top-level structure for story-type worlds.
+B8 Fixed cameras are an OBSERVATION BANDWIDTH device, not a technical
+   compromise — the ancestor of n80.
+
+
+================================================================
+END v0.3a
+================================================================
+
+DIFF FROM v0.3 (all sourced from C's v0.3a patch unless marked):
+  A1 → C1,C2,C3,C4,n11        Commitment Closure explicitly includes μ-root
+  A2 → S.Belief,n32           grounds / derivation split; "inference is the
+                              only channel" repealed
+  A3 → Q2,Q3,n38              ER demoted from gate to exit-feasibility input;
+                              EpistemicPathSet replaces scalar ER
+  A4 → X1,X2,n60              Refactoring explains evidence GENERATION, not
+                              evidence agreement; "worlds necessarily
+                              accumulate contradictions" softened
+  A5 → T3,n53,V2              MSRC replaces field-level minimality
+  R1 → Q4                     all five exits priced
+  R2 → E3,E5,n73              transient percept ↔ Free Slack interface
+  R3 → N.3                    design constraints separated from theorems
+  R4 → APX-B/B3               Flow two-sided hard constraint repealed
+  I7 → Inv.I7                 Minimal Commitment added
+  IO → Ex.QueryTriage         triage interface frozen
+  ** T4  (ours, new)          explanation field isolated from render layer —
+                              mirror of T1; without it, P1's demand for
+                              collidable feedback gives the renderer a strong
+                              incentive to surface system language
+  ** V6  (ours, new)          Decode Confluence Check before adopting SCL as
+                              working format — elevation of I4/V1 to the
+                              meta level: document meaning must not depend
+                              on decode path
+  ** N.3 note (ours)          D1/D2 recorded as COGNATE with P1/P3 rather
+                              than derived — satisfies R3 while preserving
+                              the original reasoning

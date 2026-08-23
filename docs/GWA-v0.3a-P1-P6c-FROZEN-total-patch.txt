@@ -1,0 +1,551 @@
+GWA v0.3a · FROZEN CONSOLIDATED NORMATIVE PATCH  [P1 + P6c]
+====================================================
+
+TARGET   : "GENERATIVE-WORLD-ARCHITECTURE :: FROZEN CONSENSUS v0.3a" (dual-layer)
+TYPE     : semantic-preserving encoding correction + boundary clarification
+SUPERSEDES: C/P1 (eight items) and C/P6c (waiter-boundary clarification),
+            consolidated here; those two documents need not be read separately.
+REVISION : editorial integration of four pre-freeze formal corrections:
+           fixed-vs-Free semantic read; defined Utterance symbol; typed
+           semantic-promotion boundary; V3 closure-integrity extension.
+
+CLASSIFICATION
+  architecture_change    = false
+  ontology_change        = false   (two Layer-S nodes added; no new world component)
+  query_model_change     = false
+  encoding_loss_repair   = true
+  normative_precision_up = true
+
+
+FREEZE STATUS
+  version_string = GWA v0.3a + P1 + P6c
+  state          = FORMAL STAGE FREEZE
+  world_ontology = CLOSED FOR THIS STAGE
+  mainline_next  = Query Triage
+  note           = this document is the single authoritative consolidated patch;
+                   superseded intermediate patch documents need not be consulted.
+
+PRECEDENCE
+  Layer S of v0.3a is amended IN PLACE by this patch.
+  Where the base text and this patch conflict, THIS PATCH WINS.
+  Two base passages are superseded outright and should be read as void:
+      n10.exp  (old value string)          → §3
+      Rl:E5    (old two-line form)         → §11
+  Layer N counterexamples in the base remain valid except where noted in §14.
+
+SIGNED / FROZEN
+  Frozen version string:  GWA v0.3a + P1 + P6c
+  Status:                 FORMAL STAGE FREEZE
+  Mainline:               Query Triage
+
+
+====================================================
+PART I · INVARIANTS
+====================================================
+
+§1 · ADD I4b — QueryPathInvariance
+
+  I4b{QueryPathInvariance:
+       for pure revelation queries, wording / query order / access path
+       MAY alter reveal order and presentation,
+       MUST NOT alter the revealed latent fact}
+
+  RELATION TO I4
+      I4  = consistency across NESTED PROJECTIONS      (A⊆B ⇒ ΠS(B)|A = ΠS(A))
+      I4b = consistency across REVELATION PATHS
+      Related, non-identical; neither implies the other in the
+      implementation contract.
+
+  ACCEPTANCE
+      V1 QueryConfluenceTest validates I4b.
+      T3/MSRC continues to preserve BOTH ProjectiveConsistency
+      and QueryPathInvariance.
+
+  BASE DEFECT
+      Present in v0.3 §W5 prose; compressed into n5.A{} descriptive text
+      during SCL encoding. A descriptive attribute is not a normative slot.
+
+
+§2 · ADD I3b — CausalSelectionBarrier
+
+  I3b{CausalSelectionBarrier:
+       lawful causal history MAY condition future distributions;
+       present Query purpose / narrative utility / player desire
+       MUST NOT back-propagate into latent facts whose causal time
+       precedes them}
+
+  CANONICAL DISTINCTION
+      P(she comes tomorrow | PlayerHistory)        may change
+      P(age-12 breakfast   | player wants romance) must not change
+
+  RELATION TO I3
+      I3  states WHAT is prohibited: Query sets where to reveal,
+          never what the past becomes.
+      I3b states the CAUSAL DIRECTION of that prohibition.
+
+  WHY I3 ALONE IS INSUFFICIENT
+      An implementation may avoid reading query text while still letting
+      present player/narrative state condition latent past facts.
+      Not reading the query is not the same as not conditioning on now.
+
+
+§3 · AMEND n10.exp — exp-root semantics
+
+  SUPERSEDED
+      exp:"exposed to player AND acted upon"
+
+  REPLACEMENT
+      exp:"player-facing asserted/exposed commitment"
+
+  ADD
+      acted_upon(exp-root) ⇒ sharply increased HistoricalLoad
+                             and retention priority
+
+  FROZEN DISTINCTION
+      Exposure creates experiential commitment.
+      Acting on it raises its weight.
+
+  P3 (principle) UNCHANGED
+      facts the observer has ACTED ON carry maximal commitment weight
+
+  ADDED CLARIFICATION — root provenance is NON-EXCLUSIVE
+      the same projection may simultaneously carry μ-root, struct-root
+      and exp-root; adding a root does not change the VALUE, only its
+      provenance and Load.
+
+  BASE DEFECT
+      The old string implied exposure alone yields no experiential
+      commitment, leaving e.g. "she said her mother lives in Granada,
+      player has done nothing yet" unprotected — in direct conflict
+      with P2 and P3.
+
+
+§4 · POST-PATCH INVARIANT BLOCK
+
+  I1   HardConsistency
+  I2   ExplanatoryAdmissibility
+  I3   QueryIndependence
+  I3b  CausalSelectionBarrier
+  I4   ProjectiveConsistency
+  I4b  QueryPathInvariance
+  I5   CommitmentMonotonicity
+  I6   CounterfactualStability
+  I7   MinimalCommitment
+
+  Inv.note (unchanged)
+      I1–I6 ⇒ world does not drift.
+      I7    ⇒ world does not freeze solid in unobserved regions
+               as a side effect of not drifting.
+
+
+====================================================
+PART II · TRANSACTIONS
+====================================================
+
+§5 · AMEND T1 — complete the CommitBeforeExpose transaction
+
+  REPLACEMENT
+      T1 : CommitBeforeExpose ::
+             candidate
+             → canonical semantic normalization
+             → consistency check
+             → commit hidden/structural value
+             → render / expose
+             → on successful exposure:
+                   attach exp-root / exposure provenance
+                   update Load
+
+  RULE
+      exposure NEVER re-resolves or changes the committed value.
+      The final step upgrades provenance and dependency weight only.
+
+
+§6 · AMEND T4 — InternalDecisionIsolation
+
+  REPLACEMENT
+      T4 : InternalDecisionIsolation ::
+
+           renderer MUST NOT read:
+               explanation
+               internal scoring
+               rejected candidates
+               narrative utility
+               uncommitted latent values
+
+           renderer MAY read only committed / approved player-facing data,
+           including:
+               exit_kind
+               evidence_generated
+               new_actions
+               epistemic_changes
+               committed exposed projections
+               approved presentation metadata
+
+  PRINCIPLE
+      T1 blocks unchecked FACTS from escaping outward.
+      T4 blocks internal REASONING / CONTROL STATE from escaping outward.
+
+  BASE DEFECT
+      The original whitelist was an enumeration and would have excluded
+      legitimate presentation metadata. Deny-list plus approved-data
+      framing seals the leak without over-blocking.
+
+
+§7 · ADD T5 — ΠS is not a disposable randomness source
+
+      T5 : ΠS is semantic world realization: RESOLVE-AND-COMMIT.
+           Runtime RNG / procedural samplers are disposable computation
+           and carry no world commitment by themselves.
+
+           If the engine needs randomness that may later become
+           independently discussable as a fact, it is no longer
+           procedural randomness: it must receive a SemanticAddress
+           and pass through ΠS.
+
+
+====================================================
+PART III · SPEECH, EVENTS, QUERY
+====================================================
+
+§8 · AMEND S3 — Utterance occurrence vs PersistentWorldEvent
+
+  SUPERSEDED
+      utterance always produces an Event
+
+  REPLACEMENT
+      S3 : utterance always produces an EffectKind.Utterance occurrence;
+
+           if CausalAddressability holds
+               → reify as PersistentWorldEvent;
+
+           if it creates persistent epistemic / social / causal dependency
+               → reify as required by that dependency;
+
+           otherwise it may remain transient.
+
+  UNCHANGED
+      social transition remains a SEPARATE step:
+          EffectKind.Utterance occurrence → typed social rule → possible State transition
+      performative effect ≠ linguistic content
+      Event, once reified, is irrevocable
+      State may later change via new lawful Event
+
+  BASE DEFECT
+      "always produces an Event" contradicted E1, under which
+      PersistentWorldEvent is gated by CausalAddressability. An
+      implementer following S3 literally would have bypassed the entire
+      three-tier Event Reification scheme.
+
+
+§9 · AMEND Q7 — token preference is a CF preference, not an ontology ban
+
+  SUPERSEDED
+      good evidence introduces UNEXPLAINED TOKENS, not ENTITIES
+
+  REPLACEMENT
+      Q7 : prefer evidence with the smallest justified CommitmentFootprint.
+           When equally informative, unresolved tokens / projections are
+           preferred over introducing new entities or historical structures.
+           If an ALREADY-COMMITTED entity is the cheapest legitimate
+           answer, direct entity reference is permitted.
+
+  FROZEN PRINCIPLE
+      Do not gratuitously entity-materialize the world merely to answer
+      a Query.
+
+  CANONICAL EXAMPLE RETAINED
+      engraving "M. 2019"  ≫  inventing an otherwise unnecessary ex-boyfriend
+
+
+====================================================
+PART IV · THE PROCEDURAL / SEMANTIC BOUNDARY
+====================================================
+
+Origin: our question — under what conditions does a transient evaluation
+NOT constitute Operational Addressability? Our proposed criterion ("must
+not affect any cross-frame observable output") is REJECTED as
+directionally right but too strong; see §13.
+
+§10 · ADD n74, n75 — two Layer-S nodes
+
+  n74{α:PEV,β:ProceduralEphemeralValue,t:val,
+      A{constitutive:[
+          "has NO SemanticAddress",
+          "NOT independently queryable as a world proposition",
+          "NOT eligible to appear directly in Evidence/Claim/Event/Memory",
+          "no identity the world promises to preserve",
+          "exists only as an implementation intermediate"],
+        ex:["physics substep","animation jitter","policy logit",
+            "temporary Monte-Carlo sample","render noise",
+            "pathfinding scratch value"],
+        note:"computation, not world truth; may be evaluated and discarded
+              without entering C_t"}}
+
+  n75{α:SCB,β:SemanticCausalityBoundary,t:rl,
+      A{crossed_when_used_as:[
+          "a world proposition",
+          "a cause in a persistent causal model",
+          "an input to a committed State transition",
+          "a source of Evidence / EpistemicAcquisition",
+          "a persistent decision dependency",
+          "an independently queryable latent projection"],
+        on_crossing:"PEV → assign canonical SemanticAddress
+                     → OperationalAddressability → resolve + AtomicCommit",
+        timing:"promotion MUST occur BEFORE the semantic consequence is
+                committed or exposed"}}
+
+  IMPLEMENTATION REQUIREMENT
+      ProceduralEphemeralValue vs world-semantic value SHOULD be represented
+      as a type-level distinction.
+
+      Crossing n75 is USAGE-DEPENDENT and MUST occur through an explicit
+      typed promotion / semanticization boundary.
+
+      No implementation is required to perform reflective semantic checks
+      on every hot-path value; instead, the type/interface boundary MUST
+      prevent a ProceduralEphemeralValue from being used directly in a
+      semantic causal role without promotion.
+
+
+§11 · REPLACE Rl:E5 — six clauses
+
+  SUPERSEDED (base two-line form, and the P1 interim wording)
+
+  REPLACEMENT
+      E5 :
+        1. non-persistence ≠ non-occurrence.
+
+        2. a FREE world-semantic projection carrying a SemanticAddress may NOT
+           be resolved without commitment:
+               semantic resolve ⇒ OperationalAddressability ⇒ C^μ
+           (reading an already-fixed projection is retrieval from C_t,
+            never re-resolution — see n15.semantic_read_clause)
+
+        3. values that may be evaluated and discarded are
+           ProceduralEphemeralValues, not latent world facts.
+
+        4. a projection never semantically addressed may remain Free.
+
+        5. if a later Query asks for a semantic fact never fixed, ΠS
+           resolves it at that time, subject to all already-committed
+           consequences.
+
+        6. if an earlier committed consequence semantically DEPENDED on
+           that fact, the fact should already have been fixed as a
+           struct-root dependency. Failure to do so is an IMPLEMENTATION
+           ERROR, not legitimate Free Slack.
+
+  NOTE ON 6
+      This moves a whole class of latent bugs out of the architectural
+      grey zone and into a reportable condition. Amended V3 (§13a)
+      detects this class as CommitmentClosureIntegrity failure.
+
+
+§12 · AMEND n15 — OperationalAddressability, semantic-read clause
+
+  ADD to n15.A
+      semantic_read_clause:
+        "for any projection x carrying a canonical SemanticAddress:
+
+         if x is Free / unresolved:
+             semantic read / resolve x
+                 ⇒ x is OperationallyAddressable
+                 ⇒ ΠS resolution
+                 ⇒ AtomicCommit into C^μ
+
+         if x is already CounterfactuallyFixed / committed:
+             semantic read x
+                 ⇒ read the committed value from C_t
+                 ⇒ NEVER re-resolve or re-sample
+
+         there is NO legal state 'Free semantic projection resolved but
+         intentionally left uncommitted' — that would violate T2 and
+         open a bypass around I6."
+
+  PLAIN FORM
+      A Free semantic world fact cannot be read transiently.
+      If the engine asks the world what an unresolved fact is, the fact
+      becomes addressable and is committed.
+      Reading an already-fixed fact only retrieves its committed value.
+
+  This single clause closes the loophole without widening
+  OperationalAddressability and without forcing every transient
+  simulation variable into the ledger — because ASKING IS ITSELF THE
+  DEPENDENCY.
+
+
+§13 · REJECTED CRITERION (recorded)
+
+  PROPOSED (ours)
+      "transient evaluation must not affect any cross-frame
+       observable output"
+
+  REJECTED — directionally correct, too strong.
+
+  COUNTEREXAMPLE
+      animation_jitter = RNG() → waiter shifts weight slightly
+      The visible motion may be exposed; the exact RNG sample has no
+      world-semantic identity and need not be preserved.
+
+  CONTRAST
+      waiter.heard_argument = true
+        → rule: if heard_argument then look toward table
+        → waiter looks toward table
+      Here the value is a semantic proposition AND an internal causal
+      dependency; it must be resolved and committed BEFORE the dependent
+      behaviour is constituted.
+
+  FROZEN DISTINCTION
+      Observable influence does not by itself make every computational
+      intermediate a world fact. SEMANTIC CAUSAL influence does.
+
+  The correct discriminator is semantic causal role, not observability.
+
+
+§13a · AMEND V3 — CommitmentClosureIntegrityCheck
+
+  REPLACEMENT / EXTENSION
+      V3{CommitmentClosureIntegrityCheck:
+
+          (a) forbid any compression / rewrite that relaxes or mutates CClos;
+
+          (b) for every committed semantic consequence, require every
+              world-semantic dependency that constitutes that consequence
+              to be represented as a committed root / dependency in CClos;
+
+          (c) if a committed consequence depends on a semantic fact that
+              remains Free / uncommitted, report IMPLEMENTATION ERROR.}
+
+  RELATION TO E5.6
+      E5.6 is therefore mechanically grounded:
+      "the behaviour already depends on it but the fact was never fixed"
+      is not legitimate Free Slack.
+
+  NOTE
+      V3 does NOT require every procedural intermediate to enter CClos.
+      n74 ProceduralEphemeralValues remain outside the semantic dependency
+      graph unless explicitly promoted across n75.
+
+
+====================================================
+PART V · LAYER-N ADDITIONS
+====================================================
+
+§14 · Rationale records to append to Layer N
+
+  [I3b] QueryIndependence without a causal direction is too weak: an
+        implementation may avoid reading query text while still letting
+        present player/narrative state condition latent past facts.
+
+  [I4b] ProjectiveConsistency concerns A⊆B projection restriction.
+        QueryPathInvariance concerns different routes to the same latent
+        structure. Neither implies the other in the implementation
+        contract.
+
+  [n10/P3] Exposure creates commitment before the player acts on it.
+        Acting on the fact raises Load; acting is not the admission
+        criterion for exp-root.
+
+  [S3/E1] An utterance occurrence need not become a permanent Event
+        Ledger record. Persistence is governed by CausalAddressability
+        and surviving dependency.
+
+  [Q7] "M. 2019" demonstrates a CF preference, not an ontological
+        prohibition on entities.
+
+  [n74/n75] ANIMATION JITTER vs THE WAITER'S EAR — the discriminating pair.
+        animation_jitter = RNG() drives a visible weight shift; no
+        SemanticAddress, nothing preserved, no commitment.
+        waiter.heard_argument = true drives a glance toward the table via
+        a stated rule; it is a world proposition and an internal causal
+        dependency, so it must be resolved and committed first.
+        Same visible surface. Opposite ledger consequences.
+        THE DISCRIMINATOR IS SEMANTIC CAUSAL ROLE, NOT OBSERVABILITY.
+
+  [E5.6] "The behaviour already depends on it but the fact was never
+        fixed" is an implementation error, not Free Slack. Named here so
+        it is caught by V3 CommitmentClosureIntegrityCheck rather than
+        argued about later.
+
+  [E5/n15] THE WAITER, TWO LAWFUL IMPLEMENTATIONS
+
+        Case A — hearing was semantically simulated
+            resolve waiter.heard_argument → commit true
+            → behaviour rule reads it → waiter looks toward the table
+          Later query "did the waiter hear them?" MUST recover true;
+          the fact is already in C_t.
+
+        Case B — hearing was never semantically simulated
+            waiter performs ambient / generic attention behaviour
+            → looks toward the table
+          No proposition waiter.heard_argument was resolved. A later
+          query addresses that projection for the FIRST time: ΠS
+          resolves it subject to committed position, distance, loudness,
+          the observed behaviour, and existing constraints → atomic
+          commit → expose.
+          The observed glance constrains the answer only to the degree
+          the world model treats it as evidence of hearing.
+
+        Both are lawful. What is unlawful is Case A without the commit.
+
+  [supersede] The base Layer-N entry citing the waiter as proof that
+        "non-persisted = unevaluated" is NARROWED: the waiter is a case
+        of genuinely unevaluated Free Slack, not evidence that every
+        non-persisted transient computation was never evaluated.
+
+
+====================================================
+PART VI · FROZEN FORMULATIONS
+====================================================
+
+§15 · Two lines to carry forward verbatim
+
+  On the procedural/semantic boundary:
+
+      World-semantic evaluation is transactional;
+      procedural evaluation may be ephemeral.
+
+  Operational form:
+
+      If it can later be asked "was that true?", resolving it commits it.
+      If it is merely how the program computed something, it may disappear.
+
+
+====================================================
+§16 · CHANGE INDEX
+====================================================
+
+  ADDED
+    I3b   CausalSelectionBarrier                        §2
+    I4b   QueryPathInvariance                           §1
+    T5    ΠS is not a disposable randomness source      §7
+    n74   ProceduralEphemeralValue                      §10
+    n75   SemanticCausalityBoundary                     §10
+    n15.A semantic_read_clause                          §12
+
+  AMENDED
+    V3        CommitmentClosureIntegrityCheck             §13a
+    E5.2      Free-vs-fixed semantic resolve wording       §11
+    n10.exp   exp-root semantics + non-exclusive roots  §3
+    T1        exposure step + provenance attachment     §5
+    T4        deny-list form                            §6
+    S3        UtteranceOccurrence vs PersistentWorldEvent §8
+    Q7        CF preference, not ontology ban           §9
+
+  REPLACED OUTRIGHT
+    Rl:E5     six clauses                               §11
+
+  REJECTED
+    "transient evaluation must not affect any cross-frame
+     observable output"  (ours)                         §13
+
+  LAYER N
+    seven rationale records appended, one base entry narrowed  §14
+
+  UNCHANGED
+    world ontology components, Query model, five exits, MSRC,
+    Ex.QueryTriage pipeline, V1,V2,V4–V6, Open O1–O7, APX-B
+
+====================================================
+END FROZEN CONSOLIDATED PATCH  ::  GWA v0.3a + P1 + P6c
+====================================================
