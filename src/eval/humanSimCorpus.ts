@@ -96,8 +96,10 @@ function fragment(rng: () => number): { input: string }[] {
   return [{ input: pick(rng, ["把", "那个...", "呃", "嗯"]) }];
 }
 
+// "走到门口"/"走到床边" are now real, supported move targets (see moveToLandmark);
+// this keeps only destinations still genuinely unmodeled (leaving the bedroom).
 function unsupportedMove(rng: () => number): { input: string }[] {
-  return [{ input: pick(rng, ["走到门口", "走出这个房间", "go to the door"]) }];
+  return [{ input: pick(rng, ["走出这个房间", "走到客厅", "go to the hallway"]) }];
 }
 
 function outsideBoundary(rng: () => number): { input: string }[] {
@@ -121,10 +123,19 @@ function greeting(rng: () => number): { input: string }[] {
   return [{ input: pick(rng, ["你好呀", "hello", "在吗"]) }];
 }
 
+function moveToLandmark(rng: () => number): { input: string }[] {
+  const options = ["走到门口", "走到床边", "go to the door", "go to the bed", "移动到门口", "回到床边"];
+  return [{ input: pick(rng, options) }];
+}
+
+function selfPositionQuery(rng: () => number): { input: string }[] {
+  return [{ input: pick(rng, ["我在哪里", "我现在在哪", "where am I"]) }];
+}
+
 const SIMPLE_TEMPLATES: Array<(rng: () => number) => { input: string }[]> = [
   lookAround, inventory, openContainer, closeContainer, containerContents, takeItem, placeItem,
   writeNote, readNote, capabilityQuery, fragment, unsupportedMove, outsideBoundary, negation,
-  hypothetical, chainedThen, greeting,
+  hypothetical, chainedThen, greeting, moveToLandmark, selfPositionQuery,
 ];
 
 export interface HumanSimCorpusOptions {

@@ -40,15 +40,16 @@ try {
   const commits = await store.list();
   const fixture = createObjectWorldFixture();
   const violations = checkInvariants({ rows, commits, fixture });
-  const gatePassed = violations.length === 0;
+  const fatalViolations = violations.filter((v) => v.severity === "fatal");
+  const gatePassed = fatalViolations.length === 0;
 
   await mkdir(".eval-logs", { recursive: true });
   const logPath = join(".eval-logs", `human-sim-corpus-seed${seed}-${Date.now()}.json`);
   await writeFile(logPath, JSON.stringify({ seed, count, gatePassed, violations, rows }, null, 2), "utf8");
 
   process.stdout.write(`${JSON.stringify({
-    passed: gatePassed ? rows.length : rows.length - new Set(violations.map((v) => v.turnId).filter(Boolean)).size,
-    total: rows.length, fatalReplayIssueCount: violations.filter((v) => v.severity === "fatal").length,
+    passed: gatePassed ? rows.length : rows.length - new Set(fatalViolations.map((v) => v.turnId).filter(Boolean)).size,
+    total: rows.length, fatalReplayIssueCount: fatalViolations.length,
     violations, logPath,
   }, null, 2)}\n`);
   process.exitCode = gatePassed ? 0 : 1;

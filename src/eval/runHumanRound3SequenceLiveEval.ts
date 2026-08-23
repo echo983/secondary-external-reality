@@ -17,7 +17,7 @@ const cases = [
   { input: "打开门", kind: "committed", delta: 1, response: "打开了门" },
   { input: "看看门外", kind: "interface", delta: 0, code: "INTERACTION_UNRESOLVED_REFERENCE" },
   { input: "门外有什么", kind: "interface", delta: 0, code: "INTERACTION_UNRESOLVED_REFERENCE" },
-  { input: "走到门口", kind: "interface", delta: 0, code: "INTERACTION_UNSUPPORTED_OPERATION" },
+  { input: "走到门口", kind: "committed", delta: 1, response: "门口" },
 ] as const;
 
 const token = (await readFile(process.env.CLOUDFLARE_API_TOKEN_FILE ?? "secret/cftoken.txt", "utf8")).trim();
@@ -44,10 +44,10 @@ try {
   const world = MaterializedWorld.replay(commits, fixture.seedCommitments);
   const replay = replayCanonicalViews(commits, { seedCommitments: fixture.seedCommitments, mode: "diagnostic" });
   const finalState = { penLocation: world.directLocation("pen-1")?.objectId, heldEntityIds: world.entitiesRelatedTo("held_by", "self").map((entity) => entity.entityId),
-    doorOpenState: world.entities.get("door-1")?.attributes.open_state };
+    doorOpenState: world.entities.get("door-1")?.attributes.open_state, selfPosition: world.entities.get("self")?.attributes.position };
   const fatalReplayIssueCount = replay.issues.filter((issue) => issue.fatal).length;
   const passed = rows.filter((row) => row.correct).length;
-  const stateCorrect = finalState.penLocation === "nightstand-1" && finalState.heldEntityIds.length === 0 && finalState.doorOpenState === "open";
+  const stateCorrect = finalState.penLocation === "nightstand-1" && finalState.heldEntityIds.length === 0 && finalState.doorOpenState === "open" && finalState.selfPosition === "doorway";
   process.stdout.write(`${JSON.stringify({ passed, total: rows.length, stateCorrect, fatalReplayIssueCount, finalState, rows }, null, 2)}\n`);
   process.exitCode = passed === rows.length && stateCorrect && fatalReplayIssueCount === 0 ? 0 : 1;
 } finally { store.close(); await rm(directory, { recursive: true, force: true }); }

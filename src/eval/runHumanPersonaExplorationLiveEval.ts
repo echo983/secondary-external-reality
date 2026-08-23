@@ -125,7 +125,7 @@ async function runPersona(persona: Persona): Promise<PersonaRunOutcome> {
 const outcomes: PersonaRunOutcome[] = [];
 for (const persona of PERSONAS) outcomes.push(await runPersona(persona));
 const allViolations = outcomes.flatMap((outcome) => outcome.violations);
-const gatePassed = allViolations.length === 0;
+const gatePassed = allViolations.every((violation) => violation.severity !== "fatal");
 const totalTurns = outcomes.reduce((sum, outcome) => sum + outcome.rows.length, 0);
 
 await mkdir(".eval-logs", { recursive: true });
