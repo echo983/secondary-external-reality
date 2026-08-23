@@ -20,7 +20,7 @@ export class TtdTextShell {
   ) {}
 
   start(): void {
-    this.sink.write("secondary external reality MVP\r\n输入 exit 退出。\r\nttd: ");
+    this.sink.write("secondary external reality MVP\r\n输入 help 查看测试范围，输入 exit 退出。\r\nttd: ");
   }
 
   receive(chunk: Buffer | string): void {
@@ -61,7 +61,7 @@ export class TtdTextShell {
       return;
     }
     if (line === "help" || line === "帮助" || line === "?") {
-      this.sink.write("\r\n可尝试：look（环顾）、inventory（手中物品）、钥匙在哪里、抽屉里有什么、纸条上有字吗、纸条上写着什么、打开/关闭、拿起、放到表面或容器、写藏并读取纸条。可用‘然后’连接动作，输入 exit 退出。\r\nttd: ");
+      this.sink.write("\r\n可用自然说法尝试：环顾、手中物品、位置与容器内容、打开/关闭、拿起、放到表面或容器、写藏并读取数字纸条。可用‘然后’连接动作；上一轮只突出一个对象时可用‘它’续接。否定、假设和条件不会作为实际行动执行。门外空间与任意文字写入尚未开放。输入 exit 退出。\r\nttd: ");
       return;
     }
     this.sink.write("\r\n");

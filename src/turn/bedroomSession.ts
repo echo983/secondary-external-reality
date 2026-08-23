@@ -80,8 +80,12 @@ export class BedroomSession {
     }
     const activeProposal = this.options.actionIr?.mode === "shadow" || useActiveIr ? await this.runActionIr(rawTtd, rootTurnId) : null;
     if (useActiveIr) {
-      if (!activeProposal) throw new BedroomTurnError(this.failureMessage(rawTtd, "这个尝试目前无法可靠地理解。", "This attempt cannot yet be understood reliably."));
+      if (!activeProposal) {
+        await this.appendRejectedAttempt(rootTurnId, rawTtd, "IR_NOT_ADMITTED");
+        throw new BedroomTurnError(this.failureMessage(rawTtd, "这个尝试目前无法可靠地理解。", "This attempt cannot yet be understood reliably."));
+      }
       if (activeProposal.exitKind !== "actions") {
+        await this.appendRejectedAttempt(rootTurnId, rawTtd, activeProposal.exitKind === "not_an_action" ? "NOT_AN_ACTION" : "UNSUPPORTED_ACTION");
         throw new BedroomTurnError(activeProposal.exitKind === "not_an_action"
           ? this.failureMessage(rawTtd, "这不像是一个要尝试执行的动作。", "This does not look like an action to try.")
           : this.failureMessage(rawTtd, "这个动作还不在当前世界支持的范围内。", "This action is outside the current world's supported scope."));
@@ -186,6 +190,7 @@ export class BedroomSession {
             createdAt: new Date().toISOString(),
           });
         } catch { /* Diagnostic telemetry cannot affect world admission. */ }
+        if (stage === "compile") await this.appendRejectedAttempt(rootTurnId, rawTtd, "SEMANTIC_IR_COMPILE_REJECTED");
         throw error;
       }
       try {
@@ -202,6 +207,13 @@ export class BedroomSession {
 
   private failureMessage(rawTtd: string, zh: string, en: string): string {
     return /[\u3400-\u9fff]/u.test(rawTtd) ? zh : en;
+  }
+
+  private async appendRejectedAttempt(rootTurnId: string, rawTtd: string, failureCode: string, stepIndex = 0, stepCount = 1): Promise<void> {
+    await this.options.store.appendTurnAttempt({
+      attemptId: `${rootTurnId}:${stepIndex}`, rootTurnId, stepIndex, stepCount, rawTtd,
+      status: "failed", failureCode, createdAt: new Date().toISOString(),
+    });
   }
 
   private async runActionIr(rawTtd: string, rootTurnId: string): Promise<ActionProposalEnvelopeV07 | null> {
@@ -260,6 +272,7 @@ export class BedroomSession {
       const single: ActionProposalEnvelopeV07 = { ...proposal, steps: [structuredClone(step)] };
       const grounded = groundActionProposal(single, fixture, world);
       if (!grounded.ready || !grounded.steps[0]) {
+        await this.appendRejectedAttempt(rootTurnId, rawTtd, "ACTION_IR_GROUNDING_REJECTED", stepIndex, proposal.steps.length);
         if (completed.length === 0) throw new BedroomTurnError(this.failureMessage(rawTtd, "动作所指的实体不明确或当前不能这样操作。", "The referenced entity is ambiguous or cannot currently be used that way."));
         return this.partialResult(rawTtd, completed, step);
       }

@@ -71,5 +71,9 @@ test("negated language and explicit Action IR exits produce zero commits", async
     await assert.rejects(session(store, exit).submit("今天的房间很安静"));
     assert.equal((await store.list()).length, 0);
     assert.deepEqual((await store.listActionProposalAudits()).map((audit) => audit.status), ["validated"]);
+    assert.deepEqual((await store.listTurnAttempts()).map((attempt) => [attempt.rawTtd, attempt.status, attempt.failureCode]), [
+      ["看看抽屉是否存在，但不要动它", "interface", undefined],
+      ["今天的房间很安静", "failed", "NOT_AN_ACTION"],
+    ]);
   } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
 });

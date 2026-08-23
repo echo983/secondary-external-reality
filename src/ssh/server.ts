@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import ssh2 from "ssh2";
 import type { AuthContext, Server as SshServer, ServerChannel } from "ssh2";
@@ -36,22 +36,18 @@ function equalSecret(actual: string, expected: string): boolean {
 export function createSshMvpServer(config: SshMvpConfig): { server: SshServer; store: LanceCommitStore } {
   const client = new WorkersAiClient({ accountId: config.accountId, apiToken: config.apiToken });
   const store = new LanceCommitStore(config.dataPath);
-  const session = new BedroomSession({
-    sessionId: "ssh-world",
-    store,
-    jury: new KernelAwareBedroomJury(new DualRoleBedroomJury(
+  const jury = new KernelAwareBedroomJury(new DualRoleBedroomJury(
       new WorkersAiBedroomJury(client, "world_causality"),
       new WorkersAiBedroomJury(client, "experience_epistemic"),
-    )),
-    renderer: new ChineseBedroomRenderer(),
-    queryRenderer: new WorkersAiTurnRenderer(client, new DeterministicPresentationRenderer()),
-    actionIr: {
+    ));
+  const queryRenderer = new WorkersAiTurnRenderer(client, new DeterministicPresentationRenderer());
+  const actionIr = {
       mode: config.actionIrMode ?? "off",
       proposer: new WorkersAiActionIrProposer(client),
       semanticAuditor: new WorkersAiActionIrSemanticAuditor(client),
-    },
-    semanticIr: { proposer: new WorkersAiSemanticIrProposer(client), auditor: new WorkersAiSemanticIrAuditor(client) },
-  });
+    } as const;
+  const semanticIr = { proposer: new WorkersAiSemanticIrProposer(client), auditor: new WorkersAiSemanticIrAuditor(client) };
+  let worldTail: Promise<void> = Promise.resolve();
   const server = new Server({ hostKeys: [config.hostKey] }, (connection) => {
     connection.on("authentication", (context: AuthContext) => {
       if (context.method === "password" && context.username === config.username && equalSecret(context.password, config.password)) context.accept();
@@ -63,7 +59,15 @@ export function createSshMvpServer(config: SshMvpConfig): { server: SshServer; s
         sshSession.on("pty", (acceptPty) => acceptPty());
         sshSession.once("shell", (acceptShell) => {
           const channel: ServerChannel = acceptShell();
-          const shell = new TtdTextShell(session, channel);
+          const session = new BedroomSession({
+            sessionId: `ssh-${randomUUID()}`, store, jury, renderer: new ChineseBedroomRenderer(), queryRenderer, actionIr, semanticIr,
+          });
+          const handler = { submit(input: string) {
+            const turn = worldTail.then(() => session.submit(input), () => session.submit(input));
+            worldTail = turn.then(() => undefined, () => undefined);
+            return turn;
+          } };
+          const shell = new TtdTextShell(handler, channel);
           channel.on("data", (data: Buffer) => shell.receive(data));
           shell.start();
         });
