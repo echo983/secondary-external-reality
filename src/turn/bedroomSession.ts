@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { BedroomFixture } from "../world/bedroomFixture.js";
 import { createBedroomFixture } from "../world/bedroomFixture.js";
 import type { LanceCommitStore } from "../storage/lanceCommitStore.js";
@@ -35,12 +37,13 @@ export class BedroomSession {
     const wholeObjectIntent = parseObjectIntent(rawTtd);
     const atomicComposite = wholeObjectIntent?.operation === "write_and_hide" || wholeObjectIntent?.operation === "open_and_observe" || wholeObjectIntent?.operation === "read";
     const steps = atomicComposite ? [rawTtd.trim()] : splitActionSequence(rawTtd);
-    if (steps.length <= 1) return this.executeSingle(rawTtd);
+    const rootTurnId = `${this.options.sessionId}:${randomUUID()}`;
+    if (steps.length <= 1) return this.executeAudited(rawTtd, rootTurnId, 0, 1);
 
     const completed: TurnResult[] = [];
-    for (const step of steps) {
+    for (const [stepIndex, step] of steps.entries()) {
       try {
-        completed.push(await this.executeSingle(step));
+        completed.push(await this.executeAudited(step, rootTurnId, stepIndex, steps.length));
       } catch (error) {
         if (completed.length === 0) throw error;
         const chinese = /[\u3400-\u9fff]/u.test(rawTtd);
@@ -67,7 +70,30 @@ export class BedroomSession {
     };
   }
 
-  private async executeSingle(rawTtd: string): Promise<TurnResult> {
+  private async executeAudited(rawTtd: string, rootTurnId: string, stepIndex: number, stepCount: number): Promise<TurnResult> {
+    const attemptId = `${rootTurnId}:${stepIndex}`;
+    let result: TurnResult;
+    try {
+      result = await this.executeSingle(rawTtd, rootTurnId, stepIndex, stepCount);
+    } catch (error) {
+      await this.options.store.appendTurnAttempt({
+        attemptId, rootTurnId, stepIndex, stepCount, rawTtd,
+        status: "failed", failureCode: "ACTION_NOT_COMMITTED",
+        createdAt: new Date().toISOString(),
+      });
+      throw error;
+    }
+    await this.options.store.appendTurnAttempt({
+      attemptId, rootTurnId, stepIndex, stepCount, rawTtd,
+      status: "committed",
+      commitSequence: result.commitPackage.commitSequence,
+      selectedCandidateId: result.commitPackage.selectedCandidateId,
+      createdAt: new Date().toISOString(),
+    });
+    return result;
+  }
+
+  private async executeSingle(rawTtd: string, rootTurnId: string, stepIndex: number, stepCount: number): Promise<TurnResult> {
     const commits = await this.options.store.list();
     const fixture = (this.options.fixtureFactory ?? createBedroomFixture)();
     const snapshots = new Map(fixture.committed.map((snapshot) => [snapshot.projection, snapshot]));
@@ -98,6 +124,7 @@ export class BedroomSession {
         jury: this.options.jury,
         renderer: this.options.renderer,
         store: this.options.store,
+        rootTurnId, stepIndex, stepCount,
       });
     }
     if (isObjectIntent(rawTtd)) {
@@ -108,6 +135,7 @@ export class BedroomSession {
         priorCommits: commits,
         jury: this.options.jury,
         store: this.options.store,
+        rootTurnId, stepIndex, stepCount,
       });
     }
     return runBedroomTurn({
@@ -118,6 +146,7 @@ export class BedroomSession {
       jury: this.options.jury,
       renderer: this.options.renderer,
       store: this.options.store,
+      rootTurnId, stepIndex, stepCount,
     });
   }
 }

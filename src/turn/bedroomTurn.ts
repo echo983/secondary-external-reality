@@ -56,6 +56,9 @@ export async function runBedroomTurn(options: {
   jury: BedroomJury;
   renderer: TurnRenderer;
   store: LanceCommitStore;
+  rootTurnId?: string;
+  stepIndex?: number;
+  stepCount?: number;
 }): Promise<TurnResult> {
   const intent = parseMvpIntent(options.rawTtd);
   if (intent.actions.map((action) => action.kind).join(",") !== "stand,move,open") {
@@ -90,6 +93,9 @@ export async function runBedroomTurn(options: {
     snapshots,
   );
   if (!prepared.ready || !prepared.commitPackage) throw new BedroomTurnError("Commit package preparation failed.");
+  if (options.rootTurnId !== undefined) prepared.commitPackage.rootTurnId = options.rootTurnId;
+  if (options.stepIndex !== undefined) prepared.commitPackage.stepIndex = options.stepIndex;
+  if (options.stepCount !== undefined) prepared.commitPackage.stepCount = options.stepCount;
   await options.store.append(prepared.commitPackage);
   const response = await options.renderer.render(prepared.commitPackage, intent);
   return { response, commitPackage: prepared.commitPackage, intent };

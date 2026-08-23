@@ -128,3 +128,23 @@ test("reopens the append log without losing committed packages", async () => {
     }
   });
 });
+
+test("reopens and filters non-authoritative turn attempts", async () => {
+  await withStore(async (store, uri) => {
+    const attempt = {
+      attemptId: "root-1:0", rootTurnId: "root-1", stepIndex: 0, stepCount: 1,
+      rawTtd: "开门", status: "failed" as const, failureCode: "ACTION_NOT_COMMITTED",
+      createdAt: "2026-08-23T00:00:00.000Z",
+    };
+    await store.appendTurnAttempt(attempt);
+    await store.appendTurnAttempt(attempt);
+    store.close();
+    const reopened = new LanceCommitStore(uri);
+    try {
+      assert.deepEqual(await reopened.listTurnAttempts("root-1"), [attempt]);
+      assert.deepEqual(await reopened.listTurnAttempts("missing"), []);
+    } finally {
+      reopened.close();
+    }
+  });
+});

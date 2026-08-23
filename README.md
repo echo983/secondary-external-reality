@@ -18,6 +18,10 @@ Explicit multi-action `ttd` inputs are executed step by step. If a later step
 fails, earlier committed actions remain true and the response reports partial
 success instead of rolling the world back.
 
+Each input also has a durable root-turn audit trail. Successful steps link to
+their authoritative world commits; failed attempts are recorded separately in
+`turn_attempts` and never become world truth.
+
 ## Development
 
 ```sh

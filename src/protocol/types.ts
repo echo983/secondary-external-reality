@@ -211,6 +211,9 @@ export interface CandidateSelection {
 
 export interface CommitPackage {
   turnId: string;
+  rootTurnId?: string;
+  stepIndex?: number;
+  stepCount?: number;
   commitSequence: number;
   selectedCandidateId: string;
   worldBasis?: WorldBasis;
@@ -222,6 +225,19 @@ export interface CommitPackage {
   evidenceGenerated?: EvidenceRecord[];
   epistemicChanges?: EpistemicChange[];
   newWorldCommitments: WorldCommitment[];
+}
+
+export interface TurnAttempt {
+  attemptId: string;
+  rootTurnId: string;
+  stepIndex: number;
+  stepCount: number;
+  rawTtd: string;
+  status: "committed" | "failed";
+  commitSequence?: number;
+  selectedCandidateId?: string;
+  failureCode?: string;
+  createdAt: string;
 }
 
 export interface CommitPreparationResult {

@@ -17,6 +17,9 @@ export async function commitCandidateEnvelope(options: {
   jury: BedroomJury;
   store: LanceCommitStore;
   worldBasis?: WorldBasis;
+  rootTurnId?: string;
+  stepIndex?: number;
+  stepCount?: number;
 }): Promise<CommitPackage> {
   const validation = validateCandidateEnvelope(options.envelope, options.registry);
   if (!validation.valid) throw new CandidateCommitError("Candidate protocol validation failed.");
@@ -26,6 +29,9 @@ export async function commitCandidateEnvelope(options: {
   const selection = selectCandidate(options.envelope, evaluation, await options.jury.review(batch));
   const prepared = prepareCommitPackage(options.turnId, options.commitSequence, options.envelope, selection, options.snapshots, options.snapshots, options.worldBasis);
   if (!prepared.ready || !prepared.commitPackage) throw new CandidateCommitError("Commit preparation failed.");
+  if (options.rootTurnId !== undefined) prepared.commitPackage.rootTurnId = options.rootTurnId;
+  if (options.stepIndex !== undefined) prepared.commitPackage.stepIndex = options.stepIndex;
+  if (options.stepCount !== undefined) prepared.commitPackage.stepCount = options.stepCount;
   await options.store.append(prepared.commitPackage);
   return prepared.commitPackage;
 }

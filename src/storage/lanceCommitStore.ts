@@ -3,9 +3,10 @@ import { createHash } from "node:crypto";
 import * as lancedb from "@lancedb/lancedb";
 import type { Connection, Table } from "@lancedb/lancedb";
 
-import type { CommitPackage } from "../protocol/types.js";
+import type { CommitPackage, TurnAttempt } from "../protocol/types.js";
 
 const COMMIT_TABLE = "world_commits";
+const ATTEMPT_TABLE = "turn_attempts";
 
 interface CommitRow extends Record<string, unknown> {
   commit_id: string;
@@ -20,6 +21,17 @@ interface CommitRow extends Record<string, unknown> {
   new_world_commitments_json: string;
   package_json: string;
   package_hash: string;
+  created_at: string;
+}
+
+interface AttemptRow extends Record<string, unknown> {
+  attempt_id: string;
+  root_turn_id: string;
+  step_index: number;
+  step_count: number;
+  status: string;
+  record_json: string;
+  record_hash: string;
   created_at: string;
 }
 
@@ -76,6 +88,7 @@ function normalizeRows(rows: unknown[]): CommitRow[] {
 export class LanceCommitStore {
   private connection: Connection | null = null;
   private table: Table | null = null;
+  private attemptTable: Table | null = null;
   private writeTail: Promise<void> = Promise.resolve();
 
   constructor(private readonly uri: string) {}
@@ -86,12 +99,17 @@ export class LanceCommitStore {
     if ((await this.connection.tableNames()).includes(COMMIT_TABLE)) {
       this.table = await this.connection.openTable(COMMIT_TABLE);
     }
+    if ((await this.connection.tableNames()).includes(ATTEMPT_TABLE)) {
+      this.attemptTable = await this.connection.openTable(ATTEMPT_TABLE);
+    }
   }
 
   close(): void {
     this.table?.close();
+    this.attemptTable?.close();
     this.connection?.close();
     this.table = null;
+    this.attemptTable = null;
     this.connection = null;
   }
 
@@ -114,6 +132,49 @@ export class LanceCommitStore {
     return rows
       .sort((left, right) => Number(left.commit_sequence) - Number(right.commit_sequence))
       .map((row) => JSON.parse(row.package_json) as CommitPackage);
+  }
+
+  async appendTurnAttempt(attempt: TurnAttempt): Promise<void> {
+    const operation = this.writeTail.then(
+      () => this.appendAttemptSerialized(attempt),
+      () => this.appendAttemptSerialized(attempt),
+    );
+    this.writeTail = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
+  async listTurnAttempts(rootTurnId?: string): Promise<TurnAttempt[]> {
+    await this.open();
+    if (!this.attemptTable) return [];
+    const rows = await this.attemptTable.query().toArray() as AttemptRow[];
+    return rows
+      .map((row) => JSON.parse(row.record_json) as TurnAttempt)
+      .filter((attempt) => rootTurnId === undefined || attempt.rootTurnId === rootTurnId)
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.stepIndex - right.stepIndex);
+  }
+
+  private async appendAttemptSerialized(attempt: TurnAttempt): Promise<void> {
+    await this.open();
+    if (!this.connection) throw new Error("LanceDB connection is not open.");
+    const recordJson = JSON.stringify(attempt);
+    const row: AttemptRow = {
+      attempt_id: attempt.attemptId,
+      root_turn_id: attempt.rootTurnId,
+      step_index: attempt.stepIndex,
+      step_count: attempt.stepCount,
+      status: attempt.status,
+      record_json: recordJson,
+      record_hash: hashPackage(recordJson),
+      created_at: attempt.createdAt,
+    };
+    const rows = this.attemptTable ? await this.attemptTable.query().toArray() as AttemptRow[] : [];
+    const existing = rows.find((candidate) => candidate.attempt_id === row.attempt_id);
+    if (existing) {
+      if (existing.record_hash !== row.record_hash) throw new CommitConflictError(`Turn attempt ${row.attempt_id} already exists with different content.`);
+      return;
+    }
+    if (!this.attemptTable) this.attemptTable = await this.connection.createTable(ATTEMPT_TABLE, [row]);
+    else await this.attemptTable.add([row]);
   }
 
   private async appendSerialized(

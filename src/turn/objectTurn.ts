@@ -51,6 +51,9 @@ export async function runObjectTurn(options: {
   jury: BedroomJury;
   store: LanceCommitStore;
   fixture?: ObjectWorldFixture;
+  rootTurnId?: string;
+  stepIndex?: number;
+  stepCount?: number;
 }): Promise<TurnResult> {
   const parsed = parseObjectIntent(options.rawTtd);
   if (!parsed) throw new ObjectTurnError("Unsupported object intent.");

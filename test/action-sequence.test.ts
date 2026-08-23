@@ -26,7 +26,11 @@ test("commits every successful step against the state produced by the previous s
     const result = await createSession(store).submit("我打开抽屉，拿起桌上的钥匙，然后去开门");
     assert.equal(result.partial, false);
     assert.deepEqual(result.commitPackages?.map((commit) => commit.commitSequence), [0, 1, 2]);
-    const world = MaterializedWorld.replay(await store.list(), createObjectWorldFixture().seedCommitments);
+    const commits = await store.list();
+    assert.equal(new Set(commits.map((commit) => commit.rootTurnId)).size, 1);
+    assert.deepEqual(commits.map((commit) => [commit.stepIndex, commit.stepCount]), [[0, 3], [1, 3], [2, 3]]);
+    assert.deepEqual((await store.listTurnAttempts()).map((attempt) => attempt.status), ["committed", "committed", "committed"]);
+    const world = MaterializedWorld.replay(commits, createObjectWorldFixture().seedCommitments);
     assert.equal(world.entities.get("drawer-1")?.attributes.open_state, "open");
     assert.equal(world.entities.get("door-1")?.attributes.open_state, "open");
     assert.equal(world.directLocation("key-1")?.predicate, "held_by");
@@ -51,6 +55,9 @@ test("keeps prior commits when a later sequence step fails", async () => {
     assert.equal(world.entities.get("drawer-1")?.attributes.open_state, "closed");
     assert.equal(world.directLocation("key-1")?.predicate, "held_by");
     assert.equal((await store.list()).length, 3);
+    const attempts = await store.listTurnAttempts();
+    assert.deepEqual(attempts.map((attempt) => attempt.status), ["committed", "committed", "committed", "failed"]);
+    assert.equal(new Set(attempts.map((attempt) => attempt.rootTurnId)).size, 1);
   } finally {
     store.close();
     await rm(directory, { recursive: true, force: true });
@@ -63,6 +70,7 @@ test("does not turn a first-step failure into partial success", async () => {
   try {
     await assert.rejects(createSession(store).submit("我关上抽屉，然后拿起钥匙"));
     assert.equal((await store.list()).length, 0);
+    assert.deepEqual((await store.listTurnAttempts()).map((attempt) => [attempt.stepIndex, attempt.status, attempt.failureCode]), [[0, "failed", "ACTION_NOT_COMMITTED"]]);
   } finally {
     store.close();
     await rm(directory, { recursive: true, force: true });
