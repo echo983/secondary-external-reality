@@ -1,3 +1,7 @@
 # Local credentials and other secrets must never be committed.
 secret/
 
+# Generated Node.js artifacts.
+node_modules/
+dist/
+coverage/
