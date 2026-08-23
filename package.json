@@ -9,6 +9,7 @@
     "eval:action-ir:live": "npm run build && node dist/src/eval/runActionIrLiveEval.js",
     "eval:active-ssh:live": "npm run build && node dist/src/eval/runActiveSshLiveEval.js",
     "eval:semantic-ir:live": "npm run build && node dist/src/eval/runSemanticIrLiveEval.js",
+    "eval:human-input:live": "npm run build && node dist/src/eval/runHumanInputLiveEval.js",
     "start:ssh": "node dist/src/ssh/server.js"
   },
   "devDependencies": {
