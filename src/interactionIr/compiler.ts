@@ -38,7 +38,7 @@ export function compileInteraction(proposal: InteractionEnvelopeV10, rawTtd: str
         ...destinationMentions.map((mention) => ({ mention, destination: true })),
         ...rolesOf(clause, "instrument").map((mention) => ({ mention, destination: false }))];
     for (const binding of boundMentions) {
-      const spatial = binding.destination ? lexicon.resolveSpatialMention(binding.mention) : { entityIds: lexicon.resolveExactMention(binding.mention) };
+      const spatial = binding.destination ? lexicon.resolveSpatialMention(binding.mention) : { entityIds: lexicon.resolveGroundedMention(binding.mention) };
       const matches = spatial.entityIds;
       if (matches.length !== 1) return { kind: "clarification", code: matches.length > 1 ? "AMBIGUOUS_REFERENCE" : "UNRESOLVED_REFERENCE" };
       if (!mentionedEntityIds.includes(matches[0]!)) mentionedEntityIds.push(matches[0]!);

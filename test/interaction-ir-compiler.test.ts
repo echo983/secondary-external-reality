@@ -14,6 +14,22 @@ test("compiler binds agreed source roles to fixture IDs without deciding capabil
   assert.deepEqual(result.kind === "executable" ? result.steps[0]?.mentionedEntityIds : [], ["table-1"]);
 });
 
+test("compiler resolves a target mention that carries a trailing Chinese locative particle", () => {
+  const observed = compileInteraction(envelope("observe", [{ role: "target", mention: "抽屉里" }], "world_query"), "抽屉里有什么");
+  assert.equal(observed.kind, "executable");
+  assert.deepEqual(observed.kind === "executable" ? observed.steps[0]?.mentionedEntityIds : [], ["drawer-1"]);
+
+  const onSurface = compileInteraction(envelope("observe", [{ role: "target", mention: "桌子上" }], "world_query"), "桌子上有什么");
+  assert.equal(onSurface.kind, "executable");
+  assert.deepEqual(onSurface.kind === "executable" ? onSurface.steps[0]?.mentionedEntityIds : [], ["table-1"]);
+});
+
+test("compiler resolves the bare English pronoun \"I\" as self for locate", () => {
+  const result = compileInteraction(envelope("locate", [{ role: "target", mention: "I" }], "world_query"), "where am I");
+  assert.equal(result.kind, "executable");
+  assert.deepEqual(result.kind === "executable" ? result.steps[0]?.mentionedEntityIds : [], ["self"]);
+});
+
 test("compiler resolves English target, instrument and destination mentions that carry a leading article", () => {
   const located = compileInteraction(envelope("locate", [{ role: "target", mention: "the note" }], "world_query"), "where is the note");
   assert.equal(located.kind, "executable");

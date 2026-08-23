@@ -32,3 +32,22 @@ test("exact and spatial mention resolution strip a leading English article", () 
   assert.deepEqual(lexicon.resolveExactMention("the nightstand"), ["nightstand-1"]);
   assert.deepEqual(lexicon.resolveSpatialMention("the table").entityIds, ["table-1"]);
 });
+
+test("resolveGroundedMention strips a trailing Chinese locative particle but resolveExactMention does not", () => {
+  const fixture = createObjectWorldFixture();
+  const lexicon = new ReferenceLexicon(fixture);
+  assert.deepEqual(lexicon.resolveExactMention("抽屉里"), []);
+  assert.deepEqual(lexicon.resolveGroundedMention("抽屉里"), ["drawer-1"]);
+  assert.deepEqual(lexicon.resolveGroundedMention("桌子上"), ["table-1"]);
+  // An alias that already bakes the particle in still matches directly, unaffected.
+  assert.deepEqual(lexicon.resolveGroundedMention("桌上"), ["table-1"]);
+  assert.deepEqual(lexicon.resolveGroundedMention("self"), ["self"]);
+  assert.deepEqual(lexicon.resolveGroundedMention("I"), ["self"]);
+});
+
+test("resolveMention never fuzzy-matches a single-letter alias inside an unrelated word", () => {
+  const fixture = createObjectWorldFixture();
+  const lexicon = new ReferenceLexicon(fixture);
+  assert.deepEqual(lexicon.resolveMention("Where exactly did I leave the key?"), ["key-1"]);
+  assert.deepEqual(lexicon.resolveMention("I"), ["self"]);
+});

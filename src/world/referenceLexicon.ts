@@ -5,6 +5,11 @@ function stripLeadingEnglishArticle(normalized: string): string {
   return normalized.replace(/^(the|an?)\s+/, "");
 }
 
+const LOCATIVE_SUFFIXES = [
+  { values: ["里面", "里头", "里", "中"], relation: "inside" as const },
+  { values: ["上面", "上"], relation: "on" as const },
+];
+
 export class ReferenceLexicon {
   private readonly aliases = new Map<string, readonly string[]>();
   private readonly labels = new Map<string, { zh: string; en: string }>();
@@ -25,7 +30,12 @@ export class ReferenceLexicon {
     const normalized = stripLeadingEnglishArticle(mention.trim().toLocaleLowerCase());
     const exact = this.resolveExactMention(normalized);
     if (exact.length > 0) return exact;
-    return [...this.aliases.entries()].filter(([, names]) => names.some((name) => normalized.includes(name.toLocaleLowerCase())))
+    // A lone Latin letter (e.g. the pronoun "I") is a legitimate EXACT alias
+    // but must never feed substring matching here: almost any English
+    // sentence contains that letter somewhere, so it would silently add the
+    // entity to unrelated mentions (e.g. "self" matching inside "did").
+    return [...this.aliases.entries()].filter(([, names]) => names.some((name) =>
+      !/^[a-z]$/iu.test(name) && normalized.includes(name.toLocaleLowerCase())))
       .map(([entityId]) => entityId).sort();
   }
 
@@ -42,17 +52,36 @@ export class ReferenceLexicon {
     const exact = this.resolveExactMention(mention);
     if (exact.length > 0) return { entityIds: exact };
     const normalized = mention.trim().toLocaleLowerCase();
-    const suffixes = [
-      { values: ["里面", "里头", "里", "中"], relation: "inside" as const },
-      { values: ["上面", "上"], relation: "on" as const },
-    ];
-    for (const suffix of suffixes) {
+    for (const suffix of LOCATIVE_SUFFIXES) {
       const entityIds = [...this.aliases.entries()].filter(([, names]) => names.some((name) =>
         suffix.values.some((value) => normalized === `${name.toLocaleLowerCase()}${value}`),
       )).map(([entityId]) => entityId).sort();
       if (entityIds.length > 0) return { entityIds, relation: suffix.relation };
     }
     return { entityIds: [] };
+  }
+
+  // Non-destination (target/instrument) role mentions only ever get an exact
+  // match, never resolveMention's broad fuzzy substring fallback (that risks
+  // over-matching on unrelated aliases). But a source span like "抽屉里" for a
+  // plain "what's in the drawer" query is a legitimate mention of drawer-1
+  // that happens to carry a trailing locative particle — the same particle
+  // resolveSpatialMention already strips for destination roles. Retry once
+  // with it stripped before giving up, without changing resolveSpatialMention
+  // itself (its relation-detection behavior must stay exactly as-is).
+  resolveGroundedMention(mention: string): string[] {
+    const exact = this.resolveExactMention(mention);
+    if (exact.length > 0) return exact;
+    const normalized = stripLeadingEnglishArticle(mention.trim().toLocaleLowerCase());
+    for (const suffix of LOCATIVE_SUFFIXES) {
+      for (const value of suffix.values) {
+        if (normalized.length > value.length && normalized.endsWith(value)) {
+          const delocated = this.resolveExactMention(normalized.slice(0, -value.length));
+          if (delocated.length > 0) return delocated;
+        }
+      }
+    }
+    return [];
   }
 
   label(entityId: string, language: "zh" | "en"): string {
