@@ -10,7 +10,13 @@ import { FiniteDomainProjectionResolver } from "../world/projectionResolver.js";
 
 export interface BedroomJury { review(batch: JuryBatch): Promise<JuryReport[]> }
 export interface TurnRenderer { render(commitPackage: CommitPackage, intent: NormalizedIntent): Promise<string> }
-export interface TurnResult { response: string; commitPackage: CommitPackage; intent: NormalizedIntent }
+export interface TurnResult {
+  response: string;
+  commitPackage: CommitPackage;
+  intent: NormalizedIntent;
+  commitPackages?: CommitPackage[];
+  partial?: boolean;
+}
 
 export class BedroomTurnError extends Error {}
 

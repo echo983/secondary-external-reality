@@ -39,7 +39,8 @@ function currentLocation(world: MaterializedWorld, entity: MaterializedEntity): 
 }
 
 function label(entity: MaterializedEntity, language: "zh" | "en"): string {
-  return entity.attributes[language === "zh" ? "zh_name" : "en_name"] ?? entity.entityType;
+  const fallbackZh: Record<string, string> = { door: "门", drawer: "抽屉", key: "钥匙", pen: "笔", paper_note: "纸条", pillow: "枕头", table: "桌子", nightstand: "床头柜" };
+  return entity.attributes[language === "zh" ? "zh_name" : "en_name"] ?? (language === "zh" ? fallbackZh[entity.entityType] : undefined) ?? entity.entityType;
 }
 
 export async function runObjectTurn(options: {
@@ -228,5 +229,5 @@ export function isObjectIntent(rawTtd: string): boolean {
   const parsed = parseObjectIntent(rawTtd);
   if (!parsed) return false;
   const ids = resolveFixtureEntity(createObjectWorldFixture(), rawTtd);
-  return ids.some((id) => id !== "door-1");
+  return ids.length > 0;
 }
