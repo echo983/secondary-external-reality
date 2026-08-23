@@ -1,12 +1,9 @@
-import { prepareCommitPackage } from "../protocol/commit.js";
-import { createJuryBatch, evaluateCandidateEnvelope } from "../protocol/evaluator.js";
-import { selectCandidate } from "../protocol/selector.js";
 import type { CandidateEnvelope, CommitPackage, ProjectionDefinition, ProjectionSnapshot } from "../protocol/types.js";
-import { validateCandidateEnvelope } from "../protocol/validator.js";
 import type { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import { MaterializedWorld } from "../world/materializedWorld.js";
 import { parseMvpIntent, type NormalizedIntent } from "../world/intent.js";
 import type { BedroomJury, TurnResult } from "./bedroomTurn.js";
+import { commitCandidateEnvelope } from "./commitCandidate.js";
 
 export type PaperIntent = { kind: "write_and_hide"; inscription: string } | { kind: "find_and_read" } | { kind: "unsupported" };
 export class PaperMemoryTurnError extends Error {}
@@ -21,27 +18,6 @@ export function parsePaperIntent(rawTtd: string): PaperIntent {
   }
   if (mentionsPillow && /(找|看|翻|检查|读|find|look|check|read)/iu.test(text)) return { kind: "find_and_read" };
   return { kind: "unsupported" };
-}
-
-async function commitEnvelope(options: {
-  envelope: CandidateEnvelope;
-  registry: ProjectionDefinition[];
-  snapshots: ProjectionSnapshot[];
-  turnId: string;
-  commitSequence: number;
-  jury: BedroomJury;
-  store: LanceCommitStore;
-}): Promise<CommitPackage> {
-  const validation = validateCandidateEnvelope(options.envelope, options.registry);
-  if (!validation.valid) throw new PaperMemoryTurnError("Paper candidate protocol validation failed.");
-  const evaluation = evaluateCandidateEnvelope(options.envelope, options.registry, options.snapshots);
-  const batch = createJuryBatch(options.envelope, validation, evaluation, options.snapshots);
-  if (!batch) throw new PaperMemoryTurnError("Paper candidate is not eligible.");
-  const selection = selectCandidate(options.envelope, evaluation, await options.jury.review(batch));
-  const prepared = prepareCommitPackage(options.turnId, options.commitSequence, options.envelope, selection, options.snapshots, options.snapshots);
-  if (!prepared.ready || !prepared.commitPackage) throw new PaperMemoryTurnError("Paper commit preparation failed.");
-  await options.store.append(prepared.commitPackage);
-  return prepared.commitPackage;
 }
 
 export async function runPaperMemoryTurn(options: {
@@ -88,7 +64,7 @@ export async function runPaperMemoryTurn(options: {
         { kind: "relation_set", subjectId: entityId, predicate: "contained_by", objectId: "pillow-1" },
       ],
     }] };
-    const commitPackage = await commitEnvelope({ ...options, envelope, registry, snapshots });
+    const commitPackage = await commitCandidateEnvelope({ ...options, envelope, registry, snapshots });
     const response = chinese
       ? `你在纸条上写下“${paperIntent.inscription}”，把它放在枕头下面。`
       : `You write “${paperIntent.inscription}” on the note and place it under the pillow.`;
@@ -123,7 +99,7 @@ export async function runPaperMemoryTurn(options: {
       observations: [{ kind: "inscription_read", entityId: note.entityId, value: note.attributes.inscription }],
       newWorldCommitments: [],
     }] };
-    const commitPackage = await commitEnvelope({ ...options, envelope, registry, snapshots });
+    const commitPackage = await commitCandidateEnvelope({ ...options, envelope, registry, snapshots });
     const response = chinese
       ? `你在枕头下面找到那张纸条。上面写着“${note.attributes.inscription}”。`
       : `You find the note under the pillow. It reads “${note.attributes.inscription}”.`;

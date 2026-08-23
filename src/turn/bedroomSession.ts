@@ -4,6 +4,7 @@ import type { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import type { BedroomJury, TurnRenderer, TurnResult } from "./bedroomTurn.js";
 import { runBedroomTurn } from "./bedroomTurn.js";
 import { parsePaperIntent, runPaperMemoryTurn } from "./paperMemoryTurn.js";
+import { isObjectIntent, runObjectTurn } from "./objectTurn.js";
 
 export interface BedroomSessionOptions {
   sessionId: string;
@@ -52,6 +53,16 @@ export class BedroomSession {
       : Math.max(...commits.map((commit) => commit.commitSequence)) + 1;
     if (parsePaperIntent(rawTtd).kind !== "unsupported") {
       return runPaperMemoryTurn({
+        rawTtd,
+        turnId: `${this.options.sessionId}:${commitSequence}`,
+        commitSequence,
+        priorCommits: commits,
+        jury: this.options.jury,
+        store: this.options.store,
+      });
+    }
+    if (isObjectIntent(rawTtd)) {
+      return runObjectTurn({
         rawTtd,
         turnId: `${this.options.sessionId}:${commitSequence}`,
         commitSequence,

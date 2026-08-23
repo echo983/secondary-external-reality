@@ -4,6 +4,7 @@ export interface MaterializedEntity {
   entityId: string;
   entityType: string;
   attributes: Record<string, string>;
+  attributeRevisions: Record<string, number>;
   createdAtSequence: number;
 }
 
@@ -21,8 +22,9 @@ export class MaterializedWorld {
   readonly entities = new Map<string, MaterializedEntity>();
   readonly relations = new Map<string, MaterializedRelation>();
 
-  static replay(commits: readonly CommitPackage[]): MaterializedWorld {
+  static replay(commits: readonly CommitPackage[], seedCommitments: readonly WorldCommitment[] = []): MaterializedWorld {
     const world = new MaterializedWorld();
+    for (const commitment of seedCommitments) world.apply(commitment, -1);
     for (const commit of [...commits].sort((left, right) => left.commitSequence - right.commitSequence)) {
       for (const commitment of commit.newWorldCommitments) world.apply(commitment, commit.commitSequence);
     }
@@ -37,16 +39,23 @@ export class MaterializedWorld {
       .sort((left, right) => left.createdAtSequence - right.createdAtSequence);
   }
 
+  directLocation(entityId: string): MaterializedRelation | null {
+    return [...this.relations.values()].find((relation) =>
+      relation.subjectId === entityId && ["located_on", "contained_by", "held_by"].includes(relation.predicate),
+    ) ?? null;
+  }
+
   private apply(commitment: WorldCommitment, commitSequence: number): void {
     if (commitment.kind === "entity_created") {
       if (this.entities.has(commitment.entityId)) throw new MaterializedWorldError(`Entity ${commitment.entityId} was created twice.`);
-      this.entities.set(commitment.entityId, { entityId: commitment.entityId, entityType: commitment.entityType, attributes: {}, createdAtSequence: commitSequence });
+      this.entities.set(commitment.entityId, { entityId: commitment.entityId, entityType: commitment.entityType, attributes: {}, attributeRevisions: {}, createdAtSequence: commitSequence });
       return;
     }
     if (commitment.kind === "attribute_set") {
       const entity = this.entities.get(commitment.entityId);
       if (!entity) throw new MaterializedWorldError(`Attribute references missing entity ${commitment.entityId}.`);
       entity.attributes[commitment.attribute] = commitment.value;
+      entity.attributeRevisions[commitment.attribute] = commitSequence;
       return;
     }
     if (commitment.kind === "relation_ended") {
