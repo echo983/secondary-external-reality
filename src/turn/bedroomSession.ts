@@ -1,10 +1,8 @@
 import { randomUUID } from "node:crypto";
 
-import type { BedroomFixture } from "../world/bedroomFixture.js";
-import { createBedroomFixture } from "../world/bedroomFixture.js";
 import type { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import type { BedroomJury, CommittedTurnResult, TurnRenderer, TurnResult } from "./bedroomTurn.js";
-import { BedroomTurnError, runBedroomTurn } from "./bedroomTurn.js";
+import { BedroomTurnError } from "./bedroomTurn.js";
 import { isObjectIntent, runObjectTurn } from "./objectTurn.js";
 import { parseMvpIntent } from "../world/intent.js";
 import { parseObjectIntent, splitActionSequence } from "../world/objectIntent.js";
@@ -32,7 +30,6 @@ export interface BedroomSessionOptions {
   store: LanceCommitStore;
   jury: BedroomJury;
   renderer: TurnRenderer;
-  fixtureFactory?: () => BedroomFixture;
   actionIr?: { mode: "off" | "shadow" | "active"; proposer?: ActionIrProposer; semanticAuditor?: ActionIrSemanticAuditor };
   semanticIr?: { proposer: SemanticIrProposer; auditor: SemanticIrAuditor };
   queryRenderer?: ApprovedPresentationRenderer;
@@ -463,38 +460,9 @@ export class BedroomSession {
 
   private async executeSingle(rawTtd: string, rootTurnId: string, stepIndex: number, stepCount: number, objectIntent?: ObjectIntent, mentionedEntityIds?: string[]): Promise<TurnResult> {
     const commits = await this.options.store.list();
-    const fixture = (this.options.fixtureFactory ?? createBedroomFixture)();
-    const snapshots = new Map(fixture.committed.map((snapshot) => [snapshot.projection, snapshot]));
-
-    for (const commit of commits) {
-      for (const change of commit.stateChanges) {
-        const previous = snapshots.get(change.projection);
-        if (!previous) continue;
-        snapshots.set(change.projection, {
-          projection: change.projection,
-          value: change.to,
-          revision: previous.revision + 1,
-        });
-      }
-    }
-    fixture.committed = [...snapshots.values()];
-
     const commitSequence = commits.length === 0
       ? 0
       : Math.max(...commits.map((commit) => commit.commitSequence)) + 1;
-    const bedroomActions = parseMvpIntent(rawTtd).actions.map((action) => action.kind).join(",");
-    if (bedroomActions === "stand,move,open") {
-      return runBedroomTurn({
-        rawTtd,
-        turnId: `${this.options.sessionId}:${commitSequence}`,
-        commitSequence,
-        fixture,
-        jury: this.options.jury,
-        renderer: this.options.renderer,
-        store: this.options.store,
-        rootTurnId, stepIndex, stepCount, attemptedTtd: rawTtd,
-      });
-    }
     if (objectIntent || isObjectIntent(rawTtd)) {
       return runObjectTurn({
         rawTtd,
@@ -509,15 +477,6 @@ export class BedroomSession {
         ...(mentionedEntityIds ? { mentionedEntityIds } : {}),
       });
     }
-    return runBedroomTurn({
-      rawTtd,
-      turnId: `${this.options.sessionId}:${commitSequence}`,
-      commitSequence,
-      fixture,
-      jury: this.options.jury,
-      renderer: this.options.renderer,
-      store: this.options.store,
-      rootTurnId, stepIndex, stepCount, attemptedTtd: rawTtd,
-    });
+    throw new BedroomTurnError(this.failureMessage(rawTtd, "这个尝试目前无法可靠地理解。", "This attempt cannot yet be understood reliably."));
   }
 }

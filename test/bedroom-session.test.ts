@@ -5,18 +5,19 @@ import { join } from "node:path";
 import test from "node:test";
 import { LanceCommitStore } from "../src/storage/lanceCommitStore.js";
 import { BedroomSession } from "../src/turn/bedroomSession.js";
-import { BedroomTurnError, ChineseBedroomRenderer, PassingBedroomJury } from "../src/turn/bedroomTurn.js";
+import { ChineseBedroomRenderer, PassingBedroomJury } from "../src/turn/bedroomTurn.js";
+import { ObjectTurnError } from "../src/turn/objectTurn.js";
 
 test("serializes a session and restores committed state from LanceDB", async () => {
   const directory = await mkdtemp(join(tmpdir(), "secondary-reality-session-"));
   const store = new LanceCommitStore(join(directory, "world.lancedb"));
   try {
     const firstSession = new BedroomSession({ sessionId: "player-1", store, jury: new PassingBedroomJury(), renderer: new ChineseBedroomRenderer() });
-    const first = await firstSession.submit("我下床走到门边开门");
+    const first = await firstSession.submit("打开抽屉");
     assert.equal(first.commitPackage.commitSequence, 0);
 
     const restoredSession = new BedroomSession({ sessionId: "player-1", store, jury: new PassingBedroomJury(), renderer: new ChineseBedroomRenderer() });
-    await assert.rejects(restoredSession.submit("我下床走到门边开门"), BedroomTurnError);
+    await assert.rejects(restoredSession.submit("打开抽屉"), ObjectTurnError);
     assert.equal((await store.list()).length, 1);
   } finally {
     store.close();
@@ -30,8 +31,8 @@ test("keeps concurrent submissions in commit order", async () => {
   try {
     const session = new BedroomSession({ sessionId: "player-1", store, jury: new PassingBedroomJury(), renderer: new ChineseBedroomRenderer() });
     const results = await Promise.allSettled([
-      session.submit("我下床走到门边开门"),
-      session.submit("我下床走到门边开门"),
+      session.submit("打开抽屉"),
+      session.submit("打开抽屉"),
     ]);
     assert.deepEqual(results.map((result) => result.status), ["fulfilled", "rejected"]);
     assert.equal((await store.list()).length, 1);
