@@ -55,8 +55,10 @@ export async function runObjectTurn(options: {
   stepIndex?: number;
   stepCount?: number;
   attemptedTtd?: string;
+  objectIntent?: ObjectIntent;
+  mentionedEntityIds?: string[];
 }): Promise<TurnResult> {
-  const parsed = parseObjectIntent(options.rawTtd);
+  const parsed = options.objectIntent ?? parseObjectIntent(options.rawTtd);
   if (!parsed) throw new ObjectTurnError("Unsupported object intent.");
   const fixture = options.fixture ?? createObjectWorldFixture();
   for (const commit of options.priorCommits) {
@@ -65,7 +67,7 @@ export async function runObjectTurn(options: {
     }
   }
   const world = MaterializedWorld.replay(options.priorCommits, fixture.seedCommitments);
-  const mentionedIds = resolveFixtureEntity(fixture, parsed.rawTtd);
+  const mentionedIds = options.mentionedEntityIds ?? resolveFixtureEntity(fixture, parsed.rawTtd);
   const registry: ProjectionDefinition[] = [];
   const snapshots: ProjectionSnapshot[] = [];
   const conditions: CandidateEnvelope["candidates"][number]["conditions"] = [];
