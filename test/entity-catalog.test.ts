@@ -8,7 +8,7 @@ import { ReferenceLexicon } from "../src/world/referenceLexicon.js";
 test("builds an extensible catalog and state-derived affordances from fixture data", () => {
   const fixture = createObjectWorldFixture();
   const catalog = new EntityCatalog(fixture);
-  assert.equal(catalog.entries.length, 10);
+  assert.equal(catalog.entries.length, 11);
   assert.deepEqual(catalog.entries.find((entry) => entry.entityId === "key-1")?.names, ["钥匙", "key"]);
   const world = MaterializedWorld.replay([], fixture.seedCommitments);
   assert.deepEqual(availableAffordances(world.entities.get("drawer-1")!, world), ["observe", "locate", "open"]);

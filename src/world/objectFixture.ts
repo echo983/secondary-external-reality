@@ -26,6 +26,10 @@ export function createObjectWorldFixture(): ObjectWorldFixture {
     { id: "blank-note-1", type: "paper_note", names: ["空白纸条", "空白便签", "纸条", "便签", "便签纸", "note", "sticky note"], attributes: { portable: "true", inscription: "", zh_name: "纸条", en_name: "note" } },
     { id: "pen-1", type: "pen", names: ["笔", "pen"], attributes: { portable: "true", zh_name: "笔", en_name: "pen" } },
     { id: "door-1", type: "door", names: ["门", "door", "门口", "doorway"], attributes: { openable: "true", open_state: "closed" } },
+    // notable_feature is deliberately NOT seeded here — it stays Free until the
+    // first time it is operationally addressed (see resolveHallwayNotableFeature
+    // in objectTurn.ts), per docs/MVP-hallway-placegraph-design-v0.4.md.
+    { id: "hallway-1", type: "place", names: ["走廊", "门外", "hallway", "outside"], attributes: { zh_name: "走廊", en_name: "hallway" } },
   ];
   const seedCommitments: WorldCommitment[] = [];
   for (const entity of entities) {
@@ -43,7 +47,7 @@ export function createObjectWorldFixture(): ObjectWorldFixture {
   );
   const worldBasis: WorldBasis = {
     fixtureId: "mvp-bedroom-objects",
-    fixtureVersion: "0.3.0",
+    fixtureVersion: "0.4.0",
     seedHash: createHash("sha256").update(JSON.stringify(seedCommitments)).digest("hex"),
   };
   return { seedCommitments, names: entities.map((entity) => ({ entityId: entity.id, names: entity.names })), worldBasis };

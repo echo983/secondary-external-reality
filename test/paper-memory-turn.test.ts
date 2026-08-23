@@ -79,7 +79,7 @@ test("reads a legacy paper commit that predates world-basis metadata", async () 
     await store.append(legacy, { seedCommitments: createObjectWorldFixture().seedCommitments });
     const read = await new BedroomSession({ sessionId: "player", store, jury: new PassingBedroomJury(), renderer: new ChineseBedroomRenderer() }).submit("我看看枕头下面并读纸条");
     assert.match(read.response, /0042/);
-    assert.equal(read.commitPackage.worldBasis?.fixtureVersion, "0.3.0");
+    assert.equal(read.commitPackage.worldBasis?.fixtureVersion, "0.4.0");
   } finally {
     store.close();
     await rm(directory, { recursive: true, force: true });

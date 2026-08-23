@@ -59,10 +59,12 @@ test("compiler derives inscription queries from query mode instead of model oper
   assert.equal(result.kind === "executable" ? result.steps[0]?.objectIntent.operation : "", "inspect_inscription_value");
 });
 
-test("compiler preserves an unsupported observation scope as a zero-commit boundary", () => {
+test("compiler now resolves 门外 to the hallway Place entity", () => {
   const proposal = envelope("observe", [{ role: "target", mention: "门外" }], "world_query");
   proposal.clauses[0]!.queryMode = "contents";
-  assert.deepEqual(compileInteraction(proposal, "看看门外"), { kind: "clarification", code: "UNRESOLVED_REFERENCE" });
+  const result = compileInteraction(proposal, "看看门外");
+  assert.equal(result.kind, "executable");
+  assert.deepEqual(result.kind === "executable" ? result.steps[0]?.mentionedEntityIds : [], ["hallway-1"]);
 });
 
 test("compiler treats inventory as zero-arity even when a workstation emits a redundant role", () => {

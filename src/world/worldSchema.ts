@@ -19,7 +19,10 @@ const attributesByType: Readonly<Record<string, ReadonlySet<string>>> = {
   pen: new Set(["portable", "zh_name", "en_name"]),
   door: new Set(["openable", "open_state", "zh_name", "en_name"]),
   container: new Set(["container", "openable", "open_state", "portable", "zh_name", "en_name"]),
+  place: new Set(["notable_feature", "zh_name", "en_name"]),
 };
+
+export const HALLWAY_NOTABLE_FEATURES = ["none", "framed_photo", "umbrella_stand", "wall_lamp"] as const;
 
 const predicates = new Set(["located_on", "contained_by", "held_by", "part_of"]);
 const booleanAttributes = new Set(["surface", "container", "openable", "portable"]);
@@ -40,8 +43,11 @@ export function validateAttribute(entityType: string, attribute: string, value: 
   if (attribute === "posture" && !["sitting_on_bed_edge", "standing"].includes(value)) {
     throw new WorldSchemaError(`Unsupported posture ${value}.`);
   }
-  if (attribute === "position" && !["bedside", "doorway"].includes(value)) {
+  if (attribute === "position" && !["bedside", "doorway", "hallway"].includes(value)) {
     throw new WorldSchemaError(`Unsupported position ${value}.`);
+  }
+  if (attribute === "notable_feature" && !(HALLWAY_NOTABLE_FEATURES as readonly string[]).includes(value)) {
+    throw new WorldSchemaError(`Unsupported notable_feature ${value}.`);
   }
   if (attribute === "inscription" && value !== "" && !/^[0-9]{1,64}$/u.test(value)) {
     throw new WorldSchemaError("MVP inscriptions must contain 1–64 digits.");
