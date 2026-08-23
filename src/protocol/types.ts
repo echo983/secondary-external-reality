@@ -114,3 +114,49 @@ export interface JuryBatch {
   projectionRevisions: Record<string, number>;
   candidates: ConditionalCandidate[];
 }
+
+export interface JuryReport {
+  candidateId: string;
+  verdict: "pass" | "fail";
+  violations: ValidationIssue[];
+}
+
+export interface CommitmentCostVector {
+  newWorldCommitments: number;
+  stateChanges: number;
+  events: number;
+  observations: number;
+  resolvedProjections: number;
+}
+
+export interface CandidateSelectionEntry {
+  candidateId: string;
+  cost: CommitmentCostVector;
+  dominatedBy: string[];
+}
+
+export type SelectionStatus = "selected" | "ambiguous" | "none";
+
+export interface CandidateSelection {
+  status: SelectionStatus;
+  selectedCandidateId: string | null;
+  nonDominatedCandidateIds: string[];
+  entries: CandidateSelectionEntry[];
+}
+
+export interface CommitPackage {
+  turnId: string;
+  commitSequence: number;
+  selectedCandidateId: string;
+  expectedProjectionRevisions: Record<string, number>;
+  events: ProposedEvent[];
+  stateChanges: StateChange[];
+  observations: unknown[];
+  newWorldCommitments: unknown[];
+}
+
+export interface CommitPreparationResult {
+  ready: boolean;
+  issues: ValidationIssue[];
+  commitPackage: CommitPackage | null;
+}
