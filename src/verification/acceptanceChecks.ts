@@ -83,6 +83,23 @@ function inscriptionAndRelocate(): ShapeCheck {
   };
 }
 
+// look_around commits nothing UNLESS it is the first time hallway-1's Free
+// notable_feature projection is operationally addressed, in which case it
+// commits exactly that one attribute_set (design doc §3.2/§3.3) — a
+// legitimate example of one actionKind having two lawful closure shapes
+// depending on whether the world has already resolved this projection.
+function emptyOrFirstHallwayResolution(): ShapeCheck {
+  return (commitments) => {
+    if (commitments.length === 0) return null;
+    if (commitments.length !== 1) return `expected 0 or 1 commitments, found ${commitments.length}`;
+    const only = commitments[0]!;
+    if (only.kind !== "attribute_set" || only.entityId !== "hallway-1" || only.attribute !== "notable_feature") {
+      return "the only commitment look_around may make is hallway-1's first-resolution notable_feature";
+    }
+    return null;
+  };
+}
+
 // Keyed by the sorted, comma-joined set of actionKinds present in one commit's events.
 const CLOSURE_TEMPLATES: Record<string, ShapeCheck> = {
   "": exactlyEmpty(),
@@ -95,7 +112,7 @@ const CLOSURE_TEMPLATES: Record<string, ShapeCheck> = {
   "inspect_inscription_value": exactlyEmpty(),
   "inventory": exactlyEmpty(),
   "locate": exactlyEmpty(),
-  "look_around": exactlyEmpty(),
+  "look_around": emptyOrFirstHallwayResolution(),
   "move": singlePositionChange(),
   "observe": exactlyEmpty(),
   "observe,open": singleOpenStateChange(),

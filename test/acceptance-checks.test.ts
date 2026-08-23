@@ -31,6 +31,10 @@ test("closure templates accept every real commit produced by a varied action seq
     await current.submit("我向空白纸条写下2236，然后把纸条放到枕头下面");
     await current.submit("我翻开枕头看看下面，并读纸条");
     await current.submit("关上抽屉");
+    await current.submit("打开门");
+    await current.submit("走到走廊");
+    await current.submit("环顾四周");
+    await current.submit("环顾四周");
 
     const commits = await store.list();
     const closureIssues = checkCommitmentClosureTemplates(commits);
@@ -70,6 +74,22 @@ test("closure templates reject a move commit that also touches an unrelated attr
     ],
   };
   const issues = checkCommitmentClosureTemplates([overCommitted]);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0]?.code, "CLOSURE_TEMPLATE_VIOLATION");
+});
+
+test("closure templates reject a look_around that resolves more than the one Free hallway projection", () => {
+  const overResolved: CommitPackage = {
+    turnId: "synthetic:hallway", commitSequence: 0, selectedCandidateId: "synthetic",
+    expectedProjectionRevisions: {}, resolvedProjections: [],
+    events: [{ eventId: "e-1", type: "action_result", actionKind: "look_around", outcome: "success", subjectRef: "self", objectRef: "hallway-1" }],
+    stateChanges: [], observations: [],
+    newWorldCommitments: [
+      { kind: "attribute_set", entityId: "hallway-1", attribute: "notable_feature", value: "wall_lamp" },
+      { kind: "attribute_set", entityId: "hallway-1", attribute: "zh_name", value: "走廊" },
+    ],
+  };
+  const issues = checkCommitmentClosureTemplates([overResolved]);
   assert.equal(issues.length, 1);
   assert.equal(issues[0]?.code, "CLOSURE_TEMPLATE_VIOLATION");
 });
