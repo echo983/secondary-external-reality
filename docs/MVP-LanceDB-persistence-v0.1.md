@@ -16,6 +16,7 @@ turn_id
 commit_sequence
 selected_candidate_id
 expected_projection_revisions_json
+resolved_projections_json
 events_json
 state_changes_json
 observations_json
@@ -37,7 +38,7 @@ created_at
 - 进程在“写入成功、响应失败”之间崩溃时，重试可通过 hash 恢复为成功；
 - 任何失败不会写入第二张权威表，因此不存在跨表半提交。
 
-## 实体和关系表
+## 实体和关系视图
 
 后续的 `entities`、`relations`、`events` 表是 `world_commits` 的物化视图：
 
@@ -48,6 +49,8 @@ world_commits
 ```
 
 物化失败不改变世界事实。恢复时从最后成功物化序列继续，或从提交日志完整重建。
+
+纸条记忆切片已经实现首个内存物化器：它按序重放 `entity_created`、`attribute_set` 和 `relation_set` 三类封闭承诺，恢复实体属性与关系。它证明了视图可由提交日志重建，但尚未写成独立 LanceDB 物化表。
 
 向量和 embedding 也属于可重建索引，不拥有 WorldTruth 权限。
 
@@ -61,4 +64,3 @@ world_commits
 - `created_at` 是存储审计时间，不是世界内时间。
 
 SSH MVP 初期应保持单写入进程。扩展为多实例之前，必须增加唯一 writer lease 或外部一致性协调层。
-

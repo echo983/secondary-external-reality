@@ -32,7 +32,11 @@ function makeCandidate(
       causedByEventId: `${candidateId}-event-0`,
     })),
     observations: Array.from({ length: counts.observations }, () => ({})),
-    newWorldCommitments: Array.from({ length: counts.commitments }, () => ({})),
+    newWorldCommitments: Array.from({ length: counts.commitments }, (_, index) => ({
+      kind: "entity_created" as const,
+      entityId: `${candidateId}-entity-${index}`,
+      entityType: "test_entity",
+    })),
   };
 }
 

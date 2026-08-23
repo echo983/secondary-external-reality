@@ -55,6 +55,28 @@ export interface StateChange {
   causedByEventId: string;
 }
 
+export interface EntityCreatedCommitment {
+  kind: "entity_created";
+  entityId: string;
+  entityType: string;
+}
+
+export interface AttributeSetCommitment {
+  kind: "attribute_set";
+  entityId: string;
+  attribute: string;
+  value: string;
+}
+
+export interface RelationSetCommitment {
+  kind: "relation_set";
+  subjectId: string;
+  predicate: string;
+  objectId: string;
+}
+
+export type WorldCommitment = EntityCreatedCommitment | AttributeSetCommitment | RelationSetCommitment;
+
 export interface ConditionalCandidate {
   candidateId: string;
   outcomeKind: OutcomeKind;
@@ -63,7 +85,7 @@ export interface ConditionalCandidate {
   proposedEvents: ProposedEvent[];
   proposedStateChanges: StateChange[];
   observations: unknown[];
-  newWorldCommitments: unknown[];
+  newWorldCommitments: WorldCommitment[];
 }
 
 export interface CandidateEnvelope {
@@ -153,7 +175,7 @@ export interface CommitPackage {
   events: ProposedEvent[];
   stateChanges: StateChange[];
   observations: unknown[];
-  newWorldCommitments: unknown[];
+  newWorldCommitments: WorldCommitment[];
 }
 
 export interface CommitPreparationResult {

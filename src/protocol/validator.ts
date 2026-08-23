@@ -8,6 +8,7 @@ import {
   type ProposedEvent,
   type ValidationIssue,
   type ValidationResult,
+  type WorldCommitment,
 } from "./types.js";
 
 const outcomeKinds = new Set<string>(OUTCOME_KINDS);
@@ -74,6 +75,32 @@ function validateEventShape(
   if ("facts" in value) {
     issue(issues, "FREE_TEXT_EVENT_FACTS", `${path}.facts`, "Free-text event facts are forbidden.");
     valid = false;
+  }
+  return valid;
+}
+
+function validateCommitmentShape(value: unknown, path: string, issues: ValidationIssue[]): value is WorldCommitment {
+  if (!isRecord(value) || typeof value.kind !== "string") {
+    issue(issues, "INVALID_WORLD_COMMITMENT", path, "World commitment must be a typed object.");
+    return false;
+  }
+  const required = value.kind === "entity_created"
+    ? ["entityId", "entityType"]
+    : value.kind === "attribute_set"
+      ? ["entityId", "attribute", "value"]
+      : value.kind === "relation_set"
+        ? ["subjectId", "predicate", "objectId"]
+        : null;
+  if (!required) {
+    issue(issues, "UNKNOWN_WORLD_COMMITMENT", `${path}.kind`, "World commitment kind is not in the closed registry.");
+    return false;
+  }
+  let valid = true;
+  for (const field of required) {
+    if (typeof value[field] !== "string" || value[field].length === 0) {
+      issue(issues, "INVALID_WORLD_COMMITMENT_FIELD", `${path}.${field}`, `${field} must be a non-empty string.`);
+      valid = false;
+    }
   }
   return valid;
 }
@@ -167,8 +194,10 @@ function validateCandidate(
     const hasSuccessfulResult = candidate.proposedEvents.some(
       (event) => event.type === "action_result" && event.outcome === "success",
     );
-    if (!hasSuccessfulResult || candidate.proposedStateChanges.length === 0) {
-      issue(issues, "UNCONSTITUTED_SUCCESS", path, "Success requires a successful action result and a resulting state change.");
+    const hasPersistentEffect = candidate.proposedStateChanges.length > 0 || candidate.newWorldCommitments.length > 0;
+    const hasPlayerObservation = candidate.observations.length > 0;
+    if (!hasSuccessfulResult || (!hasPersistentEffect && !hasPlayerObservation)) {
+      issue(issues, "UNCONSTITUTED_SUCCESS", path, "Success requires a successful action result and a state change, world commitment, or observation.");
     }
   }
 }
@@ -227,6 +256,9 @@ export function validateCandidateEnvelope(
     );
     rawEvents.forEach((event: unknown, eventIndex: number) =>
       validateEventShape(event, `${path}.proposedEvents[${eventIndex}]`, issues),
+    );
+    (rawCandidate.newWorldCommitments as unknown[]).forEach((commitment, commitmentIndex) =>
+      validateCommitmentShape(commitment, `${path}.newWorldCommitments[${commitmentIndex}]`, issues),
     );
 
     validateCandidate(rawCandidate as unknown as ConditionalCandidate, index, registry, issues);

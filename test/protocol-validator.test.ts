@@ -137,3 +137,11 @@ test("does not invoke the jury for invalid or empty eligible candidates", () => 
   assert.equal(shouldInvokeJury(invalid, 1), false);
   assert.equal(shouldInvokeJury(valid, 0), false);
 });
+
+test("rejects untyped or malformed world commitments", () => {
+  const malformed = validEnvelope() as unknown as { candidates: Array<Record<string, unknown>> };
+  malformed.candidates[0]!.newWorldCommitments = [{ kind: "attribute_set", entityId: "note-1", attribute: "inscription" }];
+  const result = validateCandidateEnvelope(malformed, registry);
+  assert.equal(result.valid, false);
+  assert.ok(result.issues.some((entry) => entry.code === "INVALID_WORLD_COMMITMENT_FIELD"));
+});

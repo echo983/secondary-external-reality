@@ -6,6 +6,10 @@ The first implementation target is the protocol boundary between LLM-proposed
 world changes and deterministic validation. See
 [`docs/MVP-world-kernel-protocol-v0.1.md`](docs/MVP-world-kernel-protocol-v0.1.md).
 
+The current vertical slices support opening the bedroom door and writing an
+exact numeric inscription on a paper note, hiding it under the pillow, then
+finding and reading it after unrelated actions or a process restart.
+
 ## Development
 
 ```sh
