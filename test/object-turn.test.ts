@@ -84,6 +84,22 @@ test("places any configured portable object onto a configured surface", async ()
   }
 });
 
+test("grounds generic placement by destination affordance and treats a bed as a surface", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-placement-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    await current.submit("打开抽屉");
+    await current.submit("拿起钥匙");
+    assert.match((await current.submit("把钥匙放到抽屉")).response, /放进/u);
+    await current.submit("拿出钥匙");
+    assert.match((await current.submit("把钥匙放到床上")).response, /床上/u);
+    const world = MaterializedWorld.replay(await store.list(), createObjectWorldFixture().seedCommitments);
+    assert.equal(world.directLocation("key-1")?.predicate, "located_on");
+    assert.equal(world.directLocation("key-1")?.objectId, "bed-1");
+  } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 test("rejects replay under a different world-basis version", async () => {
   const directory = await mkdtemp(join(tmpdir(), "secondary-reality-basis-"));
   const store = new LanceCommitStore(join(directory, "world.lancedb"));

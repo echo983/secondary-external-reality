@@ -18,6 +18,7 @@
     "eval:interaction-ir:guard:live": "npm run build && node dist/src/eval/runInteractionIrGuardLiveEval.js",
     "eval:interaction-ir:active:live": "npm run build && node dist/src/eval/runInteractionIrActiveLiveEval.js",
     "eval:human-round3-sequence:live": "npm run build && node dist/src/eval/runHumanRound3SequenceLiveEval.js",
+    "eval:placement-failures:live": "npm run build && node dist/src/eval/runPlacementFailureSequenceLiveEval.js",
     "start:ssh": "node dist/src/ssh/server.js"
   },
   "devDependencies": {

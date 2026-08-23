@@ -12,6 +12,7 @@ const suites = [
   { name: "interaction-ir-guard", module: "./runInteractionIrGuardLiveEval.js" },
   { name: "interaction-ir-active", module: "./runInteractionIrActiveLiveEval.js" },
   { name: "human-round3-sequence", module: "./runHumanRound3SequenceLiveEval.js" },
+  { name: "placement-failure-sequence", module: "./runPlacementFailureSequenceLiveEval.js" },
 ] as const;
 
 interface SuitePayload {

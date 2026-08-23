@@ -51,6 +51,15 @@ test("consensus ignores non-authoritative roles on zero-arity operations", () =>
   assert.equal(interactionConsensus(base, redundant).agreed, true);
 });
 
+test("consensus treats placement vocabulary as one family while preserving its grounded roles", () => {
+  const place = proposal({ speechAct: "action_request", actuality: "actual", clauses: [{ clauseId: "c1", operation: "place", verbSpan: "放到",
+    roles: [{ role: "target", mention: "钥匙" }, { role: "destination", mention: "抽屉里" }] }] });
+  const putInside = structuredClone(place); putInside.clauses[0]!.operation = "put_inside";
+  assert.equal(interactionConsensus(place, putInside).agreed, true);
+  putInside.clauses[0]!.roles[1]!.mention = "床上";
+  assert.equal(interactionConsensus(place, putInside).agreed, false);
+});
+
 test("validator erases malformed roles only for zero-arity operations", () => {
   const inventory = { schemaVersion: "1.0.0", inputLanguage: "zh", speechAct: "world_query", actuality: "non_executing", clauses: [
     { clauseId: "c1", operation: "inventory", verbSpan: "有什么", roles: { role: "target", mention: "我手里" }, queryMode: "inventory" },

@@ -6,6 +6,7 @@ export interface ObjectIntent {
   rawTtd: string;
   inputLanguage: "zh" | "en";
   content?: string;
+  placementRelation?: "inside" | "on";
 }
 
 export function parseObjectIntent(rawTtd: string): ObjectIntent | null {

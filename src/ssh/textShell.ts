@@ -11,6 +11,7 @@ export class TtdTextShell {
   private buffer = "";
   private queue: Promise<void> = Promise.resolve();
   private closed = false;
+  private escapeState: "none" | "escape" | "csi" = "none";
   private readonly decoder = new StringDecoder("utf8");
 
   constructor(
@@ -27,6 +28,9 @@ export class TtdTextShell {
     if (this.closed) return;
     const text = (typeof chunk === "string" ? chunk : this.decoder.write(chunk)).replace(/\x7f|\x08/g, "\b");
     for (const character of text) {
+      if (this.escapeState === "escape") { this.escapeState = character === "[" ? "csi" : "none"; continue; }
+      if (this.escapeState === "csi") { if (/[@-~]/u.test(character)) this.escapeState = "none"; continue; }
+      if (character === "\x1b") { this.escapeState = "escape"; continue; }
       if (character === "\b") {
         if (this.buffer.length > 0) {
           this.buffer = this.buffer.slice(0, -1);

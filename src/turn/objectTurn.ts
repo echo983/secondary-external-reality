@@ -357,35 +357,28 @@ export async function runObjectTurn(options: {
       { kind: "relation_asserted", relationId: `${object.entityId}-location-${options.commitSequence}`, subjectId: object.entityId, predicate: "held_by", objectId: "self" },
     );
     response = parsed.inputLanguage === "zh" ? `你拿起了${label(object, "zh")}。` : `You take the ${label(object, "en")}.`;
-  } else if (parsed.operation === "place") {
+  } else if (parsed.operation === "place" || parsed.operation === "put_inside") {
     const object = exactlyOne(candidatesByCapability(world, mentionedIds, "portable"), "portable object");
-    const surface = exactlyOne(candidatesByCapability(world, mentionedIds, "surface"), "surface");
+    const destinationIds = mentionedIds.filter((id) => id !== object.entityId);
+    const surfaces = destinationIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.attributes.surface === "true" || entity?.entityType === "bed");
+    const containers = destinationIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.attributes.container === "true");
+    const useContainer = parsed.operation === "put_inside" || parsed.placementRelation === "inside" || (surfaces.length === 0 && containers.length === 1);
+    const destination = useContainer ? exactlyOne(containers, "container") : exactlyOne(surfaces, "surface");
     const location = currentLocation(world, object);
     if (location.predicate !== "held_by" || location.objectId !== "self") throw new ObjectTurnError(`${object.entityId} is not held by self.`);
+    if (useContainer && destination.attributes.openable === "true" && destination.attributes.open_state !== "open") throw new ObjectTurnError(`${destination.entityId} is closed.`);
     fact(registry, snapshots, conditions, `relation:${location.relationId}.active`, "true", location.setAtSequence);
-    const eventId = `event-place-${object.entityId}-${options.commitSequence}`;
-    events.push({ eventId, type: "action_result", actionKind: "place", outcome: "success", subjectRef: "self", objectRef: object.entityId });
+    if (useContainer && destination.attributes.openable === "true") fact(registry, snapshots, conditions, `entity:${destination.entityId}.open_state`, "open", destination.attributeRevisions.open_state ?? 0, ["closed", "open"]);
+    const actionKind = useContainer ? "put_inside" : "place";
+    const eventId = `event-${actionKind}-${object.entityId}-${options.commitSequence}`;
+    events.push({ eventId, type: "action_result", actionKind, outcome: "success", subjectRef: "self", objectRef: object.entityId });
     commitments.push(
       { kind: "relation_ended", relationId: location.relationId },
-      { kind: "relation_asserted", relationId: `${object.entityId}-location-${options.commitSequence}`, subjectId: object.entityId, predicate: "located_on", objectId: surface.entityId },
+      { kind: "relation_asserted", relationId: `${object.entityId}-location-${options.commitSequence}`, subjectId: object.entityId,
+        predicate: useContainer ? "contained_by" : "located_on", objectId: destination.entityId },
     );
-    response = parsed.inputLanguage === "zh" ? `你把${label(object, "zh")}放在${label(surface, "zh")}上。` : `You place the ${label(object, "en")} on the ${label(surface, "en")}.`;
-  } else if (parsed.operation === "put_inside") {
-    const object = exactlyOne(candidatesByCapability(world, mentionedIds, "portable"), "portable object");
-    const containers = candidatesByCapability(world, mentionedIds, "container").filter((entity) => entity.entityId !== object.entityId);
-    const container = exactlyOne(containers, "container");
-    const location = currentLocation(world, object);
-    if (location.predicate !== "held_by" || location.objectId !== "self") throw new ObjectTurnError(`${object.entityId} is not held by self.`);
-    if (container.attributes.openable === "true" && container.attributes.open_state !== "open") throw new ObjectTurnError(`${container.entityId} is closed.`);
-    fact(registry, snapshots, conditions, `relation:${location.relationId}.active`, "true", location.setAtSequence);
-    if (container.attributes.openable === "true") fact(registry, snapshots, conditions, `entity:${container.entityId}.open_state`, "open", container.attributeRevisions.open_state ?? 0, ["closed", "open"]);
-    const eventId = `event-put-${object.entityId}-${options.commitSequence}`;
-    events.push({ eventId, type: "action_result", actionKind: "put_inside", outcome: "success", subjectRef: "self", objectRef: object.entityId });
-    commitments.push(
-      { kind: "relation_ended", relationId: location.relationId },
-      { kind: "relation_asserted", relationId: `${object.entityId}-location-${options.commitSequence}`, subjectId: object.entityId, predicate: "contained_by", objectId: container.entityId },
-    );
-    response = parsed.inputLanguage === "zh" ? `你把${label(object, "zh")}放进了${label(container, "zh")}。` : `You put the ${label(object, "en")} into the ${label(container, "en")}.`;
+    response = parsed.inputLanguage === "zh" ? `你把${label(object, "zh")}${useContainer ? "放进了" : "放在"}${label(destination, "zh")}${useContainer ? "" : "上"}。`
+      : `You ${useContainer ? "put" : "place"} the ${label(object, "en")} ${useContainer ? "into" : "on"} the ${label(destination, "en")}.`;
   } else {
     const visible = mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity !== undefined);
     const target = exactlyOne(visible.filter((entity) => entity.entityType !== "person"), "observable object");

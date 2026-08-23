@@ -37,6 +37,14 @@ test("preserves Chinese input split inside a UTF-8 character", async () => {
   assert.equal(received, "开门");
 });
 
+test("does not leak split ANSI cursor sequences into submitted world input", async () => {
+  let received = "";
+  const shell = new TtdTextShell({ submit: async (input) => { received = input; return { response: "ok" }; } }, { write: () => {}, end: () => {} });
+  shell.receive("\x1b["); shell.receive("A\x1b[B把钥匙放到抽屉\n");
+  await shell.settled();
+  assert.equal(received, "把钥匙放到抽屉");
+});
+
 test("offers discoverable help without invoking the world handler", async () => {
   const inputs: string[] = [];
   let output = "";

@@ -31,6 +31,23 @@ export class ReferenceLexicon {
       .map(([entityId]) => entityId).sort();
   }
 
+  resolveSpatialMention(mention: string): { entityIds: string[]; relation?: "inside" | "on" } {
+    const exact = this.resolveExactMention(mention);
+    if (exact.length > 0) return { entityIds: exact };
+    const normalized = mention.trim().toLocaleLowerCase();
+    const suffixes = [
+      { values: ["里面", "里头", "里", "中"], relation: "inside" as const },
+      { values: ["上面", "上"], relation: "on" as const },
+    ];
+    for (const suffix of suffixes) {
+      const entityIds = [...this.aliases.entries()].filter(([, names]) => names.some((name) =>
+        suffix.values.some((value) => normalized === `${name.toLocaleLowerCase()}${value}`),
+      )).map(([entityId]) => entityId).sort();
+      if (entityIds.length > 0) return { entityIds, relation: suffix.relation };
+    }
+    return { entityIds: [] };
+  }
+
   label(entityId: string, language: "zh" | "en"): string {
     return this.labels.get(entityId)?.[language] ?? entityId;
   }

@@ -46,3 +46,11 @@ test("compiler distinguishes an understood move from unresolved language", () =>
   const proposal = envelope("move", [{ role: "destination", mention: "门口" }]);
   assert.deepEqual(compileInteraction(proposal, "走到门口"), { kind: "clarification", code: "UNSUPPORTED_OPERATION" });
 });
+
+test("compiler separates spatial suffixes from destination entities", () => {
+  const inside = compileInteraction(envelope("place", [{ role: "target", mention: "钥匙" }, { role: "destination", mention: "抽屉里" }]), "把钥匙放到抽屉里");
+  assert.equal(inside.kind === "executable" ? inside.steps[0]?.objectIntent.operation : "", "put_inside");
+  assert.deepEqual(inside.kind === "executable" ? inside.steps[0]?.mentionedEntityIds : [], ["key-1", "drawer-1"]);
+  const on = compileInteraction(envelope("place", [{ role: "target", mention: "钥匙" }, { role: "destination", mention: "床上" }]), "把钥匙放到床上");
+  assert.equal(on.kind === "executable" ? on.steps[0]?.objectIntent.placementRelation : undefined, "on");
+});

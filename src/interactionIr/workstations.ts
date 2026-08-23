@@ -28,6 +28,7 @@ Use zero to four ordered clauses c1-c4. verbSpan and every mention must be exact
 Only world_query and capability_query clauses use queryMode. Action clauses always omit queryMode, including conditional actions. conversation, incomplete, unsupported, world_query, and capability_query always use actuality non_executing.
 "我能拿起笔吗" is capability_query/non_executing with operation take, verbSpan 拿起, target 笔, queryMode capability. It is not an action request.
 Exact example: {"schemaVersion":"1.0.0","inputLanguage":"zh","speechAct":"capability_query","actuality":"non_executing","clauses":[{"clauseId":"c1","operation":"take","verbSpan":"拿起","roles":[{"role":"target","mention":"笔"}],"queryMode":"capability"}]}
+In contrast, a bare imperative such as "拿起钥匙" is action_request/actual with operation take, verbSpan 拿起, target 钥匙, and no queryMode. Never infer an unspoken 能不能 or 吗.
 "我在哪里" is world_query/non_executing, locate, target 我, queryMode location. "你好" is conversation/non_executing with no clauses. "我向" is incomplete/non_executing with no clauses.
 "看看周围" is world_query/non_executing, look_around, verbSpan 看看周围, no roles, and queryMode must be omitted. The operation already carries the complete query semantics; never invent surroundings or environment as an enum value.
 "我手里有什么" is world_query/non_executing, inventory, verbSpan 有什么, no roles, queryMode inventory. Inventory and look_around are zero-argument operations; phrases such as 我手里, 手中, 周围, and surroundings are not target entities.

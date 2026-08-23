@@ -31,12 +31,20 @@ export function compileInteraction(proposal: InteractionEnvelopeV10, rawTtd: str
     if (!["look_around", "inventory"].includes(operation) && targetMentions.length === 0) return { kind: "clarification", code: "MISSING_TARGET" };
     if (["place", "put_inside"].includes(operation) && destinationMentions.length === 0) return { kind: "clarification", code: "MISSING_DESTINATION" };
     const mentionedEntityIds: string[] = [];
+    let placementRelation: "inside" | "on" | undefined;
     const boundMentions = ["look_around", "inventory"].includes(operation)
-      ? [] : [...targetMentions, ...destinationMentions, ...rolesOf(clause, "instrument")];
-    for (const mention of boundMentions) {
-      const matches = lexicon.resolveExactMention(mention);
+      ? [] : [...targetMentions.map((mention) => ({ mention, destination: false })),
+        ...destinationMentions.map((mention) => ({ mention, destination: true })),
+        ...rolesOf(clause, "instrument").map((mention) => ({ mention, destination: false }))];
+    for (const binding of boundMentions) {
+      const spatial = binding.destination ? lexicon.resolveSpatialMention(binding.mention) : { entityIds: lexicon.resolveExactMention(binding.mention) };
+      const matches = spatial.entityIds;
       if (matches.length !== 1) return { kind: "clarification", code: matches.length > 1 ? "AMBIGUOUS_REFERENCE" : "UNRESOLVED_REFERENCE" };
       if (!mentionedEntityIds.includes(matches[0]!)) mentionedEntityIds.push(matches[0]!);
+      if (spatial.relation) {
+        if (placementRelation && placementRelation !== spatial.relation) return { kind: "clarification", code: "AMBIGUOUS_REFERENCE" };
+        placementRelation = spatial.relation;
+      }
     }
     let content: string | undefined;
     if (operation === "write") {
@@ -44,7 +52,9 @@ export function compileInteraction(proposal: InteractionEnvelopeV10, rawTtd: str
       if (contents.length !== 1 || !/^[0-9]{1,64}$/u.test(contents[0]!.trim())) return { kind: "clarification", code: "INVALID_LITERAL" };
       content = contents[0]!.trim();
     }
-    steps.push({ objectIntent: { operation, rawTtd, inputLanguage: proposal.inputLanguage, ...(content ? { content } : {}) }, mentionedEntityIds });
+    const compiledOperation = operation === "place" && placementRelation === "inside" ? "put_inside" : operation;
+    steps.push({ objectIntent: { operation: compiledOperation, rawTtd, inputLanguage: proposal.inputLanguage,
+      ...(content ? { content } : {}), ...(placementRelation ? { placementRelation } : {}) }, mentionedEntityIds });
   }
   if (steps.length === 0) return { kind: "clarification", code: "UNSUPPORTED_OPERATION" };
   return { kind: "executable", steps };
