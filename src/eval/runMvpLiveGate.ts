@@ -13,6 +13,7 @@ const suites = [
   { name: "interaction-ir-active", module: "./runInteractionIrActiveLiveEval.js" },
   { name: "human-round3-sequence", module: "./runHumanRound3SequenceLiveEval.js" },
   { name: "placement-failure-sequence", module: "./runPlacementFailureSequenceLiveEval.js" },
+  { name: "human-simulation-corpus", module: "./runHumanSimulationCorpusLiveEval.js" },
 ] as const;
 
 interface SuitePayload {
