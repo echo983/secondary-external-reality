@@ -26,7 +26,7 @@ export interface SshMvpConfig {
   apiToken: string;
   dataPath: string;
   actionIrMode?: "off" | "shadow" | "active";
-  interactionIrMode?: "off" | "shadow" | "guard";
+  interactionIrMode?: "off" | "shadow" | "guard" | "active";
 }
 
 function equalSecret(actual: string, expected: string): boolean {
@@ -49,7 +49,7 @@ export function createSshMvpServer(config: SshMvpConfig): { server: SshServer; s
       semanticAuditor: new WorkersAiActionIrSemanticAuditor(client),
     } as const;
   const semanticIr = { proposer: new WorkersAiSemanticIrProposer(client), auditor: new WorkersAiSemanticIrAuditor(client) };
-  const interactionIr = config.interactionIrMode === "shadow" || config.interactionIrMode === "guard" ? { mode: config.interactionIrMode,
+  const interactionIr = config.interactionIrMode === "shadow" || config.interactionIrMode === "guard" || config.interactionIrMode === "active" ? { mode: config.interactionIrMode,
     left: new WorkersAiInteractionWorkstation(client, "linguist"), right: new WorkersAiInteractionWorkstation(client, "safety_analyst") } : { mode: "off" as const };
   let worldTail: Promise<void> = Promise.resolve();
   const server = new Server({ hostKeys: [config.hostKey] }, (connection) => {
@@ -98,7 +98,7 @@ export async function startSshMvpFromEnvironment(): Promise<SshServer> {
   const actionIrMode = process.env.SER_ACTION_IR_MODE ?? "off";
   if (actionIrMode !== "off" && actionIrMode !== "shadow" && actionIrMode !== "active") throw new Error("SER_ACTION_IR_MODE must be off, shadow, or active.");
   const interactionIrMode = process.env.SER_INTERACTION_IR_MODE ?? "off";
-  if (interactionIrMode !== "off" && interactionIrMode !== "shadow" && interactionIrMode !== "guard") throw new Error("SER_INTERACTION_IR_MODE must be off, shadow, or guard.");
+  if (interactionIrMode !== "off" && interactionIrMode !== "shadow" && interactionIrMode !== "guard" && interactionIrMode !== "active") throw new Error("SER_INTERACTION_IR_MODE must be off, shadow, guard, or active.");
   const { server } = createSshMvpServer({
     host: process.env.SER_SSH_HOST ?? "127.0.0.1",
     port,

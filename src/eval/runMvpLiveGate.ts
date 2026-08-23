@@ -10,6 +10,7 @@ const suites = [
   { name: "discourse-contract", module: "./runDiscourseContractLiveEval.js" },
   { name: "interaction-ir-shadow", module: "./runInteractionIrShadowLiveEval.js" },
   { name: "interaction-ir-guard", module: "./runInteractionIrGuardLiveEval.js" },
+  { name: "interaction-ir-active", module: "./runInteractionIrActiveLiveEval.js" },
 ] as const;
 
 interface SuitePayload {

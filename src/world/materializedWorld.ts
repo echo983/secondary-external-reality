@@ -51,6 +51,12 @@ export class MaterializedWorld {
     ) ?? null;
   }
 
+  structuralLocation(entityId: string): MaterializedRelation | null {
+    return this.directLocation(entityId) ?? [...this.relations.values()].find((relation) =>
+      relation.subjectId === entityId && relation.predicate === "part_of",
+    ) ?? null;
+  }
+
   private apply(commitment: WorldCommitment, commitSequence: number): void {
     validateCommitmentSchema(commitment, (entityId) => this.entities.get(entityId)?.entityType);
     if (commitment.kind === "entity_created") {

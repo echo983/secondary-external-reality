@@ -25,6 +25,7 @@ import { classifyInterfaceInput, interfaceResponse } from "./inputClassification
 import { ReferenceLexicon } from "../world/referenceLexicon.js";
 import { DiscourseContext } from "./discourseContext.js";
 import { runInteractionShadow, type InteractionShadowOutcome, type InteractionWorkstation } from "../interactionIr/workstations.js";
+import { compileInteraction, type InteractionCompileIssueCode } from "../interactionIr/compiler.js";
 
 export interface BedroomSessionOptions {
   sessionId: string;
@@ -35,7 +36,7 @@ export interface BedroomSessionOptions {
   actionIr?: { mode: "off" | "shadow" | "active"; proposer?: ActionIrProposer; semanticAuditor?: ActionIrSemanticAuditor };
   semanticIr?: { proposer: SemanticIrProposer; auditor: SemanticIrAuditor };
   queryRenderer?: ApprovedPresentationRenderer;
-  interactionIr?: { mode: "off" | "shadow" | "guard"; left?: InteractionWorkstation; right?: InteractionWorkstation };
+  interactionIr?: { mode: "off" | "shadow" | "guard" | "active"; left?: InteractionWorkstation; right?: InteractionWorkstation };
 }
 
 export class BedroomSession {
@@ -71,14 +72,55 @@ export class BedroomSession {
       ? runInteractionShadow(rawTtd, this.options.interactionIr.left!, this.options.interactionIr.right!)
       : null;
     try {
-      const guarded = this.options.interactionIr?.mode === "guard" ? await this.guardInteraction(rawTtd, rootTurnId, shadow!) : null;
-      const result = guarded ?? await this.submitRouted(rawTtd, rootTurnId, priorFocus);
+      const mode = this.options.interactionIr?.mode;
+      const interactionResult = mode === "guard" ? await this.guardInteraction(rawTtd, rootTurnId, shadow!)
+        : mode === "active" ? await this.executeInteractionActive(rawTtd, rootTurnId, shadow!) : null;
+      const result = interactionResult ?? await this.submitRouted(rawTtd, rootTurnId, priorFocus);
       await this.persistInteractionShadow(rootTurnId, rawTtd, result.kind, shadow);
       return result;
     } catch (error) {
       await this.persistInteractionShadow(rootTurnId, rawTtd, "rejected", shadow);
       throw error;
     }
+  }
+
+  private async executeInteractionActive(rawTtd: string, rootTurnId: string, pending: Promise<InteractionShadowOutcome>): Promise<TurnResult> {
+    const outcome = await pending;
+    const blocked = await this.guardInteraction(rawTtd, rootTurnId, Promise.resolve(outcome));
+    if (blocked) return blocked;
+    const compiled = compileInteraction(outcome.proposal!, rawTtd);
+    if (compiled.kind === "clarification") return this.interactionClarification(rawTtd, rootTurnId, compiled.code);
+    const completed: CommittedTurnResult[] = [];
+    for (const [index, step] of compiled.steps.entries()) {
+      try {
+        const result = await this.executeAudited(rawTtd, rootTurnId, index, compiled.steps.length, step.objectIntent, step.mentionedEntityIds);
+        if (result.kind !== "committed") return result;
+        completed.push(result);
+      } catch (error) {
+        if (completed.length === 0) throw error;
+        const last = completed.at(-1)!;
+        const failure = this.failureMessage(rawTtd, `前面的动作已经发生，但第 ${index + 1} 步未能完成。`, `The earlier actions occurred, but step ${index + 1} could not be completed.`);
+        return { kind: "committed", response: `${completed.map((item) => item.response).join("")} ${failure}`.trim(), commitPackage: last.commitPackage,
+          commitPackages: completed.flatMap((item) => item.commitPackages ?? [item.commitPackage]), intent: parseMvpIntent(rawTtd), partial: true };
+      }
+    }
+    const last = completed.at(-1)!;
+    return { kind: "committed", response: completed.map((item) => item.response).join(""), commitPackage: last.commitPackage,
+      commitPackages: completed.flatMap((item) => item.commitPackages ?? [item.commitPackage]), intent: parseMvpIntent(rawTtd), partial: false };
+  }
+
+  private async interactionClarification(rawTtd: string, rootTurnId: string, issue: InteractionCompileIssueCode): Promise<TurnResult> {
+    const code = `INTERACTION_${issue}` as const;
+    const messages = {
+      MISSING_TARGET: ["我还不知道你指的是哪个目标；请明确说出它。", "I do not know which target you mean; please name it explicitly."],
+      MISSING_DESTINATION: ["这个动作缺少去向；请说明要放到哪里。", "This action is missing a destination; please say where it should go."],
+      AMBIGUOUS_REFERENCE: ["这个指代对应多个对象；请说得更具体。", "That reference matches multiple objects; please be more specific."],
+      INVALID_LITERAL: ["当前书写只接受一到六十四位数字。", "Writing currently accepts only one to sixty-four digits."],
+      UNSUPPORTED_OPERATION: ["这个操作还没有可执行的世界原语。", "This operation does not yet have an executable world primitive."],
+    } as const;
+    await this.options.store.appendTurnAttempt({ attemptId: `${rootTurnId}:0`, rootTurnId, stepIndex: 0, stepCount: 1, rawTtd,
+      status: "interface", interfaceCode: code, createdAt: new Date().toISOString() });
+    return { kind: "interface", code, response: messages[issue][/[\u3400-\u9fff]/u.test(rawTtd) ? 0 : 1], intent: parseMvpIntent(rawTtd), commitPackage: undefined as never };
   }
 
   private async guardInteraction(rawTtd: string, rootTurnId: string, pending: Promise<InteractionShadowOutcome>): Promise<TurnResult | null> {
@@ -185,7 +227,7 @@ export class BedroomSession {
     try {
       const outcome = await pending;
       await this.options.store.appendInteractionIrAudit({
-        auditId: `${rootTurnId}:interaction-ir`, rootTurnId, mode: this.options.interactionIr?.mode === "guard" ? "guard" : "shadow",
+        auditId: `${rootTurnId}:interaction-ir`, rootTurnId, mode: this.options.interactionIr?.mode === "active" ? "active" : this.options.interactionIr?.mode === "guard" ? "guard" : "shadow",
         inputHash: createHash("sha256").update(rawTtd).digest("hex"), status: outcome.status,
         ...(outcome.proposal ? { proposal: outcome.proposal } : {}),
         ...(outcome.workstations ? { workstations: outcome.workstations.map((result) => ({ outputHash: result.outputHash,

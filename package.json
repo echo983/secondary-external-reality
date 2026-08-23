@@ -16,6 +16,7 @@
     "eval:interaction-ir:shadow:live": "npm run build && node dist/src/eval/runInteractionIrShadowLiveEval.js",
     "eval:interaction-ir:persistent-shadow:live": "npm run build && node dist/src/eval/runInteractionIrPersistentShadowLiveEval.js",
     "eval:interaction-ir:guard:live": "npm run build && node dist/src/eval/runInteractionIrGuardLiveEval.js",
+    "eval:interaction-ir:active:live": "npm run build && node dist/src/eval/runInteractionIrActiveLiveEval.js",
     "start:ssh": "node dist/src/ssh/server.js"
   },
   "devDependencies": {

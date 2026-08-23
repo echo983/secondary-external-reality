@@ -1,10 +1,11 @@
-export const OBJECT_OPERATION_KINDS = ["take", "place", "put_inside", "open", "close", "observe", "open_and_observe", "open_and_inspect", "write_and_hide", "read", "look_around", "inspect_contents", "locate", "inventory", "inspect_inscription_presence", "inspect_inscription_value", "self_position", "self_posture", "self_bed_status"] as const;
+export const OBJECT_OPERATION_KINDS = ["take", "place", "put_inside", "open", "close", "observe", "open_and_observe", "open_and_inspect", "write", "write_and_hide", "read", "look_around", "inspect_contents", "locate", "inventory", "inspect_inscription_presence", "inspect_inscription_value", "self_position", "self_posture", "self_bed_status"] as const;
 export type ObjectOperationKind = (typeof OBJECT_OPERATION_KINDS)[number];
 
 export interface ObjectIntent {
   operation: ObjectOperationKind;
   rawTtd: string;
   inputLanguage: "zh" | "en";
+  content?: string;
 }
 
 export function parseObjectIntent(rawTtd: string): ObjectIntent | null {

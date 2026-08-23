@@ -45,7 +45,7 @@ export class DeterministicPresentationRenderer implements ApprovedPresentationRe
     const name = (id: string): string => lexicon.label(id, packet.language);
     const relation = packet.items.find((entry) => entry.kind === "relation_evidence");
     const attribute = packet.items.find((entry) => entry.kind === "attribute_evidence");
-    if (relation?.kind === "relation_evidence" && attribute?.kind === "attribute_evidence" && /读|read/iu.test(languageSample)) {
+    if (relation?.kind === "relation_evidence" && attribute?.kind === "attribute_evidence") {
       const place = name(String(relation.value));
       const value = String(attribute.value);
       return packet.language === "zh" ? `你在${place}${String(relation.semanticAddress).endsWith("contained_by") ? "下面" : "那里"}找到纸条。上面写着“${value}”。` : `You find the note ${String(relation.semanticAddress).endsWith("contained_by") ? `inside the ${place}` : "there"} and read “${value}”.`;
@@ -77,6 +77,8 @@ export class DeterministicPresentationRenderer implements ApprovedPresentationRe
     }
     const objectId = String(evidence.value);
     const subjectId = String(evidence.semanticAddress).match(/^relation-slot:([^.]+)\./u)?.[1] ?? "object";
-    return packet.language === "zh" ? `${name(subjectId)}在${name(objectId)}${String(evidence.semanticAddress).endsWith("held_by") ? "手里" : String(evidence.semanticAddress).endsWith("contained_by") ? "里面" : "上"}。` : `The ${name(subjectId)} is ${String(evidence.semanticAddress).endsWith("held_by") ? "in your hand" : String(evidence.semanticAddress).endsWith("contained_by") ? `inside the ${name(objectId)}` : `on the ${name(objectId)}`}.`;
+    const address = String(evidence.semanticAddress);
+    if (address.endsWith("part_of")) return packet.language === "zh" ? `${name(subjectId)}是${name(objectId)}的一部分。` : `The ${name(subjectId)} is part of the ${name(objectId)}.`;
+    return packet.language === "zh" ? `${name(subjectId)}在${name(objectId)}${address.endsWith("held_by") ? "手里" : address.endsWith("contained_by") ? "里面" : "上"}。` : `The ${name(subjectId)} is ${address.endsWith("held_by") ? "in your hand" : address.endsWith("contained_by") ? `inside the ${name(objectId)}` : `on the ${name(objectId)}`}.`;
   }
 }

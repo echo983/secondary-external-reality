@@ -54,8 +54,8 @@ function label(entity: MaterializedEntity, language: "zh" | "en"): string {
 
 function relationWords(relation: MaterializedRelation, object: MaterializedEntity, language: "zh" | "en"): string {
   const place = label(object, language);
-  if (language === "zh") return relation.predicate === "held_by" ? "在你手里" : relation.predicate === "contained_by" ? `在${place}里面` : `在${place}上`;
-  return relation.predicate === "held_by" ? "in your hand" : relation.predicate === "contained_by" ? `inside the ${place}` : `on the ${place}`;
+  if (language === "zh") return relation.predicate === "held_by" ? "在你手里" : relation.predicate === "contained_by" ? `在${place}里面` : relation.predicate === "part_of" ? `是${place}的一部分` : `在${place}上`;
+  return relation.predicate === "held_by" ? "in your hand" : relation.predicate === "contained_by" ? `inside the ${place}` : relation.predicate === "part_of" ? `part of the ${place}` : `on the ${place}`;
 }
 
 export async function runObjectTurn(options: {
@@ -194,7 +194,8 @@ export async function runObjectTurn(options: {
   } else if (parsed.operation === "locate") {
     const target = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity !== undefined && entity.entityType !== "person"), "locatable object");
     if (!isEntityPerceivable(world, target)) throw new ObjectTurnError(`${target.entityId} is not currently visible.`);
-    const location = currentLocation(world, target);
+    const location = world.structuralLocation(target.entityId);
+    if (!location) throw new ObjectTurnError(`${target.entityId} has no structural location.`);
     const locationObject = world.entities.get(location.objectId)!;
     fact(registry, snapshots, conditions, `relation:${location.relationId}.active`, "true", location.setAtSequence);
     const eventId = `event-locate-${target.entityId}-${options.commitSequence}`;
@@ -204,30 +205,35 @@ export async function runObjectTurn(options: {
     epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
     presentationItems.push({ kind: "relation_evidence", semanticAddress: relationSlotAddress(target.entityId, location.predicate), value: location.objectId, evidenceId });
     response = parsed.inputLanguage === "zh" ? `${label(target, "zh")}${relationWords(location, locationObject, "zh")}。` : `The ${label(target, "en")} is ${relationWords(location, locationObject, "en")}.`;
-  } else if (parsed.operation === "write_and_hide") {
-    const inscription = parsed.rawTtd.match(/[0-9]{1,64}/u)?.[0];
+  } else if (parsed.operation === "write" || parsed.operation === "write_and_hide") {
+    const inscription = parsed.content ?? parsed.rawTtd.match(/[0-9]{1,64}/u)?.[0];
     if (!inscription) throw new ObjectTurnError("No numeric inscription was supplied.");
     const note = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.entityType === "paper_note"), "paper note");
-    const pillow = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.entityType === "pillow"), "pillow");
+    const pillow = parsed.operation === "write_and_hide"
+      ? exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.entityType === "pillow"), "pillow")
+      : undefined;
     const pen = exactlyOne([...world.entities.values()].filter((entity) => entity.entityType === "pen"), "pen");
     if (note.attributes.inscription !== "") throw new ObjectTurnError(`${note.entityId} already has an inscription.`);
     const noteLocation = currentLocation(world, note);
     const penLocation = currentLocation(world, pen);
+    if (!isEntityPerceivable(world, note) || !isEntityPerceivable(world, pen)) throw new ObjectTurnError("Writing requires a perceivable note and pen.");
     fact(registry, snapshots, conditions, `entity:${note.entityId}.inscription`, "", note.attributeRevisions.inscription ?? 0, ["", inscription]);
     fact(registry, snapshots, conditions, `relation:${noteLocation.relationId}.active`, "true", noteLocation.setAtSequence);
     fact(registry, snapshots, conditions, `relation:${penLocation.relationId}.active`, "true", penLocation.setAtSequence);
     const writeEventId = `event-write-${note.entityId}-${options.commitSequence}`;
-    const placeEventId = `event-place-${note.entityId}-${options.commitSequence}`;
-    events.push(
-      { eventId: writeEventId, type: "action_result", actionKind: "write", outcome: "success", subjectRef: "self", objectRef: note.entityId },
-      { eventId: placeEventId, type: "action_result", actionKind: "place", outcome: "success", subjectRef: "self", objectRef: note.entityId },
-    );
-    commitments.push(
-      { kind: "attribute_set", entityId: note.entityId, attribute: "inscription", value: inscription },
-      { kind: "relation_ended", relationId: noteLocation.relationId },
-      { kind: "relation_asserted", relationId: `${note.entityId}-location-${options.commitSequence}`, subjectId: note.entityId, predicate: "contained_by", objectId: pillow.entityId },
-    );
-    response = parsed.inputLanguage === "zh" ? `你在${label(note, "zh")}上写下“${inscription}”，把它放在${label(pillow, "zh")}下面。` : `You write “${inscription}” on the ${label(note, "en")} and place it under the ${label(pillow, "en")}.`;
+    events.push({ eventId: writeEventId, type: "action_result", actionKind: "write", outcome: "success", subjectRef: "self", objectRef: note.entityId });
+    commitments.push({ kind: "attribute_set", entityId: note.entityId, attribute: "inscription", value: inscription });
+    if (pillow) {
+      const placeEventId = `event-place-${note.entityId}-${options.commitSequence}`;
+      events.push({ eventId: placeEventId, type: "action_result", actionKind: "place", outcome: "success", subjectRef: "self", objectRef: note.entityId });
+      commitments.push(
+        { kind: "relation_ended", relationId: noteLocation.relationId },
+        { kind: "relation_asserted", relationId: `${note.entityId}-location-${options.commitSequence}`, subjectId: note.entityId, predicate: "contained_by", objectId: pillow.entityId },
+      );
+    }
+    response = parsed.inputLanguage === "zh"
+      ? (pillow ? `你在${label(note, "zh")}上写下“${inscription}”，把它放在${label(pillow, "zh")}下面。` : `你在${label(note, "zh")}上写下“${inscription}”。`)
+      : (pillow ? `You write “${inscription}” on the ${label(note, "en")} and place it under the ${label(pillow, "en")}.` : `You write “${inscription}” on the ${label(note, "en")}.`);
   } else if (parsed.operation === "inspect_inscription_presence" || parsed.operation === "inspect_inscription_value") {
     const note = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.entityType === "paper_note"), "paper note");
     if (!isEntityPerceivable(world, note)) throw new ObjectTurnError(`${note.entityId} is not currently visible.`);
