@@ -21,7 +21,7 @@ export interface ActionProposalAudit {
   inputHash: string;
   outputHash?: string;
   status: "validated" | "rejected" | "model_error";
-  failureStage?: "proposal" | "validation" | "audit" | "compile" | "execution";
+  failureStage?: "proposal" | "validation" | "audit" | "grounding" | "compile" | "execution";
   proposal?: unknown;
   validationIssues: unknown[];
   groundingIssues: unknown[];

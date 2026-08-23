@@ -69,6 +69,7 @@ test("invalid or unavailable shadow proposer cannot authorize or block a world c
     await first.submit("打开抽屉");
     assert.equal((await store.list()).length, 1);
     assert.equal((await store.listActionProposalAudits())[0]?.status, "rejected");
+    assert.equal((await store.listActionProposalAudits())[0]?.failureStage, "validation");
 
     const unavailable = proposer(async () => { throw new Error("offline"); });
     const second = new BedroomSession({
@@ -78,6 +79,7 @@ test("invalid or unavailable shadow proposer cannot authorize or block a world c
     await second.submit("关闭抽屉");
     assert.equal((await store.list()).length, 2);
     assert.equal((await store.listActionProposalAudits()).at(-1)?.status, "model_error");
+    assert.equal((await store.listActionProposalAudits()).at(-1)?.failureStage, "proposal");
   } finally {
     store.close();
     await rm(directory, { recursive: true, force: true });

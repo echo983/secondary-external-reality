@@ -207,34 +207,42 @@ export class BedroomSession {
     if (!config || config.mode === "off" || !config.proposer) return null;
     const auditId = `${rootTurnId}:action-ir`;
     const inputHash = createHash("sha256").update(rawTtd).digest("hex");
+    let stage: "proposal" | "validation" | "audit" | "grounding" = "proposal";
     try {
       const result = await config.proposer.propose(rawTtd);
+      stage = "validation";
       let groundingIssues: unknown[] = [];
       let semanticIssues: unknown[] = [];
       if (result.validation.proposal) {
         if (config.semanticAuditor) {
+          stage = "audit";
           const semantic = await config.semanticAuditor.review(rawTtd, result.validation.proposal);
           semanticIssues = semantic.violations;
         }
+        stage = "grounding";
         const fixture = createObjectWorldFixture();
         const world = MaterializedWorld.replay(await this.options.store.list(), fixture.seedCommitments);
         groundingIssues = groundActionProposal(result.validation.proposal, fixture, world).issues;
       }
+      const valid = result.validation.valid && groundingIssues.length === 0 && semanticIssues.length === 0;
+      const failureStage = !result.validation.valid ? "validation" : semanticIssues.length > 0 ? "audit" : groundingIssues.length > 0 ? "grounding" : undefined;
       await this.options.store.appendActionProposalAudit({
         auditId, rootTurnId, mode: config.mode, inputHash, outputHash: result.outputHash,
-        status: result.validation.valid && groundingIssues.length === 0 && semanticIssues.length === 0 ? "validated" : "rejected",
+        status: valid ? "validated" : "rejected", ...(failureStage ? { failureStage } : {}),
         proposal: result.validation.proposal ?? undefined,
         validationIssues: result.validation.issues, groundingIssues, semanticIssues,
         model: result.model, latencyMs: result.latencyMs, usage: result.usage,
         createdAt: new Date().toISOString(),
       });
-      if (!result.validation.valid || groundingIssues.length > 0 || semanticIssues.length > 0) return null;
+      if (!valid) return null;
       return result.validation.proposal;
-    } catch {
+    } catch (error) {
       try {
         await this.options.store.appendActionProposalAudit({
-          auditId, rootTurnId, mode: config.mode, inputHash, status: "model_error",
-          validationIssues: [], groundingIssues: [], createdAt: new Date().toISOString(),
+          auditId, rootTurnId, mode: config.mode, inputHash, status: "model_error", failureStage: stage,
+          validationIssues: [], groundingIssues: [],
+          semanticIssues: [{ code: "ACTION_IR_STAGE_ERROR", stage, message: error instanceof Error ? error.message : String(error) }],
+          createdAt: new Date().toISOString(),
         });
       } catch { /* Shadow telemetry cannot affect execution. */ }
       return null;
