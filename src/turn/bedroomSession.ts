@@ -21,6 +21,8 @@ import type { SemanticIrAuditor, SemanticIrProposer } from "../semanticIr/adapte
 import { compileSemanticIntent } from "../semanticIr/compiler.js";
 import { normalizeSemanticInput } from "../semanticIr/normalization.js";
 import { DeterministicPresentationRenderer, type ApprovedPresentationRenderer } from "../presentation/renderer.js";
+import { classifyInterfaceInput, interfaceResponse } from "./inputClassification.js";
+import { ReferenceLexicon } from "../world/referenceLexicon.js";
 
 export interface BedroomSessionOptions {
   sessionId: string;
@@ -36,6 +38,7 @@ export interface BedroomSessionOptions {
 export class BedroomSession {
   private tail: Promise<void> = Promise.resolve();
   private auditRepair: Promise<unknown> | null = null;
+  private readonly exposedEntityIds = new Set<string>();
 
   constructor(private readonly options: BedroomSessionOptions) {
     if (!options.sessionId.trim()) throw new Error("Session ID must be non-empty.");
@@ -56,11 +59,18 @@ export class BedroomSession {
   private async submitSerial(rawTtd: string): Promise<TurnResult> {
     this.auditRepair ??= this.options.store.repairTurnAttempts();
     await this.auditRepair;
-    const wholeObjectIntent = parseObjectIntent(rawTtd);
+    const rootTurnId = `${this.options.sessionId}:${randomUUID()}`;
+    const interfaceClass = classifyInterfaceInput(rawTtd);
+    if (interfaceClass) {
+      await this.options.store.appendTurnAttempt({ attemptId: `${rootTurnId}:0`, rootTurnId, stepIndex: 0, stepCount: 1, rawTtd,
+        status: "interface", interfaceCode: interfaceClass, createdAt: new Date().toISOString() });
+      return { kind: "interface", code: interfaceClass, response: interfaceResponse(interfaceClass, /[\u3400-\u9fff]/u.test(rawTtd)), intent: parseMvpIntent(rawTtd), commitPackage: undefined as never };
+    }
+    const discourse = this.resolveDiscourseIntent(rawTtd);
+    const wholeObjectIntent = parseObjectIntent(rawTtd) ?? discourse?.intent;
     const atomicComposite = wholeObjectIntent?.operation === "write_and_hide" || wholeObjectIntent?.operation === "open_and_observe" || wholeObjectIntent?.operation === "read";
     const steps = atomicComposite ? [rawTtd.trim()] : splitActionSequence(rawTtd);
-    const rootTurnId = `${this.options.sessionId}:${randomUUID()}`;
-    const deterministicFastPath = steps.length > 0 && steps.every((step) => isObjectIntent(step));
+    const deterministicFastPath = Boolean(discourse) || (steps.length > 0 && steps.every((step) => isObjectIntent(step)));
     const useActiveIr = this.options.actionIr?.mode === "active" && !deterministicFastPath;
     if (useActiveIr && this.options.semanticIr) {
       const semantic = await this.executeSemanticFallback(rawTtd, rootTurnId);
@@ -76,7 +86,7 @@ export class BedroomSession {
       }
       return this.executeActiveProposal(rawTtd, rootTurnId, activeProposal);
     }
-    if (steps.length <= 1) return this.executeAudited(rawTtd, rootTurnId, 0, 1);
+    if (steps.length <= 1) return this.executeAudited(rawTtd, rootTurnId, 0, 1, discourse?.intent, discourse?.entityIds);
 
     const completed: CommittedTurnResult[] = [];
     for (const [stepIndex, step] of steps.entries()) {
@@ -242,7 +252,27 @@ export class BedroomSession {
       await this.options.store.appendTurnAttempt({ attemptId, rootTurnId, stepIndex, stepCount, rawTtd, status: "committed",
         commitSequence: result.commitPackage.commitSequence, selectedCandidateId: result.commitPackage.selectedCandidateId, createdAt: new Date().toISOString() });
     }
+    this.recordExposedEntities(result);
     return result;
+  }
+
+  private resolveDiscourseIntent(rawTtd: string): { intent: ObjectIntent; entityIds: string[] } | null {
+    if (!/(?:呢|where about|what about)\s*[？?]*$/iu.test(rawTtd.trim())) return null;
+    const lexicon = new ReferenceLexicon(createObjectWorldFixture());
+    const candidates = lexicon.resolveMention(rawTtd).filter((entityId) => this.exposedEntityIds.has(entityId));
+    return candidates.length === 1 ? { intent: { operation: "locate", rawTtd: rawTtd.trim(), inputLanguage: /[\u3400-\u9fff]/u.test(rawTtd) ? "zh" : "en" }, entityIds: candidates } : null;
+  }
+
+  private recordExposedEntities(result: TurnResult): void {
+    if (result.kind !== "committed" || !result.commitPackage.canonical) return;
+    for (const item of result.commitPackage.canonical.presentationPacket.items) {
+      if (item.kind === "observed_entities") item.entityIds.forEach((id) => this.exposedEntityIds.add(id));
+      if (item.kind === "bounded_relation_set") { this.exposedEntityIds.add(item.objectId); item.subjectIds.forEach((id) => this.exposedEntityIds.add(id)); }
+      if (item.kind === "attribute_evidence" || item.kind === "relation_evidence") {
+        const subject = String(item.semanticAddress).match(/^(?:entity|relation-slot):([^.]+)/u)?.[1];
+        if (subject) this.exposedEntityIds.add(subject);
+      }
+    }
   }
 
   private async executeSingle(rawTtd: string, rootTurnId: string, stepIndex: number, stepCount: number, objectIntent?: ObjectIntent, mentionedEntityIds?: string[]): Promise<TurnResult> {

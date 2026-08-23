@@ -1,4 +1,4 @@
-import type { ObjectWorldFixture } from "../world/objectFixture.js";
+import { resolveFixtureEntity, type ObjectWorldFixture } from "../world/objectFixture.js";
 import type { MaterializedWorld } from "../world/materializedWorld.js";
 import { primitiveContract } from "./primitiveContracts.js";
 import type { ActionProposalEnvelopeV07, ActionRole, ActionStepProposalV07 } from "./types.js";
@@ -38,11 +38,7 @@ export interface GroundingResult {
 }
 
 function candidateIds(fixture: ObjectWorldFixture, mention: string): string[] {
-  const normalized = mention.toLocaleLowerCase();
-  return fixture.names
-    .filter((entry) => entry.names.some((name) => normalized.includes(name.toLocaleLowerCase())))
-    .map((entry) => entry.entityId)
-    .sort();
+  return resolveFixtureEntity(fixture, mention);
 }
 
 function satisfiesContract(world: MaterializedWorld, entityId: string, roleContract: ReturnType<typeof primitiveContract>["roles"][number]): boolean {

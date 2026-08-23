@@ -1,13 +1,25 @@
 import type { ApprovedPresentationPacket } from "./types.js";
 import { createObjectWorldFixture } from "../world/objectFixture.js";
-import { MaterializedWorld } from "../world/materializedWorld.js";
+import { ReferenceLexicon } from "../world/referenceLexicon.js";
 
 export interface ApprovedPresentationRenderer { render(packet: ApprovedPresentationPacket, languageSample: string): Promise<string> }
 
+export class RiskAwarePresentationRenderer implements ApprovedPresentationRenderer {
+  constructor(private readonly lowRisk: ApprovedPresentationRenderer, private readonly deterministic = new DeterministicPresentationRenderer()) {}
+
+  async render(packet: ApprovedPresentationPacket, languageSample: string): Promise<string> {
+    const highRisk = packet.outcome === "boundary" || packet.items.some((item) =>
+      item.kind === "boundary" || item.kind === "prior_evidence" || item.kind === "attribute_evidence" ||
+      (item.kind === "bounded_relation_set" && item.subjectIds.length === 0),
+    );
+    return (highRisk ? this.deterministic : this.lowRisk).render(packet, languageSample);
+  }
+}
+
 export class DeterministicPresentationRenderer implements ApprovedPresentationRenderer {
   async render(packet: ApprovedPresentationPacket, languageSample: string): Promise<string> {
-    const world = MaterializedWorld.replay([], createObjectWorldFixture().seedCommitments);
-    const name = (id: string): string => world.entities.get(id)?.attributes[packet.language === "zh" ? "zh_name" : "en_name"] ?? id;
+    const lexicon = new ReferenceLexicon(createObjectWorldFixture());
+    const name = (id: string): string => lexicon.label(id, packet.language);
     const relation = packet.items.find((entry) => entry.kind === "relation_evidence");
     const attribute = packet.items.find((entry) => entry.kind === "attribute_evidence");
     if (relation?.kind === "relation_evidence" && attribute?.kind === "attribute_evidence" && /读|read/iu.test(languageSample)) {
@@ -35,6 +47,8 @@ export class DeterministicPresentationRenderer implements ApprovedPresentationRe
     const evidence = item;
     if (evidence.kind === "attribute_evidence") {
       const value = String(evidence.value ?? "");
+      if (String(evidence.semanticAddress) === "entity:self.attribute:position") return packet.language === "zh" ? `你在${value === "bedside" ? "床边" : value}。` : `You are ${value === "bedside" ? "beside the bed" : value}.`;
+      if (String(evidence.semanticAddress) === "entity:self.attribute:posture") return packet.language === "zh" ? (value === "sitting_on_bed_edge" ? "你正坐在床沿。" : `你的姿势是${value}。`) : (value === "sitting_on_bed_edge" ? "You are sitting on the edge of the bed." : `Your posture is ${value}.`);
       const presence = /有字|writing on/iu.test(languageSample);
       return packet.language === "zh" ? (value ? (presence ? "纸条上有字。" : `纸条上写着“${value}”。`) : "纸条上没有字。") : (value ? (presence ? "There is writing on the note." : `The note reads “${value}”.`) : "There is no writing on the note.");
     }

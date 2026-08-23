@@ -14,7 +14,7 @@ import type { FixedQueryKind, QueryRequest } from "../query/types.js";
 import { buildCanonicalQueryEnvelope, type CompleteRelationSetInput } from "../query/canonicalQueryEnvelope.js";
 import type { ApprovedPresentationItem } from "../presentation/types.js";
 import { entityAttributeAddress, relationSlotAddress } from "../world/semanticAddress.js";
-import { DeterministicPresentationRenderer, type ApprovedPresentationRenderer } from "../presentation/renderer.js";
+import { DeterministicPresentationRenderer, RiskAwarePresentationRenderer, type ApprovedPresentationRenderer } from "../presentation/renderer.js";
 
 export class ObjectTurnError extends Error {}
 
@@ -77,7 +77,8 @@ export async function runObjectTurn(options: {
   const parsed = options.objectIntent ?? parseObjectIntent(options.rawTtd);
   if (!parsed) throw new ObjectTurnError("Unsupported object intent.");
   const fixture = options.fixture ?? createObjectWorldFixture();
-  const queryRenderer = options.queryRenderer ?? new DeterministicPresentationRenderer();
+  const deterministicRenderer = new DeterministicPresentationRenderer();
+  const queryRenderer = new RiskAwarePresentationRenderer(options.queryRenderer ?? deterministicRenderer, deterministicRenderer);
   for (const commit of options.priorCommits) {
     if (commit.worldBasis && (commit.worldBasis.fixtureId !== fixture.worldBasis.fixtureId || commit.worldBasis.fixtureVersion !== fixture.worldBasis.fixtureVersion || commit.worldBasis.seedHash !== fixture.worldBasis.seedHash)) {
       throw new ObjectTurnError("Committed world basis does not match the active fixture.");
@@ -85,11 +86,12 @@ export async function runObjectTurn(options: {
   }
   const world = MaterializedWorld.replay(options.priorCommits, fixture.seedCommitments);
   const mentionedIds = options.mentionedEntityIds ?? resolveFixtureEntity(fixture, parsed.rawTtd);
+  const selfQuery = parsed.operation === "self_position" || parsed.operation === "self_posture" || parsed.operation === "self_bed_status" || (parsed.operation === "locate" && mentionedIds.length === 1 && mentionedIds[0] === "self");
   const queryKind: FixedQueryKind | undefined = parsed.operation === "inspect_contents" ? "inspect_contents"
     : parsed.operation === "locate" ? "locate"
       : parsed.operation === "inspect_inscription_presence" || parsed.operation === "inspect_inscription_value" ? "inspect_attribute"
         : parsed.operation === "look_around" ? "look_around" : parsed.operation === "inventory" ? "inventory" : undefined;
-  if (queryKind) {
+  if (queryKind && !selfQuery) {
     const targetEntityId = mentionedIds.length === 1 ? mentionedIds[0] : undefined;
     const propositionAddress = queryKind === "inspect_attribute" && targetEntityId ? entityAttributeAddress(targetEntityId, "inscription") : undefined;
     const request: QueryRequest = { queryId: `${options.turnId}:query`, agentId: "self", kind: queryKind, ...(targetEntityId ? { targetEntityId } : {}), ...(propositionAddress ? { propositionAddress } : {}), language: parsed.inputLanguage };
@@ -129,7 +131,20 @@ export async function runObjectTurn(options: {
   let completeRelationSet: CompleteRelationSetInput | undefined;
   let response: string;
 
-  if (parsed.operation === "look_around") {
+  if (selfQuery) {
+    const self = world.entities.get("self")!;
+    const attribute = parsed.operation === "self_posture" || parsed.operation === "self_bed_status" ? "posture" : "position";
+    const value = self.attributes[attribute];
+    if (!value) throw new ObjectTurnError(`self has no ${attribute}.`);
+    fact(registry, snapshots, conditions, `entity:self.${attribute}`, value, self.attributeRevisions[attribute] ?? 0);
+    const eventId = `event-self-${attribute}-${options.commitSequence}`;
+    const evidenceId = `evidence-self-${attribute}-${options.commitSequence}`;
+    events.push({ eventId, type: "action_result", actionKind: `self_${attribute}`, outcome: "success", subjectRef: "self" });
+    evidenceGenerated.push({ evidenceId, kind: "attribute_observed", sourceEventId: eventId, subjectId: "self", attribute, value });
+    epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
+    presentationItems.push({ kind: "attribute_evidence", semanticAddress: entityAttributeAddress("self", attribute), value, evidenceId });
+    response = "";
+  } else if (parsed.operation === "look_around") {
     const visible = [...world.entities.values()].filter((entity) => isEntityPerceivable(world, entity)).sort((a, b) => a.entityId.localeCompare(b.entityId));
     const eventId = `event-look-around-${options.commitSequence}`;
     events.push({ eventId, type: "action_result", actionKind: "look_around", outcome: "success", subjectRef: "self" });
@@ -355,7 +370,7 @@ export async function runObjectTurn(options: {
 
   const candidateId = `object-${parsed.operation}-${options.commitSequence}`;
   const envelope: CandidateEnvelope = { candidates: [{ candidateId, outcomeKind: "success", requiresResolution: [], conditions, proposedEvents: events, proposedStateChanges: [], observations, evidenceGenerated, epistemicChanges, newWorldCommitments: commitments }] };
-  const canonical = (queryKind || parsed.operation === "read") ? buildCanonicalQueryEnvelope({ turnId: options.turnId, commitSequence: options.commitSequence, language: parsed.inputLanguage,
+  const canonical = (queryKind || selfQuery || parsed.operation === "read") ? buildCanonicalQueryEnvelope({ turnId: options.turnId, commitSequence: options.commitSequence, language: parsed.inputLanguage,
     evidence: evidenceGenerated, presentationItems, ...(completeRelationSet ? { completeRelationSet } : {}) }) : undefined;
   const commitPackage = await commitCandidateEnvelope({ ...options, envelope, registry, snapshots, worldBasis: fixture.worldBasis, seedCommitments: fixture.seedCommitments, ...(canonical ? { canonical } : {}) });
   if (commitPackage.canonical) response = await queryRenderer.render(commitPackage.canonical.presentationPacket, options.rawTtd);

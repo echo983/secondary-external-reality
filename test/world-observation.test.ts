@@ -85,3 +85,17 @@ test("distinguishes blank inscription presence from exact inscription value", as
     assert.equal((await store.listTurnAttempts()).at(-1)?.status, "presented");
   } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
 });
+
+test("answers self state from explicit canonical attributes instead of visibility", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-self-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const session = createSession(store);
+    const position = await session.submit("我在哪里");
+    assert.equal(position.kind, "committed");
+    assert.equal(position.response, "你在床边。");
+    const bed = await session.submit("我在床上吗");
+    assert.equal(bed.response, "你正坐在床沿。");
+    assert.equal(bed.commitPackage.canonical?.presentationPacket.items[0]?.kind, "attribute_evidence");
+  } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
+});

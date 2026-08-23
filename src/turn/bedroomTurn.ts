@@ -38,7 +38,16 @@ export interface EvidenceTurnResult {
   commitPackages?: never;
   partial?: false;
 }
-export type TurnResult = CommittedTurnResult | BoundaryTurnResult | EvidenceTurnResult;
+export interface InterfaceTurnResult {
+  kind: "interface";
+  response: string;
+  code: "CONVERSATION" | "INCOMPLETE_FRAGMENT" | "UNSUPPORTED_WORLD_SCOPE" | "UNSUPPORTED_CAPABILITY" | "AMBIGUOUS_REFERENCE";
+  intent: NormalizedIntent;
+  commitPackage: never;
+  commitPackages?: never;
+  partial?: false;
+}
+export type TurnResult = CommittedTurnResult | BoundaryTurnResult | EvidenceTurnResult | InterfaceTurnResult;
 
 export class BedroomTurnError extends Error {}
 

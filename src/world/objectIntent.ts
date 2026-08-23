@@ -1,4 +1,4 @@
-export const OBJECT_OPERATION_KINDS = ["take", "place", "put_inside", "open", "close", "observe", "open_and_observe", "write_and_hide", "read", "look_around", "inspect_contents", "locate", "inventory", "inspect_inscription_presence", "inspect_inscription_value"] as const;
+export const OBJECT_OPERATION_KINDS = ["take", "place", "put_inside", "open", "close", "observe", "open_and_observe", "write_and_hide", "read", "look_around", "inspect_contents", "locate", "inventory", "inspect_inscription_presence", "inspect_inscription_value", "self_position", "self_posture", "self_bed_status"] as const;
 export type ObjectOperationKind = (typeof OBJECT_OPERATION_KINDS)[number];
 
 export interface ObjectIntent {
@@ -11,14 +11,17 @@ export function parseObjectIntent(rawTtd: string): ObjectIntent | null {
   const text = rawTtd.trim();
   const inputLanguage = /[\u3400-\u9fff]/u.test(text) ? "zh" : "en";
   let operation: ObjectOperationKind | null = null;
-  if (/(纸条|note|paper)/iu.test(text) && /(有字|写字了吗|any (?:text|writing)|written on)/iu.test(text)) operation = "inspect_inscription_presence";
-  else if (/(纸条|note|paper)/iu.test(text) && /(写着什么|写了什么|what.*(?:written|say)|read on)/iu.test(text)) operation = "inspect_inscription_value";
+  if (/^(?:我在哪里|我在哪儿|where am i)$/iu.test(text)) operation = "self_position";
+  else if (/^(?:我是什么姿势|我现在是什么姿势|我的姿势|what is my posture)$/iu.test(text)) operation = "self_posture";
+  else if (/^(?:我在床上吗|我还在床上吗|am i (?:on|in) the bed)$/iu.test(text)) operation = "self_bed_status";
+  else if (/(纸条|便签|note|paper)/iu.test(text) && /(有字|写字了吗|any (?:text|writing)|written on)/iu.test(text)) operation = "inspect_inscription_presence";
+  else if (/(纸条|便签|note|paper)/iu.test(text) && /(写着什么|写了什么|what.*(?:written|say)|read on)/iu.test(text)) operation = "inspect_inscription_value";
   else if (/^(?:look|看看周围|看看房间|看能看到什么|我能看到什么|我看看周围有什么|环顾|环顾四周)$/iu.test(text)) operation = "look_around";
   else if (/^(?:inventory|我手里有什么|手里有什么|我拿着什么)$/iu.test(text)) operation = "inventory";
   else if (/(里面有什么|里有什么|contents|what(?:'s| is) inside)/iu.test(text)) operation = "inspect_contents";
   else if (/(在哪里|在哪儿|where is|where's)/iu.test(text)) operation = "locate";
-  else if (/(纸条|note|paper)/iu.test(text) && /(枕头|pillow)/iu.test(text) && /[0-9]{1,64}/u.test(text) && /(写|write)/iu.test(text)) operation = "write_and_hide";
-  else if (/(纸条|note|paper)/iu.test(text) && /(读|read)/iu.test(text)) operation = "read";
+  else if (/(纸条|便签|note|paper)/iu.test(text) && /(枕头|pillow)/iu.test(text) && /[0-9]{1,64}/u.test(text) && /(写|write)/iu.test(text)) operation = "write_and_hide";
+  else if (/(纸条|便签|note|paper)/iu.test(text) && /(读|read)/iu.test(text)) operation = "read";
   else if (/(枕头|pillow)/iu.test(text) && /(找|查看|看看|翻|检查|读|find|look|check|read)/iu.test(text)) operation = "read";
   else if (/(打开|开门|open)/iu.test(text) && /(找|查看|看看|观察|find|look|inspect|observe)/iu.test(text)) operation = "open_and_observe";
   else if (/(放进|放入|装进|put .* (?:in|into))/iu.test(text)) operation = "put_inside";
