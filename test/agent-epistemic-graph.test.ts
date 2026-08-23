@@ -9,13 +9,14 @@ import { entityAttributeAddress } from "../src/world/semanticAddress.js";
 const address = entityAttributeAddress("note-1", "inscription");
 const observation: ObservationRecord = { observationId: "o", kind: "attribute_perception", observerId: "agent-a", semanticAddress: address, perceivedValue: "42", sourceOccurrenceId: "event", provenance: "canonical" };
 const evidence: CanonicalEvidenceRecord = { evidenceId: "e", propositionAddress: address, representedValue: "42", sourceObservationId: "o", provenance: "canonical" };
-const acquisition = (id: string, agentId: string, evidenceId = "e"): EpistemicAcquisition => ({ acquisitionId: id, agentId, evidenceId, mode: "direct_perception", acquiredAtCommitSequence: 0, provenance: "canonical" });
+const acquisition = (id: string, agentId: string, evidenceId = "e"): EpistemicAcquisition => ({ acquisitionId: id, agentId, evidenceId, mode: "direct_perception", acquiredAtCommitSequence: 7, provenance: "canonical" });
 
 test("keeps agent evidence paths isolated and returns defensive copies", () => {
   const ledger = buildEvidenceLedger([observation], [evidence]).view;
   const built = buildAgentEpistemicGraph([acquisition("a1", "agent-a")], ledger, new Set(["agent-a", "agent-b"]));
   assert.deepEqual(built.issues, []);
   assert.equal(built.view.evidenceFor("agent-a", address).length, 1);
+  assert.equal(built.view.evidenceFor("agent-a", address)[0]?.acquiredAtCommitSequence, 7);
   assert.equal(built.view.evidenceFor("agent-b", address).length, 0);
   const copy = built.view.allEdges();
   copy[0]!.representedValue = "changed";

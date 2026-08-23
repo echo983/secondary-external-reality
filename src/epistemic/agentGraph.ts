@@ -52,6 +52,7 @@ export function buildAgentEpistemicGraph(
       representedValue: structuredClone(evidence.representedValue),
       evidenceId: evidence.evidenceId,
       acquisitionId: acquisition.acquisitionId,
+      acquiredAtCommitSequence: acquisition.acquiredAtCommitSequence,
     });
   }
   return { view: new AgentEpistemicGraphView(edges), issues };
