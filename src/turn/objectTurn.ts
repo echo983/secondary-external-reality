@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
 import type { CandidateEnvelope, EpistemicChange, EvidenceRecord, ProjectionDefinition, ProjectionSnapshot, WorldCommitment } from "../protocol/types.js";
 import type { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import { MaterializedWorld, type MaterializedEntity, type MaterializedRelation } from "../world/materializedWorld.js";
 import { createObjectWorldFixture, resolveFixtureEntity, type ObjectWorldFixture } from "../world/objectFixture.js";
+import { HALLWAY_NOTABLE_FEATURES } from "../world/worldSchema.js";
 import { parseMvpIntent } from "../world/intent.js";
 import { parseObjectIntent, type ObjectIntent } from "../world/objectIntent.js";
 import type { BedroomJury, TurnResult } from "./bedroomTurn.js";
@@ -18,10 +20,20 @@ import { DeterministicPresentationRenderer, RiskAwarePresentationRenderer, type 
 
 export class ObjectTurnError extends Error {}
 
-// The only two Place nodes this MVP models. Doorway/bedside are anchored to the
-// existing door/bed landmark entities rather than a new entity type or PlaceGraph,
-// per the minimal-space-movement design (docs/MVP-minimal-space-movement-design-v0.3.md).
-const MOVE_DESTINATIONS: Readonly<Record<string, "bedside" | "doorway">> = { "door-1": "doorway", "bed-1": "bedside" };
+// Doorway/bedside are anchored to the existing door/bed landmark entities;
+// hallway-1 is a real Place entity (docs/MVP-hallway-placegraph-design-v0.4.md).
+const MOVE_DESTINATIONS: Readonly<Record<string, "bedside" | "doorway" | "hallway">> = { "door-1": "doorway", "bed-1": "bedside", "hallway-1": "hallway" };
+
+// Deterministic ΠS/LazyRealizer: hallway-1.notable_feature is genuinely Free
+// until the first time it is operationally addressed (first look_around while
+// in the hallway). Seeded from the committed worldBasis.seedHash, so the same
+// world always resolves the same value, and it is never re-resolved once
+// committed (I6 CounterfactualStability) — see design doc §3.2.
+function resolveHallwayNotableFeature(seedHash: string): (typeof HALLWAY_NOTABLE_FEATURES)[number] {
+  const digest = createHash("sha256").update(`${seedHash}:hallway-1.notable_feature`).digest();
+  const index = digest.readUInt32BE(0) % HALLWAY_NOTABLE_FEATURES.length;
+  return HALLWAY_NOTABLE_FEATURES[index]!;
+}
 
 function candidatesByCapability(world: MaterializedWorld, ids: string[], attribute: string): MaterializedEntity[] {
   return ids.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.attributes[attribute] === "true");
@@ -92,6 +104,13 @@ export async function runObjectTurn(options: {
   const world = MaterializedWorld.replay(options.priorCommits, fixture.seedCommitments);
   const mentionedIds = options.mentionedEntityIds ?? resolveFixtureEntity(fixture, parsed.rawTtd);
   const selfQuery = parsed.operation === "self_position" || parsed.operation === "self_posture" || parsed.operation === "self_bed_status" || (parsed.operation === "locate" && mentionedIds.length === 1 && mentionedIds[0] === "self");
+  // Matches the branch below that resolves/reads hallway-1.notable_feature.
+  // "observe" has no queryKind (unmapped), so without this the canonical
+  // envelope (and therefore any rendered response text) would silently never
+  // get built for that compiled shape — the same observe/inspect_contents
+  // inconsistency the drawer-contents Query Confluence finding surfaced.
+  const hallwayContentQuery = (parsed.operation === "look_around" && world.entities.get("self")?.attributes.position === "hallway")
+    || (["observe", "inspect_contents", "locate"].includes(parsed.operation) && mentionedIds.length === 1 && mentionedIds[0] === "hallway-1");
   const queryKind: FixedQueryKind | undefined = parsed.operation === "inspect_contents" ? "inspect_contents"
     : parsed.operation === "locate" ? "locate"
       : parsed.operation === "inspect_inscription_presence" || parsed.operation === "inspect_inscription_value" ? "inspect_attribute"
@@ -148,6 +167,41 @@ export async function runObjectTurn(options: {
     evidenceGenerated.push({ evidenceId, kind: "attribute_observed", sourceEventId: eventId, subjectId: "self", attribute, value });
     epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
     presentationItems.push({ kind: "attribute_evidence", semanticAddress: entityAttributeAddress("self", attribute), value, evidenceId });
+    response = "";
+  } else if (hallwayContentQuery) {
+    // The one genuinely Free projection in this world (design doc §3.2): resolve
+    // it deterministically the first time it is operationally addressed, commit
+    // it as part of THIS turn, and never re-resolve once committed (I6). This
+    // branch covers both "environ this while standing in the hallway" and
+    // "看看门外 from the bedroom" — the model compiles the latter as observe,
+    // inspect_contents, or occasionally locate, all with the same semantics
+    // (see the drawer-contents Query Confluence finding: a query for "what's
+    // inside X" is not reliably compiled into one single operation).
+    const atHallway = world.entities.get("self")?.attributes.position === "hallway";
+    const door = world.entities.get("door-1")!;
+    if (!atHallway) {
+      fact(registry, snapshots, conditions, "entity:door-1.open_state", door.attributes.open_state ?? "closed", door.attributeRevisions.open_state ?? 0, ["closed", "open"]);
+      if (door.attributes.open_state !== "open") {
+        const code: PublicBoundaryCode = "TARGET_NOT_PERCEIVABLE";
+        const packet = { packetId: `${options.turnId}:boundary`, outcome: "boundary" as const, language: parsed.inputLanguage, items: [{ kind: "boundary" as const, code }] };
+        return { kind: "boundary", response: await queryRenderer.render(packet, options.rawTtd), packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never };
+      }
+    }
+    const hallway = world.entities.get("hallway-1")!;
+    const priorValue = hallway.attributes.notable_feature;
+    const value = priorValue || resolveHallwayNotableFeature(fixture.worldBasis.seedHash);
+    if (priorValue) {
+      fact(registry, snapshots, conditions, "entity:hallway-1.notable_feature", priorValue, hallway.attributeRevisions.notable_feature ?? 0);
+    } else {
+      fact(registry, snapshots, conditions, "entity:hallway-1.notable_feature", "", hallway.attributeRevisions.notable_feature ?? 0, ["", ...HALLWAY_NOTABLE_FEATURES]);
+      commitments.push({ kind: "attribute_set", entityId: "hallway-1", attribute: "notable_feature", value });
+    }
+    const eventId = `event-look-around-hallway-${options.commitSequence}`;
+    const evidenceId = `evidence-hallway-feature-${options.commitSequence}`;
+    events.push({ eventId, type: "action_result", actionKind: "look_around", outcome: "success", subjectRef: "self", objectRef: "hallway-1" });
+    evidenceGenerated.push({ evidenceId, kind: "attribute_observed", sourceEventId: eventId, subjectId: "hallway-1", attribute: "notable_feature", value });
+    epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
+    presentationItems.push({ kind: "attribute_evidence", semanticAddress: entityAttributeAddress("hallway-1", "notable_feature"), value, evidenceId });
     response = "";
   } else if (parsed.operation === "look_around") {
     const visible = [...world.entities.values()].filter((entity) => isEntityPerceivable(world, entity)).sort((a, b) => a.entityId.localeCompare(b.entityId));
@@ -357,9 +411,17 @@ export async function runObjectTurn(options: {
     const self = world.entities.get("self")!;
     const currentPosition = self.attributes.position;
     if (!currentPosition) throw new ObjectTurnError("self has no position.");
-    const destinationLabel = destination === "doorway" ? { zh: "门口", en: "the doorway" } : { zh: "床边", en: "the bedside" };
+    const destinationLabel = destination === "doorway" ? { zh: "门口", en: "the doorway" }
+      : destination === "hallway" ? { zh: "走廊", en: "the hallway" } : { zh: "床边", en: "the bedside" };
     if (currentPosition === destination) {
       throw new ObjectTurnError(parsed.inputLanguage === "zh" ? `你已经在${destinationLabel.zh}了。` : `You are already at ${destinationLabel.en}.`);
+    }
+    const door = world.entities.get("door-1")!;
+    if (destination === "hallway") {
+      fact(registry, snapshots, conditions, "entity:door-1.open_state", door.attributes.open_state ?? "closed", door.attributeRevisions.open_state ?? 0, ["closed", "open"]);
+      if (door.attributes.open_state !== "open") {
+        throw new ObjectTurnError(parsed.inputLanguage === "zh" ? "门还关着，你出不去。" : "The door is still closed; you can't go through.");
+      }
     }
     fact(registry, snapshots, conditions, "entity:self.position", currentPosition, self.attributeRevisions.position ?? 0);
     const eventId = `event-move-${options.commitSequence}`;
@@ -424,7 +486,7 @@ export async function runObjectTurn(options: {
 
   const candidateId = `object-${parsed.operation}-${options.commitSequence}`;
   const envelope: CandidateEnvelope = { candidates: [{ candidateId, outcomeKind: "success", requiresResolution: [], conditions, proposedEvents: events, proposedStateChanges: [], observations, evidenceGenerated, epistemicChanges, newWorldCommitments: commitments }] };
-  const canonical = (queryKind || selfQuery || parsed.operation === "read") ? buildCanonicalQueryEnvelope({ turnId: options.turnId, commitSequence: options.commitSequence, language: parsed.inputLanguage,
+  const canonical = (queryKind || selfQuery || hallwayContentQuery || parsed.operation === "read") ? buildCanonicalQueryEnvelope({ turnId: options.turnId, commitSequence: options.commitSequence, language: parsed.inputLanguage,
     evidence: evidenceGenerated, presentationItems, ...(completeRelationSet ? { completeRelationSet } : {}) }) : undefined;
   const commitPackage = await commitCandidateEnvelope({ ...options, envelope, registry, snapshots, worldBasis: fixture.worldBasis, seedCommitments: fixture.seedCommitments, ...(canonical ? { canonical } : {}) });
   if (commitPackage.canonical) response = await queryRenderer.render(commitPackage.canonical.presentationPacket, options.rawTtd);

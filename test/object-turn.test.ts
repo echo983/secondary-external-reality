@@ -121,6 +121,101 @@ test("moves self between the two known landmarks and reports the current positio
   }
 });
 
+test("requires the door to be open before moving into the hallway", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-hallway-move-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    await assert.rejects(current.submit("走到走廊"), ObjectTurnError);
+    assert.equal((await store.list()).length, 0);
+    await current.submit("打开门");
+    assert.equal((await current.submit("走到走廊")).response, "你走到了走廊。");
+    const world = MaterializedWorld.replay(await store.list(), createObjectWorldFixture().seedCommitments);
+    assert.equal(world.entities.get("self")?.attributes.position, "hallway");
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("resolves the hallway's free notable_feature once and keeps it fixed on repeat", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-hallway-feature-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    await current.submit("打开门");
+    await current.submit("走到走廊");
+    const first = await current.submit("环顾四周");
+    assert.equal(first.kind, "committed");
+    assert.equal(first.commitPackage.newWorldCommitments.length, 1, "first look_around must resolve and commit notable_feature exactly once");
+    const second = await current.submit("环顾四周");
+    assert.equal(second.kind, "committed");
+    assert.equal(second.commitPackage.newWorldCommitments.length, 0, "a second look_around must not re-resolve or re-commit");
+    assert.equal(first.response, second.response);
+    const world = MaterializedWorld.replay(await store.list(), createObjectWorldFixture().seedCommitments);
+    assert.match(world.entities.get("hallway-1")?.attributes.notable_feature ?? "", /^(none|framed_photo|umbrella_stand|wall_lamp)$/u);
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("hallway is not perceivable through a closed door and commits nothing when queried anyway", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-hallway-boundary-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    const closedDoorResult = await current.submit("看看走廊");
+    assert.equal(closedDoorResult.kind, "boundary");
+    assert.equal((await store.list()).length, 0);
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("resolves the same notable_feature whether reached by walking in or observed through an open door", async () => {
+  const fixture = createObjectWorldFixture();
+
+  const walkedInDirectory = await mkdtemp(join(tmpdir(), "secondary-reality-hallway-walked-"));
+  const walkedInStore = new LanceCommitStore(join(walkedInDirectory, "world.lancedb"));
+  let walkedInValue: string | undefined;
+  try {
+    const walkedInSession = session(walkedInStore);
+    await walkedInSession.submit("打开门");
+    await walkedInSession.submit("走到走廊");
+    await walkedInSession.submit("环顾四周");
+    const world = MaterializedWorld.replay(await walkedInStore.list(), fixture.seedCommitments);
+    walkedInValue = world.entities.get("hallway-1")?.attributes.notable_feature;
+  } finally {
+    walkedInStore.close();
+    await rm(walkedInDirectory, { recursive: true, force: true });
+  }
+
+  const observedDirectory = await mkdtemp(join(tmpdir(), "secondary-reality-hallway-observed-"));
+  const observedStore = new LanceCommitStore(join(observedDirectory, "world.lancedb"));
+  let observedValue: string | undefined;
+  try {
+    const observedSession = session(observedStore);
+    await observedSession.submit("打开门");
+    const observed = await observedSession.submit("看看走廊");
+    // "看看走廊" compiles (on the deterministic path) to a plain "observe",
+    // which has no queryKind — regression guard for the bug where the
+    // canonical envelope, and therefore the rendered response text, was only
+    // built for look_around/self-query, silently leaving observe-compiled
+    // hallway queries with an empty response despite committing correctly.
+    assert.notEqual(observed.response.trim(), "");
+    const world = MaterializedWorld.replay(await observedStore.list(), fixture.seedCommitments);
+    observedValue = world.entities.get("hallway-1")?.attributes.notable_feature;
+  } finally {
+    observedStore.close();
+    await rm(observedDirectory, { recursive: true, force: true });
+  }
+
+  assert.ok(walkedInValue, "walked-in resolution must have committed a value");
+  assert.equal(walkedInValue, observedValue);
+});
+
 test("rejects moving to the current position and to a non-landmark destination", async () => {
   const directory = await mkdtemp(join(tmpdir(), "secondary-reality-move-reject-"));
   const store = new LanceCommitStore(join(directory, "world.lancedb"));
