@@ -23,7 +23,7 @@ export function createObjectWorldFixture(): ObjectWorldFixture {
     { id: "drawer-1", type: "drawer", names: ["抽屉", "drawer"], attributes: { container: "true", openable: "true", open_state: "closed", zh_name: "抽屉", en_name: "drawer" } },
     { id: "table-1", type: "table", names: ["桌子", "桌上", "table"], attributes: { surface: "true", zh_name: "桌子", en_name: "table" } },
     { id: "key-1", type: "key", names: ["钥匙", "key"], attributes: { portable: "true", zh_name: "钥匙", en_name: "key" } },
-    { id: "blank-note-1", type: "paper_note", names: ["空白纸条", "纸条", "便签", "便签纸", "note", "sticky note"], attributes: { portable: "true", inscription: "", zh_name: "纸条", en_name: "note" } },
+    { id: "blank-note-1", type: "paper_note", names: ["空白纸条", "空白便签", "纸条", "便签", "便签纸", "note", "sticky note"], attributes: { portable: "true", inscription: "", zh_name: "纸条", en_name: "note" } },
     { id: "pen-1", type: "pen", names: ["笔", "pen"], attributes: { portable: "true", zh_name: "笔", en_name: "pen" } },
     { id: "door-1", type: "door", names: ["门", "door"], attributes: { openable: "true", open_state: "closed" } },
   ];

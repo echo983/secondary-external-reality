@@ -19,10 +19,15 @@ export class ReferenceLexicon {
 
   resolveMention(mention: string): string[] {
     const normalized = mention.trim().toLocaleLowerCase();
-    const exact = [...this.aliases.entries()].filter(([, names]) => names.some((name) => normalized === name.toLocaleLowerCase()))
-      .map(([entityId]) => entityId).sort();
+    const exact = this.resolveExactMention(normalized);
     if (exact.length > 0) return exact;
     return [...this.aliases.entries()].filter(([, names]) => names.some((name) => normalized.includes(name.toLocaleLowerCase())))
+      .map(([entityId]) => entityId).sort();
+  }
+
+  resolveExactMention(mention: string): string[] {
+    const normalized = mention.trim().toLocaleLowerCase();
+    return [...this.aliases.entries()].filter(([, names]) => names.some((name) => normalized === name.toLocaleLowerCase()))
       .map(([entityId]) => entityId).sort();
   }
 

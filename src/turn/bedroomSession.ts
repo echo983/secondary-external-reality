@@ -115,6 +115,7 @@ export class BedroomSession {
       MISSING_TARGET: ["我还不知道你指的是哪个目标；请明确说出它。", "I do not know which target you mean; please name it explicitly."],
       MISSING_DESTINATION: ["这个动作缺少去向；请说明要放到哪里。", "This action is missing a destination; please say where it should go."],
       AMBIGUOUS_REFERENCE: ["这个指代对应多个对象；请说得更具体。", "That reference matches multiple objects; please be more specific."],
+      UNRESOLVED_REFERENCE: ["当前世界中没有你指的对象或观察范围。", "The current world does not contain the object or observation scope you named."],
       INVALID_LITERAL: ["当前书写只接受一到六十四位数字。", "Writing currently accepts only one to sixty-four digits."],
       UNSUPPORTED_OPERATION: ["这个操作还没有可执行的世界原语。", "This operation does not yet have an executable world primitive."],
     } as const;

@@ -23,6 +23,7 @@ actuality: actual, non_executing, negated, hypothetical, conditional.
 operations: take, place, put_inside, open, close, observe, write, read, look_around, inspect_contents, locate, inventory, unknown.
 roles: target, destination, instrument, content. queryMode: presence, value, location, contents, inventory, capability.
 Role semantics: target is the entity acted on, including an object being taken and a note being written on. destination is where a target is placed or moved. instrument is a tool explicitly mentioned. content is literal information written or communicated, not a physical object being taken. Do not judge whether a target is physically capable of the action; that belongs to later grounding.
+Perception scope is material semantics and must never be dropped. Use look_around only for genuinely unscoped inspection of the current surroundings. For a scoped request, use observe and preserve the complete scope phrase as target even when the world may not contain it. Never rewrite scoped observation as look_around.
 Use zero to four ordered clauses c1-c4. verbSpan and every mention must be exact contiguous input spans. Never output entity IDs, types, capabilities, state, success, evidence, commitments, inferred destinations, or explanatory fields.
 Only world_query and capability_query clauses use queryMode. Action clauses always omit queryMode, including conditional actions. conversation, incomplete, unsupported, world_query, and capability_query always use actuality non_executing.
 "我能拿起笔吗" is capability_query/non_executing with operation take, verbSpan 拿起, target 笔, queryMode capability. It is not an action request.
@@ -31,7 +32,9 @@ Exact example: {"schemaVersion":"1.0.0","inputLanguage":"zh","speechAct":"capabi
 "我向空白便签写2236" is action_request/actual, write, target 空白便签, content 2236, and no queryMode.
 "纸条上写着什么" is world_query/non_executing, read, target 纸条, queryMode value. Asking for an inscription value is read/value, not generic observe.
 "便签上有什么" asks for the note's inscription value: world_query/non_executing, read, target 便签, queryMode value. It is not inspect_contents because a note is not being treated as a container.
+"看看门外" is world_query/non_executing, observe, target 门外, queryMode contents. "门外有什么" has the same material semantics with verbSpan 有什么 and target 门外. Neither is look_around; the later world layer decides whether 门外 exists.
 "我拿起桌子" is a syntactically complete action_request/actual with take and target 桌子 even if the world may later reject it. Never classify an utterance from physical feasibility.
+"那我写2236" is action_request/actual, write, content 2236, with no target role. 那 is a discourse connective here, not a physical target; never label demonstratives or function words as target without an explicit referent.
 For taking an unspecified physical thing such as 东西, use target, not content.
 "不要打开抽屉" is action_request/negated. "如果抽屉里有东西就拿出来" is action_request/conditional.
 "抽屉在哪" is world_query/non_executing with locate/location. "我放下笔" is action_request/actual with place and target 笔; do not invent a destination.
@@ -58,11 +61,16 @@ export type InteractionShadowOutcome =
   | { status: "invalid" | "disagreed" | "model_error"; proposal: null; workstations?: [InteractionWorkstationResult, InteractionWorkstationResult] };
 
 export async function runInteractionShadow(rawTtd: string, left: InteractionWorkstation, right: InteractionWorkstation): Promise<InteractionShadowOutcome> {
-  try {
-    const workstations = await Promise.all([left.interpret(rawTtd), right.interpret(rawTtd)]) as [InteractionWorkstationResult, InteractionWorkstationResult];
-    const proposals = workstations.map((result) => result.validation.proposal);
-    if (!proposals[0] || !proposals[1]) return { status: "invalid", proposal: null, workstations };
-    const consensus = interactionConsensus(proposals[0], proposals[1]);
-    return consensus.agreed ? { status: "agreed", proposal: consensus.proposal!, workstations } : { status: "disagreed", proposal: null, workstations };
-  } catch { return { status: "model_error", proposal: null }; }
+  let last: InteractionShadowOutcome = { status: "model_error", proposal: null };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const workstations = await Promise.all([left.interpret(rawTtd), right.interpret(rawTtd)]) as [InteractionWorkstationResult, InteractionWorkstationResult];
+      const proposals = workstations.map((result) => result.validation.proposal);
+      if (!proposals[0] || !proposals[1]) { last = { status: "invalid", proposal: null, workstations }; continue; }
+      const consensus = interactionConsensus(proposals[0], proposals[1]);
+      if (consensus.agreed) return { status: "agreed", proposal: consensus.proposal!, workstations };
+      last = { status: "disagreed", proposal: null, workstations };
+    } catch { last = { status: "model_error", proposal: null }; }
+  }
+  return last;
 }

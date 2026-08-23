@@ -28,3 +28,9 @@ test("compiler derives inscription queries from query mode instead of model oper
   const result = compileInteraction(proposal, "便签上有什么");
   assert.equal(result.kind === "executable" ? result.steps[0]?.objectIntent.operation : "", "inspect_inscription_value");
 });
+
+test("compiler preserves an unsupported observation scope as a zero-commit boundary", () => {
+  const proposal = envelope("observe", [{ role: "target", mention: "门外" }], "world_query");
+  proposal.clauses[0]!.queryMode = "contents";
+  assert.deepEqual(compileInteraction(proposal, "看看门外"), { kind: "clarification", code: "UNRESOLVED_REFERENCE" });
+});

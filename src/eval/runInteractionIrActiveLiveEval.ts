@@ -13,6 +13,8 @@ const cases = [
   { id: "conversation", input: "你好", kind: "interface", delta: 0, code: "INTERACTION_CONVERSATION" },
   { id: "capability", input: "我能拿起笔吗", kind: "interface", delta: 0, code: "INTERACTION_CAPABILITY_QUERY" },
   { id: "drawer-location", input: "抽屉在哪", kind: "committed", delta: 1, response: "床头柜" },
+  { id: "outside-scope", input: "看看门外", kind: "interface", delta: 0, code: "INTERACTION_UNRESOLVED_REFERENCE" },
+  { id: "outside-contents", input: "门外有什么", kind: "interface", delta: 0, code: "INTERACTION_UNRESOLVED_REFERENCE" },
   { id: "write-without-pen", input: "我向空白便签写2236", kind: "rejected", delta: 0 },
   { id: "take-pen", input: "我拿起笔", kind: "committed", delta: 1 },
   { id: "numeric-write", input: "我向空白便签写2236", kind: "committed", delta: 1, response: "2236" },

@@ -3,6 +3,7 @@ import test from "node:test";
 import { interactionConsensus } from "../src/interactionIr/consensus.js";
 import { validateInteractionProposal } from "../src/interactionIr/validator.js";
 import type { InteractionEnvelopeV10 } from "../src/interactionIr/types.js";
+import { runInteractionShadow, type InteractionWorkstation } from "../src/interactionIr/workstations.js";
 
 function proposal(overrides: Partial<InteractionEnvelopeV10> = {}): InteractionEnvelopeV10 {
   return { schemaVersion: "1.0.0", inputLanguage: "zh", speechAct: "capability_query", actuality: "non_executing", clauses: [
@@ -43,4 +44,20 @@ test("canonicalizes a null optional query mode to omission without allowing a re
   const result = validateInteractionProposal(action, "我放下笔");
   assert.equal(result.valid, true);
   assert.equal(result.proposal?.clauses[0]?.queryMode, undefined);
+});
+
+test("retries the complete two-workstation consensus once but never accepts one station", async () => {
+  const make = (): { workstation: InteractionWorkstation; calls: () => number } => {
+    let count = 0;
+    return { calls: () => count, workstation: { async interpret(rawTtd) {
+      count += 1;
+      const validation = count === 1 ? validateInteractionProposal({ malformed: true }, rawTtd) : validateInteractionProposal(proposal(), rawTtd);
+      return { validation, outputHash: String(count), model: "test", latencyMs: 0, usage: {} };
+    } } };
+  };
+  const left = make(); const right = make();
+  const result = await runInteractionShadow("我能拿起笔吗", left.workstation, right.workstation);
+  assert.equal(result.status, "agreed");
+  assert.equal(left.calls(), 2);
+  assert.equal(right.calls(), 2);
 });

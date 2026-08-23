@@ -3,7 +3,7 @@ import type { ObjectIntent, ObjectOperationKind } from "../world/objectIntent.js
 import { createObjectWorldFixture } from "../world/objectFixture.js";
 import { ReferenceLexicon } from "../world/referenceLexicon.js";
 
-export type InteractionCompileIssueCode = "MISSING_TARGET" | "MISSING_DESTINATION" | "AMBIGUOUS_REFERENCE" | "INVALID_LITERAL" | "UNSUPPORTED_OPERATION";
+export type InteractionCompileIssueCode = "MISSING_TARGET" | "MISSING_DESTINATION" | "AMBIGUOUS_REFERENCE" | "UNRESOLVED_REFERENCE" | "INVALID_LITERAL" | "UNSUPPORTED_OPERATION";
 export type CompiledInteraction =
   | { kind: "executable"; steps: Array<{ objectIntent: ObjectIntent; mentionedEntityIds: string[] }> }
   | { kind: "clarification"; code: InteractionCompileIssueCode };
@@ -32,8 +32,8 @@ export function compileInteraction(proposal: InteractionEnvelopeV10, rawTtd: str
     if (["place", "put_inside"].includes(operation) && destinationMentions.length === 0) return { kind: "clarification", code: "MISSING_DESTINATION" };
     const mentionedEntityIds: string[] = [];
     for (const mention of [...targetMentions, ...destinationMentions, ...rolesOf(clause, "instrument")]) {
-      const matches = lexicon.resolveMention(mention);
-      if (matches.length !== 1) return { kind: "clarification", code: matches.length > 1 ? "AMBIGUOUS_REFERENCE" : "MISSING_TARGET" };
+      const matches = lexicon.resolveExactMention(mention);
+      if (matches.length !== 1) return { kind: "clarification", code: matches.length > 1 ? "AMBIGUOUS_REFERENCE" : "UNRESOLVED_REFERENCE" };
       if (!mentionedEntityIds.includes(matches[0]!)) mentionedEntityIds.push(matches[0]!);
     }
     let content: string | undefined;
