@@ -1,11 +1,11 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { WorkersAiActionIrProposer } from "../actionIr/proposer.js";
 import { WorkersAiActionIrSemanticAuditor } from "../actionIr/semanticAuditor.js";
 import { WorkersAiTurnRenderer } from "../ai/bedroomAdapters.js";
-import { WorkersAiClient } from "../ai/workersAiClient.js";
+import { createLiveEvalClient } from "./liveEvalHarness.js";
 import { DeterministicPresentationRenderer } from "../presentation/renderer.js";
 import { replayCanonicalViews } from "../replay/canonicalReplay.js";
 import { WorkersAiSemanticIrAuditor, WorkersAiSemanticIrProposer } from "../semanticIr/adapters.js";
@@ -33,8 +33,7 @@ const cases = [
   { id: "english-location", input: "Where exactly did I leave the key?", expectedKind: "committed", expectedCommitDelta: 1 },
 ] as const;
 
-const token = (await readFile(process.env.CLOUDFLARE_API_TOKEN_FILE ?? "secret/cftoken.txt", "utf8")).trim();
-const client = new WorkersAiClient({ accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "00f6c85f82f6297c8c0bef9460e013d9", apiToken: token, timeoutMs: 30_000, maxRetries: 2 });
+const client = await createLiveEvalClient();
 const directory = await mkdtemp(join(tmpdir(), "secondary-reality-human-live-"));
 const store = new LanceCommitStore(join(directory, "world.lancedb"));
 const session = new BedroomSession({

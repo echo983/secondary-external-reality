@@ -1,5 +1,4 @@
-import { readFile } from "node:fs/promises";
-import { WorkersAiClient } from "../ai/workersAiClient.js";
+import { createLiveEvalClient } from "./liveEvalHarness.js";
 import { runInteractionShadow, WorkersAiInteractionWorkstation } from "../interactionIr/workstations.js";
 import type { InteractionActuality, InteractionOperation, InteractionSpeechAct } from "../interactionIr/types.js";
 
@@ -21,8 +20,7 @@ const cases: Array<{ id: string; input: string; expected: Expected }> = [
   { id: "ordered-actions", input: "打开抽屉，然后关上抽屉", expected: { speechAct: "action_request", actuality: "actual", operations: ["open", "close"] } },
 ];
 
-const token = (await readFile(process.env.CLOUDFLARE_API_TOKEN_FILE ?? "secret/cftoken.txt", "utf8")).trim();
-const client = new WorkersAiClient({ accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "00f6c85f82f6297c8c0bef9460e013d9", apiToken: token, timeoutMs: 30_000, maxRetries: 2 });
+const client = await createLiveEvalClient();
 const left = new WorkersAiInteractionWorkstation(client, "linguist");
 const right = new WorkersAiInteractionWorkstation(client, "safety_analyst");
 const rows: Array<Record<string, unknown>> = [];

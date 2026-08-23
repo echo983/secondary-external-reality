@@ -1,7 +1,7 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { WorkersAiClient } from "../ai/workersAiClient.js";
+import { createLiveEvalClient } from "./liveEvalHarness.js";
 import { WorkersAiInteractionWorkstation } from "../interactionIr/workstations.js";
 import { replayCanonicalViews } from "../replay/canonicalReplay.js";
 import { LanceCommitStore } from "../storage/lanceCommitStore.js";
@@ -16,8 +16,7 @@ const cases = [
   { input: "把钥匙放到抽屉", response: "放进" }, { input: "拿出钥匙", response: "拿起" },
   { input: "把钥匙放到床上", response: "床上" }, { input: "我手里有什么", response: "没有" },
 ] as const;
-const client = new WorkersAiClient({ accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "00f6c85f82f6297c8c0bef9460e013d9",
-  apiToken: (await readFile(process.env.CLOUDFLARE_API_TOKEN_FILE ?? "secret/cftoken.txt", "utf8")).trim(), timeoutMs: 30_000, maxRetries: 2 });
+const client = await createLiveEvalClient();
 const directory = await mkdtemp(join(tmpdir(), "secondary-reality-placement-sequence-"));
 const store = new LanceCommitStore(join(directory, "world.lancedb"));
 const session = new BedroomSession({ sessionId: "placement-sequence", store, jury: new PassingBedroomJury(), renderer: new ChineseBedroomRenderer(),

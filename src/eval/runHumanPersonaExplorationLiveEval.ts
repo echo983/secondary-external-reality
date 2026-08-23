@@ -1,8 +1,9 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { WorkersAiClient, WORKERS_AI_MODELS } from "../ai/workersAiClient.js";
+import { WORKERS_AI_MODELS } from "../ai/workersAiClient.js";
+import { createLiveEvalClient } from "./liveEvalHarness.js";
 import { WorkersAiInteractionWorkstation } from "../interactionIr/workstations.js";
 import { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import { BedroomSession } from "../turn/bedroomSession.js";
@@ -52,9 +53,7 @@ const PERSONAS: Persona[] = [
 
 const MAX_TURNS_PER_PERSONA = Number(process.env.SER_HUMAN_PERSONA_TURNS ?? 15);
 
-const token = (await readFile(process.env.CLOUDFLARE_API_TOKEN_FILE ?? "secret/cftoken.txt", "utf8")).trim();
-const accountId = process.env.CLOUDFLARE_ACCOUNT_ID ?? "00f6c85f82f6297c8c0bef9460e013d9";
-const client = new WorkersAiClient({ accountId, apiToken: token, timeoutMs: 30_000, maxRetries: 2 });
+const client = await createLiveEvalClient();
 
 async function nextPersonaUtterance(persona: Persona, history: Array<{ input: string; response: string }>): Promise<string> {
   const historyText = history.length === 0

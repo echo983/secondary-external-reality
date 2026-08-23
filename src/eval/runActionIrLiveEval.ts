@@ -1,12 +1,8 @@
-import { readFile } from "node:fs/promises";
 import { WorkersAiActionIrProposer } from "../actionIr/proposer.js";
-import { WorkersAiClient } from "../ai/workersAiClient.js";
+import { createLiveEvalClient } from "./liveEvalHarness.js";
 import { ACTION_IR_CORPUS, actionIrCaseMatches } from "./actionIrCorpus.js";
 
-const tokenPath = process.env.CLOUDFLARE_API_TOKEN_FILE ?? "secret/cftoken.txt";
-const accountId = process.env.CLOUDFLARE_ACCOUNT_ID ?? "00f6c85f82f6297c8c0bef9460e013d9";
-const apiToken = (await readFile(tokenPath, "utf8")).trim();
-const proposer = new WorkersAiActionIrProposer(new WorkersAiClient({ accountId, apiToken, timeoutMs: 30_000, maxRetries: 2 }));
+const proposer = new WorkersAiActionIrProposer(await createLiveEvalClient());
 const rows = [];
 for (const item of ACTION_IR_CORPUS) {
   try {

@@ -1,5 +1,4 @@
-import { readFile } from "node:fs/promises";
-import { WorkersAiClient } from "../ai/workersAiClient.js";
+import { createLiveEvalClient } from "./liveEvalHarness.js";
 import { WorkersAiSemanticIrAuditor, WorkersAiSemanticIrProposer } from "../semanticIr/adapters.js";
 import { compileSemanticIntent } from "../semanticIr/compiler.js";
 import { MaterializedWorld } from "../world/materializedWorld.js";
@@ -11,8 +10,7 @@ const cases = [
   ["我现在拿着哪些东西", "inventory"], ["请看一下纸条", "observe"], ["What is written on the note?", "inspect_inscription_value"],
   ["Is there any writing on the note?", "inspect_inscription_presence"], ["Where exactly is the key?", "locate"], ["What am I currently holding?", "inventory"],
 ] as const;
-const token = (await readFile(process.env.CLOUDFLARE_API_TOKEN_FILE ?? "secret/cftoken.txt", "utf8")).trim();
-const client = new WorkersAiClient({ accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "00f6c85f82f6297c8c0bef9460e013d9", apiToken: token });
+const client = await createLiveEvalClient();
 const proposer = new WorkersAiSemanticIrProposer(client); const auditor = new WorkersAiSemanticIrAuditor(client);
 const fixture = createObjectWorldFixture(); const world = MaterializedWorld.replay([], fixture.seedCommitments); const rows = [];
 for (const [input, expected] of cases) {

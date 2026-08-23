@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { WorkersAiClient } from "../ai/workersAiClient.js";
+import { createLiveEvalClient } from "./liveEvalHarness.js";
 import { WorkersAiInteractionWorkstation } from "../interactionIr/workstations.js";
 import { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import { BedroomSession } from "../turn/bedroomSession.js";
@@ -15,8 +15,7 @@ const seed = Number(process.env.SER_HUMAN_SIM_SEED ?? 20260823);
 const count = Number(process.env.SER_HUMAN_SIM_COUNT ?? 40);
 const corpus = generateHumanSimCorpus({ seed, count });
 
-const token = (await readFile(process.env.CLOUDFLARE_API_TOKEN_FILE ?? "secret/cftoken.txt", "utf8")).trim();
-const client = new WorkersAiClient({ accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "00f6c85f82f6297c8c0bef9460e013d9", apiToken: token, timeoutMs: 30_000, maxRetries: 2 });
+const client = await createLiveEvalClient();
 const directory = await mkdtemp(join(tmpdir(), "secondary-reality-human-sim-corpus-"));
 const store = new LanceCommitStore(join(directory, "world.lancedb"));
 const session = new BedroomSession({
