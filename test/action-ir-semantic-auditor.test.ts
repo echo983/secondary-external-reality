@@ -6,7 +6,7 @@ import { WorkersAiActionIrSemanticAuditor } from "../src/actionIr/semanticAudito
 import type { ActionProposalEnvelopeV07 } from "../src/actionIr/types.js";
 
 const proposal = {
-  schemaVersion: "0.7.0", inputLanguage: "zh", exitKind: "actions",
+  schemaVersion: "0.8.0", inputLanguage: "zh", exitKind: "actions",
   steps: [{ stepId: "s1", primitive: "open", actor: "self", roles: [{ role: "target", mention: "抽屉" }], modifiers: {} }],
 } satisfies ActionProposalEnvelopeV07;
 

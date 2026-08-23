@@ -29,7 +29,7 @@ test("shadow proposal is audited without changing the legacy execution result", 
   const store = new LanceCommitStore(join(directory, "world.lancedb"));
   try {
     const shadow = proposer(async (rawTtd) => result(rawTtd, {
-      schemaVersion: "0.7.0", inputLanguage: "zh", exitKind: "actions",
+      schemaVersion: "0.8.0", inputLanguage: "zh", exitKind: "actions",
       steps: [{ stepId: "s1", primitive: "open", actor: "self", roles: [{ role: "target", mention: "抽屉" }], modifiers: {} }],
     }));
     const session = new BedroomSession({
@@ -59,7 +59,7 @@ test("invalid or unavailable shadow proposer cannot authorize or block a world c
   const store = new LanceCommitStore(join(directory, "world.lancedb"));
   try {
     const bad = proposer(async (rawTtd) => result(rawTtd, {
-      schemaVersion: "0.7.0", inputLanguage: "zh", exitKind: "actions", extraAuthority: "append",
+      schemaVersion: "0.8.0", inputLanguage: "zh", exitKind: "actions", extraAuthority: "append",
       steps: [{ stepId: "s1", primitive: "open", actor: "self", roles: [{ role: "target", mention: "抽屉" }], modifiers: {} }],
     }));
     const first = new BedroomSession({
@@ -89,7 +89,7 @@ test("shadow-only understanding does not bypass the legacy route", async () => {
   const store = new LanceCommitStore(join(directory, "world.lancedb"));
   try {
     const shadow = proposer(async (rawTtd) => result(rawTtd, {
-      schemaVersion: "0.7.0", inputLanguage: "zh", exitKind: "actions",
+      schemaVersion: "0.8.0", inputLanguage: "zh", exitKind: "actions",
       steps: [{ stepId: "s1", primitive: "open", actor: "self", roles: [{ role: "target", mention: "抽屉" }], modifiers: {} }],
     }));
     const session = new BedroomSession({

@@ -43,6 +43,24 @@ function label(entity: MaterializedEntity, language: "zh" | "en"): string {
   return entity.attributes[language === "zh" ? "zh_name" : "en_name"] ?? (language === "zh" ? fallbackZh[entity.entityType] : undefined) ?? entity.entityType;
 }
 
+function isVisible(world: MaterializedWorld, entity: MaterializedEntity, visited = new Set<string>()): boolean {
+  if (visited.has(entity.entityId)) return false;
+  visited.add(entity.entityId);
+  const location = world.directLocation(entity.entityId);
+  if (!location) return entity.entityType !== "person";
+  if (location.predicate === "held_by") return location.objectId === "self";
+  const parent = world.entities.get(location.objectId);
+  if (!parent || !isVisible(world, parent, visited)) return false;
+  if (location.predicate === "contained_by") return parent.attributes.open_state === "open";
+  return true;
+}
+
+function relationWords(relation: MaterializedRelation, object: MaterializedEntity, language: "zh" | "en"): string {
+  const place = label(object, language);
+  if (language === "zh") return relation.predicate === "held_by" ? "在你手里" : relation.predicate === "contained_by" ? `在${place}里面` : `在${place}上`;
+  return relation.predicate === "held_by" ? "in your hand" : relation.predicate === "contained_by" ? `inside the ${place}` : `on the ${place}`;
+}
+
 export async function runObjectTurn(options: {
   rawTtd: string;
   turnId: string;
@@ -78,7 +96,61 @@ export async function runObjectTurn(options: {
   const epistemicChanges: EpistemicChange[] = [];
   let response: string;
 
-  if (parsed.operation === "write_and_hide") {
+  if (parsed.operation === "look_around") {
+    const visible = [...world.entities.values()].filter((entity) => isVisible(world, entity)).sort((a, b) => a.entityId.localeCompare(b.entityId));
+    const eventId = `event-look-around-${options.commitSequence}`;
+    events.push({ eventId, type: "action_result", actionKind: "look_around", outcome: "success", subjectRef: "self" });
+    for (const entity of visible) {
+      const evidenceId = `evidence-visible-${entity.entityId}-${options.commitSequence}`;
+      evidenceGenerated.push({ evidenceId, kind: "entity_observed", sourceEventId: eventId, subjectId: entity.entityId });
+      epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
+    }
+    const names = visible.map((entity) => label(entity, parsed.inputLanguage));
+    observations.push({ kind: "visible_entities", entityIds: visible.map((entity) => entity.entityId) });
+    response = parsed.inputLanguage === "zh" ? `你环顾四周，可以看到：${names.join("、")}。` : `You look around and can see: ${names.join(", ")}.`;
+  } else if (parsed.operation === "inventory") {
+    const held = world.entitiesRelatedTo("held_by", "self");
+    const eventId = `event-inventory-${options.commitSequence}`;
+    events.push({ eventId, type: "action_result", actionKind: "inventory", outcome: "success", subjectRef: "self" });
+    for (const entity of held) {
+      const relation = world.directLocation(entity.entityId)!;
+      fact(registry, snapshots, conditions, `relation:${relation.relationId}.active`, "true", relation.setAtSequence);
+      const evidenceId = `evidence-held-${entity.entityId}-${options.commitSequence}`;
+      evidenceGenerated.push({ evidenceId, kind: "relation_observed", sourceEventId: eventId, subjectId: entity.entityId, predicate: "held_by", objectId: "self" });
+      epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
+    }
+    const names = held.map((entity) => label(entity, parsed.inputLanguage));
+    observations.push({ kind: "held_entities", entityIds: held.map((entity) => entity.entityId) });
+    response = parsed.inputLanguage === "zh" ? (names.length ? `你手里拿着：${names.join("、")}。` : "你手里没有拿着东西。") : (names.length ? `You are holding: ${names.join(", ")}.` : "You are not holding anything.");
+  } else if (parsed.operation === "inspect_contents") {
+    const container = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.attributes.container === "true"), "container");
+    if (container.attributes.openable === "true" && container.attributes.open_state !== "open") throw new ObjectTurnError(`${container.entityId} is closed.`);
+    const contents = world.entitiesRelatedTo("contained_by", container.entityId);
+    const eventId = `event-inspect-${container.entityId}-${options.commitSequence}`;
+    events.push({ eventId, type: "action_result", actionKind: "inspect_contents", outcome: "success", subjectRef: "self", objectRef: container.entityId });
+    for (const entity of contents) {
+      const relation = world.directLocation(entity.entityId)!;
+      fact(registry, snapshots, conditions, `relation:${relation.relationId}.active`, "true", relation.setAtSequence);
+      const evidenceId = `evidence-content-${entity.entityId}-${options.commitSequence}`;
+      evidenceGenerated.push({ evidenceId, kind: "relation_observed", sourceEventId: eventId, subjectId: entity.entityId, predicate: "contained_by", objectId: container.entityId });
+      epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
+    }
+    const names = contents.map((entity) => label(entity, parsed.inputLanguage));
+    observations.push({ kind: "container_contents", containerId: container.entityId, entityIds: contents.map((entity) => entity.entityId) });
+    response = parsed.inputLanguage === "zh" ? (names.length ? `${label(container, "zh")}里面有：${names.join("、")}。` : `${label(container, "zh")}里面是空的。`) : (names.length ? `Inside the ${label(container, "en")} you see: ${names.join(", ")}.` : `The ${label(container, "en")} is empty.`);
+  } else if (parsed.operation === "locate") {
+    const target = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity !== undefined && entity.entityType !== "person"), "locatable object");
+    if (!isVisible(world, target)) throw new ObjectTurnError(`${target.entityId} is not currently visible.`);
+    const location = currentLocation(world, target);
+    const locationObject = world.entities.get(location.objectId)!;
+    fact(registry, snapshots, conditions, `relation:${location.relationId}.active`, "true", location.setAtSequence);
+    const eventId = `event-locate-${target.entityId}-${options.commitSequence}`;
+    events.push({ eventId, type: "action_result", actionKind: "locate", outcome: "success", subjectRef: "self", objectRef: target.entityId });
+    const evidenceId = `evidence-location-${target.entityId}-${options.commitSequence}`;
+    evidenceGenerated.push({ evidenceId, kind: "relation_observed", sourceEventId: eventId, subjectId: target.entityId, predicate: location.predicate, objectId: location.objectId });
+    epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
+    response = parsed.inputLanguage === "zh" ? `${label(target, "zh")}${relationWords(location, locationObject, "zh")}。` : `The ${label(target, "en")} is ${relationWords(location, locationObject, "en")}.`;
+  } else if (parsed.operation === "write_and_hide") {
     const inscription = parsed.rawTtd.match(/[0-9]{1,64}/u)?.[0];
     if (!inscription) throw new ObjectTurnError("No numeric inscription was supplied.");
     const note = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.entityType === "paper_note"), "paper note");
@@ -234,6 +306,7 @@ export async function runObjectTurn(options: {
 export function isObjectIntent(rawTtd: string): boolean {
   const parsed = parseObjectIntent(rawTtd);
   if (!parsed) return false;
+  if (parsed.operation === "look_around" || parsed.operation === "inventory") return true;
   const ids = resolveFixtureEntity(createObjectWorldFixture(), rawTtd);
   return ids.length > 0;
 }

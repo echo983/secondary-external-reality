@@ -36,3 +36,15 @@ test("preserves Chinese input split inside a UTF-8 character", async () => {
   await shell.settled();
   assert.equal(received, "开门");
 });
+
+test("offers discoverable help without invoking the world handler", async () => {
+  const inputs: string[] = [];
+  let output = "";
+  const sink = { write(text: string) { output += text; }, end() {} };
+  const shell = new TtdTextShell({ async submit(input) { inputs.push(input); return { response: "unused" }; } }, sink);
+  shell.start();
+  shell.receive("help\n");
+  await shell.settled();
+  assert.match(output, /look.*inventory.*抽屉里有什么/u);
+  assert.deepEqual(inputs, []);
+});

@@ -1,4 +1,4 @@
-export const ACTION_IR_SCHEMA_VERSION = "0.7.0" as const;
+export const ACTION_IR_SCHEMA_VERSION = "0.8.0" as const;
 
 export const ACTION_PRIMITIVES = [
   "take",
@@ -10,6 +10,10 @@ export const ACTION_PRIMITIVES = [
   "open_and_observe",
   "write_and_hide",
   "read",
+  "look_around",
+  "inspect_contents",
+  "locate",
+  "inventory",
 ] as const;
 
 export type ActionPrimitive = (typeof ACTION_PRIMITIVES)[number];

@@ -32,7 +32,7 @@ test("active IR routes an open paraphrase through the existing commit admission 
   const store = new LanceCommitStore(join(directory, "world.lancedb"));
   try {
     const raw = "我拉动抽屉直到它不再闭合";
-    const proposal: ActionProposalEnvelopeV07 = { schemaVersion: "0.7.0", inputLanguage: "zh", exitKind: "actions",
+    const proposal: ActionProposalEnvelopeV07 = { schemaVersion: "0.8.0", inputLanguage: "zh", exitKind: "actions",
       steps: [{ stepId: "s1", primitive: "open", actor: "self", roles: [{ role: "target", mention: "抽屉" }], modifiers: {} }] };
     const turn = await session(store, proposal).submit(raw);
     assert.equal(turn.commitPackage.newWorldCommitments[0]?.kind, "attribute_set");
@@ -46,7 +46,7 @@ test("active IR replays current world before every ordered step", async () => {
   const store = new LanceCommitStore(join(directory, "world.lancedb"));
   try {
     const raw = "打开抽屉，拿起钥匙，然后把钥匙放进抽屉";
-    const proposal: ActionProposalEnvelopeV07 = { schemaVersion: "0.7.0", inputLanguage: "zh", exitKind: "actions", steps: [
+    const proposal: ActionProposalEnvelopeV07 = { schemaVersion: "0.8.0", inputLanguage: "zh", exitKind: "actions", steps: [
       { stepId: "s1", primitive: "open", actor: "self", roles: [{ role: "target", mention: "抽屉" }], modifiers: {} },
       { stepId: "s2", primitive: "take", actor: "self", roles: [{ role: "target", mention: "钥匙" }], modifiers: {} },
       { stepId: "s3", primitive: "put_inside", actor: "self", roles: [{ role: "target", mention: "钥匙" }, { role: "destination", mention: "抽屉" }], modifiers: {} },
@@ -62,11 +62,11 @@ test("active IR semantic rejection and explicit exits produce zero commits", asy
   const directory = await mkdtemp(join(tmpdir(), "secondary-reality-active-"));
   const store = new LanceCommitStore(join(directory, "world.lancedb"));
   try {
-    const action: ActionProposalEnvelopeV07 = { schemaVersion: "0.7.0", inputLanguage: "zh", exitKind: "actions",
+    const action: ActionProposalEnvelopeV07 = { schemaVersion: "0.8.0", inputLanguage: "zh", exitKind: "actions",
       steps: [{ stepId: "s1", primitive: "open", actor: "self", roles: [{ role: "target", mention: "抽屉" }], modifiers: {} }] };
     const rejecting: ActionIrSemanticAuditor = { async review() { return { verdict: "fail", violations: [{ code: "INVENTED", path: "$.steps", message: "invented" }] }; } };
     await assert.rejects(session(store, action, rejecting).submit("看看抽屉是否存在，但不要动它"));
-    const exit: ActionProposalEnvelopeV07 = { schemaVersion: "0.7.0", inputLanguage: "zh", exitKind: "not_an_action", steps: [] };
+    const exit: ActionProposalEnvelopeV07 = { schemaVersion: "0.8.0", inputLanguage: "zh", exitKind: "not_an_action", steps: [] };
     await assert.rejects(session(store, exit).submit("今天的房间很安静"));
     assert.equal((await store.list()).length, 0);
     assert.deepEqual((await store.listActionProposalAudits()).map((audit) => audit.status), ["rejected", "validated"]);

@@ -65,6 +65,16 @@ export const PRIMITIVE_CONTRACTS: Readonly<Record<ActionPrimitive, PrimitiveCont
     primitive: "read",
     roles: [{ role: "target", required: true, grounding: "entity", allowedEntityTypes: ["paper_note", "pillow"] }],
   },
+  look_around: { primitive: "look_around", roles: [] },
+  inventory: { primitive: "inventory", roles: [] },
+  inspect_contents: {
+    primitive: "inspect_contents",
+    roles: [{ role: "target", required: true, grounding: "entity", requiredCapabilities: ["container"] }],
+  },
+  locate: {
+    primitive: "locate",
+    roles: [{ role: "target", required: true, grounding: "entity" }],
+  },
 };
 
 export function primitiveContract(primitive: ActionPrimitive): PrimitiveContract {

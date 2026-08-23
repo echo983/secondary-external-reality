@@ -60,12 +60,21 @@ export class TtdTextShell {
       this.sink.write("\r\nttd: ");
       return;
     }
+    if (line === "help" || line === "帮助" || line === "?") {
+      this.sink.write("\r\n可尝试：look（环顾）、inventory（手中物品）、钥匙在哪里、抽屉里有什么、打开/关闭、拿起、放到表面或容器、写藏并读取纸条。可用‘然后’连接动作，输入 exit 退出。\r\nttd: ");
+      return;
+    }
     this.sink.write("\r\n");
     try {
       const result = await this.handler.submit(line);
       this.sink.write(`${result.response}\r\n`);
-    } catch {
-      this.sink.write("这个行动目前无法在最小世界中收束。\r\n");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (/ is closed\.$/u.test(message)) this.sink.write("目标容器是关闭的，需要先打开。\r\n");
+      else if (/not currently visible/u.test(message)) this.sink.write("你目前看不到这个对象。\r\n");
+      else if (/ambiguous/u.test(message)) this.sink.write("对象指代不明确，请说得更具体。\r\n");
+      else if (/[\u3400-\u9fff]/u.test(message)) this.sink.write(`${message}\r\n`);
+      else this.sink.write("这个行动目前无法在最小世界中收束；输入 help 查看当前能力。\r\n");
     }
     this.sink.write("ttd: ");
   }

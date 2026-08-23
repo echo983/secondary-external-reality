@@ -15,7 +15,7 @@ import { createObjectWorldFixture } from "../src/world/objectFixture.js";
 
 function action(primitive: ActionProposalEnvelopeV07["steps"][number]["primitive"], roles: ActionProposalEnvelopeV07["steps"][number]["roles"]): ActionProposalEnvelopeV07 {
   return {
-    schemaVersion: "0.7.0", inputLanguage: "zh", exitKind: "actions",
+    schemaVersion: "0.8.0", inputLanguage: "zh", exitKind: "actions",
     steps: [{ stepId: "s1", primitive, actor: "self", roles, modifiers: {} }],
   };
 }
@@ -69,7 +69,7 @@ test("keeps literal content out of entity resolution", () => {
 test("keeps explicit non-action exits outside grounding and compilation", () => {
   const fixture = createObjectWorldFixture();
   const world = MaterializedWorld.replay([], fixture.seedCommitments);
-  const result = groundActionProposal({ schemaVersion: "0.7.0", inputLanguage: "zh", exitKind: "unsupported_action", steps: [] }, fixture, world);
+  const result = groundActionProposal({ schemaVersion: "0.8.0", inputLanguage: "zh", exitKind: "unsupported_action", steps: [] }, fixture, world);
   assert.equal(result.ready, false);
   assert.deepEqual(result.steps, []);
   assert.deepEqual(result.issues, []);

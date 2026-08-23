@@ -7,7 +7,7 @@ import { parseActionProposalJson, validateActionProposal } from "../src/actionIr
 
 function proposal(overrides: Partial<ActionProposalEnvelopeV07> = {}): ActionProposalEnvelopeV07 {
   return {
-    schemaVersion: "0.7.0",
+    schemaVersion: "0.8.0",
     inputLanguage: "zh",
     exitKind: "actions",
     steps: [{
