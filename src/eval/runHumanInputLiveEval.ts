@@ -13,16 +13,16 @@ import { BedroomSession } from "../turn/bedroomSession.js";
 import { ChineseBedroomRenderer, PassingBedroomJury } from "../turn/bedroomTurn.js";
 
 const cases = [
-  { id: "greeting", input: "你好呀", expectedKind: "interface", expectedCommitDelta: 0 },
-  { id: "look-colloquial", input: "我随便瞅瞅这屋里都有啥", expectedKind: "committed", expectedCommitDelta: 1 },
+  { id: "greeting", input: "你好呀", expectedKind: "interface", expectedCommitDelta: 0, expectedResponse: /ttd/u },
+  { id: "look-colloquial", input: "我随便瞅瞅这屋里都有啥", expectedKind: "committed", expectedCommitDelta: 1, expectedResponse: /床.*门.*抽屉/u },
   { id: "self-location", input: "我在哪里", expectedKind: "committed", expectedCommitDelta: 1 },
   { id: "self-bed", input: "我在床上吗", expectedKind: "committed", expectedCommitDelta: 1 },
-  { id: "alias-ellipsis", input: "便签呢", expectedKind: "committed", expectedCommitDelta: 1 },
+  { id: "alias-ellipsis", input: "便签呢", expectedKind: "committed", expectedCommitDelta: 1, expectedResponse: /(?:纸条|便签).*床头柜/u },
   { id: "unsupported-writing", input: "在便签上随便写个 hello", expectedKind: "interface", expectedCommitDelta: 0 },
   { id: "fragment", input: "把", expectedKind: "interface", expectedCommitDelta: 0 },
   { id: "outside", input: "我看看门外头有什么", expectedKind: "interface", expectedCommitDelta: 0 },
   { id: "take-colloquial", input: "顺手把那支笔拿起来吧", expectedKind: "committed", expectedCommitDelta: 1 },
-  { id: "inventory-colloquial", input: "我现在手上都拿了啥呀", expectedKind: "committed", expectedCommitDelta: 1 },
+  { id: "inventory-colloquial", input: "我现在手上都拿了啥呀", expectedKind: "committed", expectedCommitDelta: 1, expectedResponse: /笔/u },
   { id: "inscription-typo", input: "纸纸条上到底写没写东西", expectedKind: "committed", expectedCommitDelta: 1 },
   { id: "contents-colloquial-closed", input: "抽屉里头现在都有啥", expectedKind: "boundary", expectedCommitDelta: 0 },
   { id: "open-colloquial", input: "劳驾把抽屉打开看看", expectedKind: "committed", expectedCommitDelta: 1 },
@@ -48,8 +48,9 @@ try {
     try {
       const result = await session.submit(item.input);
       const delta = (await store.list()).length - before;
+      const responseCorrect = !("expectedResponse" in item) || item.expectedResponse.test(result.response);
       rows.push({ id: item.id, input: item.input, expectedKind: item.expectedKind, actualKind: result.kind, expectedCommitDelta: item.expectedCommitDelta,
-        actualCommitDelta: delta, correct: result.kind === item.expectedKind && delta === item.expectedCommitDelta, response: result.response });
+        actualCommitDelta: delta, responseCorrect, correct: result.kind === item.expectedKind && delta === item.expectedCommitDelta && responseCorrect, response: result.response });
     } catch (error) {
       const delta = (await store.list()).length - before;
       rows.push({ id: item.id, input: item.input, expectedKind: item.expectedKind, actualKind: "rejected", expectedCommitDelta: item.expectedCommitDelta,

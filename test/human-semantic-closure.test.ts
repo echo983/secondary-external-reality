@@ -17,13 +17,45 @@ async function withSession(run: (session: BedroomSession, store: LanceCommitStor
 
 test("classifies greetings, fragments, and absent world scope as audited zero-commit interface results", async () => {
   await withSession(async (session, store) => {
-    for (const [input, code] of [["你好", "CONVERSATION"], ["在 便", "INCOMPLETE_FRAGMENT"], ["看看门外有什么", "UNSUPPORTED_WORLD_SCOPE"], ["在便签上写hello", "UNSUPPORTED_CAPABILITY"]] as const) {
+    for (const [input, code] of [["你好呀", "CONVERSATION"], ["在 便", "INCOMPLETE_FRAGMENT"], ["看看门外有什么", "UNSUPPORTED_WORLD_SCOPE"], ["在便签上写hello", "UNSUPPORTED_CAPABILITY"]] as const) {
       const result = await session.submit(input);
       assert.equal(result.kind, "interface");
       assert.equal(result.kind === "interface" ? result.code : undefined, code);
     }
     assert.equal((await store.list()).length, 0);
     assert.deepEqual((await store.listTurnAttempts()).map((attempt) => attempt.status), ["interface", "interface", "interface", "interface"]);
+  });
+});
+
+test("question speech acts take precedence over unsupported arbitrary writing", async () => {
+  await withSession(async (session, store) => {
+    const result = await session.submit("纸纸条上到底写没写东西");
+    assert.equal(result.kind, "committed");
+    assert.match(result.response, /没有字/u);
+    assert.equal((await store.list()).length, 1);
+  });
+});
+
+test("opens and inspects the same container without requiring a named portable target", async () => {
+  await withSession(async (session, store) => {
+    const result = await session.submit("劳驾把抽屉打开看看");
+    assert.equal(result.kind, "committed");
+    assert.match(result.response, /打开.*抽屉.*空/u);
+    assert.equal((await store.list()).length, 1);
+  });
+});
+
+test("routes high-confidence colloquial perception and location without model interpretation", async () => {
+  await withSession(async (session) => {
+    const look = await session.submit("我随便瞅瞅这屋里都有啥");
+    assert.equal(look.kind, "committed");
+    assert.match(look.response, /床.*门.*抽屉/u);
+    const inventory = await session.submit("我现在手上都拿了啥呀");
+    assert.equal(inventory.kind, "committed");
+    assert.match(inventory.response, /没有/u);
+    const location = await session.submit("Where exactly did I leave the key?");
+    assert.equal(location.kind, "committed");
+    assert.match(location.response, /table/iu);
   });
 });
 

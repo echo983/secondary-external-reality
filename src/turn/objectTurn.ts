@@ -276,6 +276,32 @@ export async function runObjectTurn(options: {
       { kind: "attribute_evidence", semanticAddress: entityAttributeAddress(note.entityId, "inscription"), value: inscription, evidenceId: inscriptionEvidenceId },
     );
     response = parsed.inputLanguage === "zh" ? `你在${location.objectId === "pillow-1" ? "枕头下面" : "那里"}找到${label(note, "zh")}。上面写着“${inscription}”。` : `You find the ${label(note, "en")} and read “${inscription}”.`;
+  } else if (parsed.operation === "open_and_inspect") {
+    const container = exactlyOne(candidatesByCapability(world, mentionedIds, "openable").filter((entity) => entity.attributes.container === "true"), "openable container");
+    if (container.attributes.open_state === "closed") {
+      fact(registry, snapshots, conditions, `entity:${container.entityId}.open_state`, "closed", container.attributeRevisions.open_state ?? 0, ["closed", "open"]);
+      events.push({ eventId: `event-open-${container.entityId}-${options.commitSequence}`, type: "action_result", actionKind: "open", outcome: "success", subjectRef: "self", objectRef: container.entityId });
+      commitments.push({ kind: "attribute_set", entityId: container.entityId, attribute: "open_state", value: "open" });
+    } else if (container.attributes.open_state !== "open") {
+      throw new ObjectTurnError(`${container.entityId} cannot be opened.`);
+    }
+    const contents = world.entitiesRelatedTo("contained_by", container.entityId);
+    const inspectEventId = `event-inspect-${container.entityId}-${options.commitSequence}`;
+    events.push({ eventId: inspectEventId, type: "action_result", actionKind: "inspect_contents", outcome: "success", subjectRef: "self", objectRef: container.entityId });
+    for (const entity of contents) {
+      const relation = world.directLocation(entity.entityId)!;
+      fact(registry, snapshots, conditions, `relation:${relation.relationId}.active`, "true", relation.setAtSequence);
+      const evidenceId = `evidence-content-${entity.entityId}-${options.commitSequence}`;
+      evidenceGenerated.push({ evidenceId, kind: "relation_observed", sourceEventId: inspectEventId, subjectId: entity.entityId, predicate: "contained_by", objectId: container.entityId });
+      epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
+    }
+    const names = contents.map((entity) => label(entity, parsed.inputLanguage));
+    observations.push({ kind: "container_contents", containerId: container.entityId, entityIds: contents.map((entity) => entity.entityId) });
+    completeRelationSet = { predicate: "contained_by", objectId: container.entityId, subjectIds: contents.map((entity) => entity.entityId), sourceEventId: inspectEventId };
+    presentationItems.push({ kind: "bounded_relation_set", predicate: "contained_by", objectId: container.entityId, subjectIds: contents.map((entity) => entity.entityId), complete: true });
+    response = parsed.inputLanguage === "zh"
+      ? (names.length ? `你打开${label(container, "zh")}，看到里面有：${names.join("、")}。` : `你打开${label(container, "zh")}，看到里面是空的。`)
+      : (names.length ? `You open the ${label(container, "en")} and see inside: ${names.join(", ")}.` : `You open the ${label(container, "en")} and see that it is empty.`);
   } else if (parsed.operation === "open_and_observe") {
     const container = exactlyOne(candidatesByCapability(world, mentionedIds, "openable").filter((entity) => entity.attributes.container === "true"), "openable container");
     const target = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.attributes.portable === "true"), "observable object");

@@ -68,7 +68,7 @@ export class BedroomSession {
     }
     const discourse = this.resolveDiscourseIntent(rawTtd);
     const wholeObjectIntent = parseObjectIntent(rawTtd) ?? discourse?.intent;
-    const atomicComposite = wholeObjectIntent?.operation === "write_and_hide" || wholeObjectIntent?.operation === "open_and_observe" || wholeObjectIntent?.operation === "read";
+    const atomicComposite = wholeObjectIntent?.operation === "write_and_hide" || wholeObjectIntent?.operation === "open_and_observe" || wholeObjectIntent?.operation === "open_and_inspect" || wholeObjectIntent?.operation === "read";
     const steps = atomicComposite ? [rawTtd.trim()] : splitActionSequence(rawTtd);
     const deterministicFastPath = Boolean(discourse) || (steps.length > 0 && steps.every((step) => isObjectIntent(step)));
     const useActiveIr = this.options.actionIr?.mode === "active" && !deterministicFastPath;
@@ -125,23 +125,48 @@ export class BedroomSession {
   private async executeSemanticFallback(rawTtd: string, rootTurnId: string): Promise<TurnResult | null> {
     const config = this.options.semanticIr!;
     const normalized = normalizeSemanticInput(rawTtd);
+    const auditId = `${rootTurnId}:semantic-ir`;
+    const inputHash = createHash("sha256").update(rawTtd).digest("hex");
+    let stage: "proposal" | "validation" | "audit" | "compile" | "execution" = "proposal";
+    let auditWritten = false;
     try {
       const proposed = await config.proposer.propose(normalized.normalized);
-      if (!proposed.validation.proposal) return null;
+      stage = "validation";
+      if (!proposed.validation.proposal) {
+        await this.options.store.appendActionProposalAudit({
+          auditId, rootTurnId, mode: "active", inputHash, outputHash: proposed.outputHash,
+          status: "rejected", failureStage: stage, validationIssues: proposed.validation.issues,
+          groundingIssues: normalized.repairs, semanticIssues: [], model: proposed.model,
+          latencyMs: proposed.latencyMs, usage: proposed.usage, createdAt: new Date().toISOString(),
+        });
+        return null;
+      }
+      stage = "audit";
       const audit = await config.auditor.review(normalized.normalized, proposed.validation.proposal);
-      if (audit.verdict !== "pass") return null;
+      if (audit.verdict !== "pass") {
+        await this.options.store.appendActionProposalAudit({
+          auditId, rootTurnId, mode: "active", inputHash, outputHash: proposed.outputHash,
+          status: "rejected", failureStage: stage, proposal: proposed.validation.proposal,
+          validationIssues: proposed.validation.issues, groundingIssues: normalized.repairs,
+          semanticIssues: audit.violations, model: proposed.model, latencyMs: proposed.latencyMs,
+          usage: proposed.usage, createdAt: new Date().toISOString(),
+        });
+        return null;
+      }
       await this.options.store.appendActionProposalAudit({
-        auditId: `${rootTurnId}:semantic-ir`, rootTurnId, mode: "active",
-        inputHash: createHash("sha256").update(rawTtd).digest("hex"), outputHash: proposed.outputHash,
+        auditId, rootTurnId, mode: "active", inputHash, outputHash: proposed.outputHash,
         status: "validated", proposal: proposed.validation.proposal, validationIssues: proposed.validation.issues,
         groundingIssues: normalized.repairs, semanticIssues: audit.violations, model: proposed.model,
         latencyMs: proposed.latencyMs, usage: proposed.usage, createdAt: new Date().toISOString(),
       });
+      auditWritten = true;
       const completed: CommittedTurnResult[] = [];
       for (const [index, intent] of proposed.validation.proposal.intents.entries()) {
+        stage = "compile";
         const fixture = createObjectWorldFixture();
         const world = MaterializedWorld.replay(await this.options.store.list(), fixture.seedCommitments);
         const executable = compileSemanticIntent(intent, normalized.normalized, proposed.validation.proposal.inputLanguage, fixture, world);
+        stage = "execution";
         const result = await this.executeAudited(rawTtd, rootTurnId, index, proposed.validation.proposal.intents.length, executable.objectIntent, executable.mentionedEntityIds);
         if (result.kind !== "committed") return result;
         completed.push(result);
@@ -149,7 +174,18 @@ export class BedroomSession {
       const last = completed.at(-1)!;
       return { kind: "committed", response: completed.map((item) => item.response).join(""), commitPackage: last.commitPackage,
         commitPackages: completed.flatMap((item) => item.commitPackages ?? [item.commitPackage]), intent: parseMvpIntent(rawTtd), partial: false };
-    } catch { return null; }
+    } catch (error) {
+      if (auditWritten || stage === "compile" || stage === "execution") throw error;
+      try {
+        await this.options.store.appendActionProposalAudit({
+          auditId, rootTurnId, mode: "active", inputHash, status: "model_error", failureStage: stage,
+          validationIssues: [], groundingIssues: normalized.repairs,
+          semanticIssues: [{ code: "SEMANTIC_IR_STAGE_ERROR", stage, message: error instanceof Error ? error.message : String(error) }],
+          createdAt: new Date().toISOString(),
+        });
+      } catch { /* Telemetry failure must not create world state. */ }
+      return null;
+    }
   }
 
   private failureMessage(rawTtd: string, zh: string, en: string): string {

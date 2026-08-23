@@ -2,9 +2,9 @@ export type InterfaceInputClass = "CONVERSATION" | "INCOMPLETE_FRAGMENT" | "UNSU
 
 export function classifyInterfaceInput(rawTtd: string): InterfaceInputClass | null {
   const text = rawTtd.trim();
-  if (/^(?:你好|您好|嗨|hello|hi|hey)[！!。.]*$/iu.test(text)) return "CONVERSATION";
+  if (/^(?:你好|您好|嗨)(?:呀|啊|哇|哦|喔|哈)?[！!。.]*$/u.test(text) || /^(?:hello|hi|hey)(?:\s+there)?[！!。.]*$/iu.test(text)) return "CONVERSATION";
   if (/(?:门外|房间外|outside (?:the )?(?:door|room))/iu.test(text)) return "UNSUPPORTED_WORLD_SCOPE";
-  if (/(?=.*(?:纸条|便签|note|paper))(?=.*(?:写|write))/iu.test(text) && !/(?:写着什么|写了什么|有字|what.*written|any (?:text|writing))/iu.test(text) && !/[0-9]{1,64}/u.test(text)) return "UNSUPPORTED_CAPABILITY";
+  if (/(?=.*(?:纸条|便签|note|paper))(?=.*(?:写|write))/iu.test(text) && !/(?:写着什么|写了什么|写没写|有没有.{0,6}(?:字|内容|东西)|有字|what.*written|any (?:text|writing))/iu.test(text) && !/[0-9]{1,64}/u.test(text)) return "UNSUPPORTED_CAPABILITY";
   if (/^(?:在|把|向|从|用)\s*.{0,3}$/u.test(text) || /(?:在|把|向|从|用|and|then)\s*$/iu.test(text)) return "INCOMPLETE_FRAGMENT";
   return null;
 }
