@@ -31,8 +31,14 @@ test("moves a key through hand and drawer with temporal relations", async () => 
     store = new LanceCommitStore(path);
     const restarted = session(store);
     await assert.rejects(restarted.submit("我从抽屉取出钥匙"), ObjectTurnError);
-    await restarted.submit("我打开抽屉");
-    assert.match((await restarted.submit("我找钥匙")).response, /找到/);
+    const observed = await restarted.submit("我回来打开抽屉找钥匙");
+    assert.match(observed.response, /找到/);
+    assert.deepEqual(observed.commitPackage.epistemicChanges, [{
+      agentId: "self",
+      kind: "acquired_evidence",
+      evidenceId: "evidence-location-key-1-4",
+    }]);
+    assert.equal(observed.commitPackage.evidenceGenerated?.[0]?.objectId, "drawer-1");
 
     const commits = await store.list();
     const world = MaterializedWorld.replay(commits, createObjectWorldFixture().seedCommitments);
@@ -44,7 +50,7 @@ test("moves a key through hand and drawer with temporal relations", async () => 
       setAtSequence: 2,
     });
     assert.equal(world.entities.get("drawer-1")?.attributes.open_state, "open");
-    assert.equal(commits.length, 6);
+    assert.equal(commits.length, 5);
   } finally {
     store.close();
     await rm(directory, { recursive: true, force: true });

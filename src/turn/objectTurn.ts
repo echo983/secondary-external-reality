@@ -1,4 +1,4 @@
-import type { CandidateEnvelope, ProjectionDefinition, ProjectionSnapshot, WorldCommitment } from "../protocol/types.js";
+import type { CandidateEnvelope, EpistemicChange, EvidenceRecord, ProjectionDefinition, ProjectionSnapshot, WorldCommitment } from "../protocol/types.js";
 import type { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import { MaterializedWorld, type MaterializedEntity, type MaterializedRelation } from "../world/materializedWorld.js";
 import { createObjectWorldFixture, resolveFixtureEntity, type ObjectWorldFixture } from "../world/objectFixture.js";
@@ -58,9 +58,30 @@ export async function runObjectTurn(options: {
   const commitments: WorldCommitment[] = [];
   const events: CandidateEnvelope["candidates"][number]["proposedEvents"] = [];
   const observations: unknown[] = [];
+  const evidenceGenerated: EvidenceRecord[] = [];
+  const epistemicChanges: EpistemicChange[] = [];
   let response: string;
 
-  if (parsed.operation === "open" || parsed.operation === "close") {
+  if (parsed.operation === "open_and_observe") {
+    const container = exactlyOne(candidatesByCapability(world, mentionedIds, "openable").filter((entity) => entity.attributes.container === "true"), "openable container");
+    const target = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.attributes.portable === "true"), "observable object");
+    const location = currentLocation(world, target);
+    if (location.predicate !== "contained_by" || location.objectId !== container.entityId) throw new ObjectTurnError(`${target.entityId} is not inside ${container.entityId}.`);
+    fact(registry, snapshots, conditions, `relation:${location.relationId}.active`, "true", location.setAtSequence);
+    if (container.attributes.open_state === "closed") {
+      fact(registry, snapshots, conditions, `entity:${container.entityId}.open_state`, "closed", container.attributeRevisions.open_state ?? 0, ["closed", "open"]);
+      events.push({ eventId: `event-open-${container.entityId}-${options.commitSequence}`, type: "action_result", actionKind: "open", outcome: "success", subjectRef: "self", objectRef: container.entityId });
+      commitments.push({ kind: "attribute_set", entityId: container.entityId, attribute: "open_state", value: "open" });
+    } else if (container.attributes.open_state !== "open") {
+      throw new ObjectTurnError(`${container.entityId} cannot be opened.`);
+    }
+    const eventId = `event-observe-${target.entityId}-${options.commitSequence}`;
+    events.push({ eventId, type: "action_result", actionKind: "observe", outcome: "success", subjectRef: "self", objectRef: target.entityId });
+    const evidenceId = `evidence-location-${target.entityId}-${options.commitSequence}`;
+    evidenceGenerated.push({ evidenceId, kind: "relation_observed", sourceEventId: eventId, subjectId: target.entityId, predicate: location.predicate, objectId: location.objectId });
+    epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
+    response = parsed.inputLanguage === "zh" ? "你打开抽屉，在里面找到了钥匙。" : `You open the ${container.entityType} and find the ${target.entityType} inside.`;
+  } else if (parsed.operation === "open" || parsed.operation === "close") {
     const target = exactlyOne(candidatesByCapability(world, mentionedIds, "openable"), "openable object");
     const expected = parsed.operation === "open" ? "closed" : "open";
     const next = parsed.operation === "open" ? "open" : "closed";
@@ -114,12 +135,14 @@ export async function runObjectTurn(options: {
     fact(registry, snapshots, conditions, `relation:${location.relationId}.active`, "true", location.setAtSequence);
     const eventId = `event-observe-${target.entityId}-${options.commitSequence}`;
     events.push({ eventId, type: "action_result", actionKind: "observe", outcome: "success", subjectRef: "self", objectRef: target.entityId });
-    observations.push({ kind: "entity_location_observed", entityId: target.entityId, predicate: location.predicate, objectId: location.objectId });
+    const evidenceId = `evidence-location-${target.entityId}-${options.commitSequence}`;
+    evidenceGenerated.push({ evidenceId, kind: "relation_observed", sourceEventId: eventId, subjectId: target.entityId, predicate: location.predicate, objectId: location.objectId });
+    epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
     response = parsed.inputLanguage === "zh" ? `你找到了${target.entityType === "key" ? "钥匙" : "那个物品"}。` : `You find the ${target.entityType}.`;
   }
 
   const candidateId = `object-${parsed.operation}-${options.commitSequence}`;
-  const envelope: CandidateEnvelope = { candidates: [{ candidateId, outcomeKind: "success", requiresResolution: [], conditions, proposedEvents: events, proposedStateChanges: [], observations, newWorldCommitments: commitments }] };
+  const envelope: CandidateEnvelope = { candidates: [{ candidateId, outcomeKind: "success", requiresResolution: [], conditions, proposedEvents: events, proposedStateChanges: [], observations, evidenceGenerated, epistemicChanges, newWorldCommitments: commitments }] };
   const commitPackage = await commitCandidateEnvelope({ ...options, envelope, registry, snapshots });
   return { response, commitPackage, intent: parseMvpIntent(options.rawTtd) };
 }

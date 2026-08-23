@@ -180,6 +180,22 @@ function validateCandidate(
     }
   });
 
+  const evidenceIds = new Set<string>();
+  for (const [evidenceIndex, evidence] of (candidate.evidenceGenerated ?? []).entries()) {
+    const evidencePath = `${path}.evidenceGenerated[${evidenceIndex}]`;
+    if (!isRecord(evidence)) {
+      issue(issues, "INVALID_EVIDENCE", evidencePath, "Evidence must be an object.");
+      continue;
+    }
+    if (typeof evidence.evidenceId !== "string" || !evidence.evidenceId || evidenceIds.has(evidence.evidenceId)) issue(issues, "INVALID_EVIDENCE_ID", `${evidencePath}.evidenceId`, "Evidence ID must be non-empty and unique.");
+    else evidenceIds.add(evidence.evidenceId);
+    if (typeof evidence.sourceEventId !== "string" || !eventIds.has(evidence.sourceEventId)) issue(issues, "MISSING_EVIDENCE_SOURCE", `${evidencePath}.sourceEventId`, "Evidence must reference a proposed event.");
+    if (typeof evidence.subjectId !== "string" || !evidence.subjectId) issue(issues, "INVALID_EVIDENCE_SUBJECT", `${evidencePath}.subjectId`, "Evidence subject must be non-empty.");
+  }
+  for (const [changeIndex, change] of (candidate.epistemicChanges ?? []).entries()) {
+    if (!isRecord(change) || typeof change.evidenceId !== "string" || !evidenceIds.has(change.evidenceId)) issue(issues, "MISSING_EPISTEMIC_EVIDENCE", `${path}.epistemicChanges[${changeIndex}].evidenceId`, "Epistemic acquisition must reference generated evidence.");
+  }
+
   if (socialResponses.size > 1) {
     issue(issues, "MUTUALLY_EXCLUSIVE_EVENTS", `${path}.proposedEvents`, "A candidate cannot contain multiple social responses.");
   }
@@ -199,7 +215,7 @@ function validateCandidate(
       (event) => event.type === "action_result" && event.outcome === "success",
     );
     const hasPersistentEffect = candidate.proposedStateChanges.length > 0 || candidate.newWorldCommitments.length > 0;
-    const hasPlayerObservation = candidate.observations.length > 0;
+    const hasPlayerObservation = candidate.observations.length > 0 || (candidate.evidenceGenerated?.length ?? 0) > 0;
     if (!hasSuccessfulResult || (!hasPersistentEffect && !hasPlayerObservation)) {
       issue(issues, "UNCONSTITUTED_SUCCESS", path, "Success requires a successful action result and a state change, world commitment, or observation.");
     }
@@ -246,6 +262,11 @@ export function validateCandidateEnvelope(
     for (const field of arrays) {
       if (!Array.isArray(rawCandidate[field])) {
         issue(issues, "MISSING_ARRAY_FIELD", `${path}.${field}`, `${field} must be an array.`);
+      }
+    }
+    for (const optionalArray of ["evidenceGenerated", "epistemicChanges"] as const) {
+      if (optionalArray in rawCandidate && !Array.isArray(rawCandidate[optionalArray])) {
+        issue(issues, "INVALID_OPTIONAL_ARRAY_FIELD", `${path}.${optionalArray}`, `${optionalArray} must be an array when present.`);
       }
     }
     if (issues.some((entry) => entry.path.startsWith(path) && entry.code === "MISSING_ARRAY_FIELD")) {

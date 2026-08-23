@@ -145,3 +145,18 @@ test("rejects untyped or malformed world commitments", () => {
   assert.equal(result.valid, false);
   assert.ok(result.issues.some((entry) => entry.code === "INVALID_WORLD_COMMITMENT_FIELD"));
 });
+
+test("requires evidence provenance and epistemic references", () => {
+  const malformed = validEnvelope();
+  malformed.candidates[0]!.evidenceGenerated = [{
+    evidenceId: "e1",
+    kind: "entity_observed",
+    sourceEventId: "missing-event",
+    subjectId: "self",
+  }];
+  malformed.candidates[0]!.epistemicChanges = [{ agentId: "self", kind: "acquired_evidence", evidenceId: "missing-evidence" }];
+  const result = validateCandidateEnvelope(malformed, registry);
+  assert.equal(result.valid, false);
+  assert.ok(result.issues.some((entry) => entry.code === "MISSING_EVIDENCE_SOURCE"));
+  assert.ok(result.issues.some((entry) => entry.code === "MISSING_EPISTEMIC_EVIDENCE"));
+});

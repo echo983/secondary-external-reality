@@ -78,6 +78,8 @@ export function prepareCommitPackage(
       events: structuredClone(selected.proposedEvents),
       stateChanges: structuredClone(selected.proposedStateChanges),
       observations: structuredClone(selected.observations),
+      evidenceGenerated: structuredClone(selected.evidenceGenerated ?? []),
+      epistemicChanges: structuredClone(selected.epistemicChanges ?? []),
       newWorldCommitments: structuredClone(selected.newWorldCommitments),
     },
   };

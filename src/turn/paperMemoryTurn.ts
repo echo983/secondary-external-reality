@@ -97,6 +97,8 @@ export async function runPaperMemoryTurn(options: {
       ],
       proposedStateChanges: [],
       observations: [{ kind: "inscription_read", entityId: note.entityId, value: note.attributes.inscription }],
+      evidenceGenerated: [{ evidenceId: `evidence-read-${note.entityId}-${options.commitSequence}`, kind: "attribute_observed", sourceEventId: `${note.entityId}-read-${options.commitSequence}`, subjectId: note.entityId, attribute: "inscription", value: note.attributes.inscription! }],
+      epistemicChanges: [{ agentId: "self", kind: "acquired_evidence", evidenceId: `evidence-read-${note.entityId}-${options.commitSequence}` }],
       newWorldCommitments: [],
     }] };
     const commitPackage = await commitCandidateEnvelope({ ...options, envelope, registry, snapshots });

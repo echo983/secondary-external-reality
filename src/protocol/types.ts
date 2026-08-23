@@ -95,6 +95,23 @@ export type WorldCommitment =
   | RelationAssertedCommitment
   | RelationEndedCommitment;
 
+export interface EvidenceRecord {
+  evidenceId: string;
+  kind: "entity_observed" | "attribute_observed" | "relation_observed";
+  sourceEventId: string;
+  subjectId: string;
+  predicate?: string;
+  objectId?: string;
+  attribute?: string;
+  value?: string;
+}
+
+export interface EpistemicChange {
+  agentId: string;
+  kind: "acquired_evidence";
+  evidenceId: string;
+}
+
 export interface ConditionalCandidate {
   candidateId: string;
   outcomeKind: OutcomeKind;
@@ -103,6 +120,8 @@ export interface ConditionalCandidate {
   proposedEvents: ProposedEvent[];
   proposedStateChanges: StateChange[];
   observations: unknown[];
+  evidenceGenerated?: EvidenceRecord[];
+  epistemicChanges?: EpistemicChange[];
   newWorldCommitments: WorldCommitment[];
 }
 
@@ -193,6 +212,8 @@ export interface CommitPackage {
   events: ProposedEvent[];
   stateChanges: StateChange[];
   observations: unknown[];
+  evidenceGenerated?: EvidenceRecord[];
+  epistemicChanges?: EpistemicChange[];
   newWorldCommitments: WorldCommitment[];
 }
 

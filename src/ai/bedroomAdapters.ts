@@ -57,7 +57,7 @@ export class WorkersAiTurnRenderer implements TurnRenderer {
     try {
       const result = await this.client.chat(WORKERS_AI_MODELS.candidate, [
         { role: "system", content: "Render committed player-facing events as one brief natural-language response in the same language as the player's input. Mention only supplied events, state changes, and observations. Add no causes, objects, people, sensations, choices, or outcomes. Output plain prose only." },
-        { role: "user", content: JSON.stringify({ inputLanguageSample: intent.rawTtd, events: commitPackage.events, stateChanges: commitPackage.stateChanges, observations: commitPackage.observations }) },
+        { role: "user", content: JSON.stringify({ inputLanguageSample: intent.rawTtd, events: commitPackage.events, stateChanges: commitPackage.stateChanges, observations: commitPackage.observations, evidenceGenerated: commitPackage.evidenceGenerated ?? [], epistemicChanges: commitPackage.epistemicChanges ?? [] }) },
       ], { temperature: 0.2, max_tokens: 180, chat_template_kwargs: { enable_thinking: false } });
       return result.content;
     } catch {

@@ -34,6 +34,7 @@ test("writes, restarts, finds, and reads the exact inscription", async () => {
       const restartedProcess = new BedroomSession({ sessionId: "player", store: reopenedStore, jury: new PassingBedroomJury(), renderer: new ChineseBedroomRenderer() });
       const read = await restartedProcess.submit("我翻开枕头看看下面，并读纸条");
       assert.equal(read.response, "你在枕头下面找到那张纸条。上面写着“001739”。");
+      assert.equal(read.commitPackage.evidenceGenerated?.[0]?.value, "001739");
       assert.equal(read.commitPackage.commitSequence, 2);
       assert.equal((await reopenedStore.list()).length, 3);
     } finally {
