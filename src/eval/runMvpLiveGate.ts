@@ -8,6 +8,8 @@ const suites = [
   { name: "ordinary-language", module: "./runHumanInputLiveEval.js" },
   { name: "adversarial-language", module: "./runAdversarialLanguageLiveEval.js" },
   { name: "discourse-contract", module: "./runDiscourseContractLiveEval.js" },
+  { name: "interaction-ir-shadow", module: "./runInteractionIrShadowLiveEval.js" },
+  { name: "interaction-ir-guard", module: "./runInteractionIrGuardLiveEval.js" },
 ] as const;
 
 interface SuitePayload {
@@ -15,6 +17,7 @@ interface SuitePayload {
   total: number;
   accuracy: number;
   fatalReplayIssues?: unknown[];
+  fatalReplayIssueCount?: number;
 }
 
 const summaries: Array<Record<string, unknown>> = [];
@@ -25,7 +28,7 @@ for (const suite of suites) {
       cwd: process.cwd(), env: process.env, timeout: 180_000, maxBuffer: 4 * 1024 * 1024,
     });
     const payload = JSON.parse(stdout.trim()) as SuitePayload;
-    const fatalReplayIssueCount = payload.fatalReplayIssues?.length ?? 0;
+    const fatalReplayIssueCount = payload.fatalReplayIssueCount ?? payload.fatalReplayIssues?.length ?? 0;
     summaries.push({ suite: suite.name, passed: payload.passed, total: payload.total,
       accuracy: payload.accuracy, fatalReplayIssueCount,
       gatePassed: payload.passed === payload.total && fatalReplayIssueCount === 0 });
@@ -33,7 +36,7 @@ for (const suite of suites) {
     const candidate = error as { stdout?: string };
     try {
       const payload = JSON.parse(candidate.stdout?.trim() ?? "") as SuitePayload;
-      const fatalReplayIssueCount = payload.fatalReplayIssues?.length ?? 0;
+      const fatalReplayIssueCount = payload.fatalReplayIssueCount ?? payload.fatalReplayIssues?.length ?? 0;
       summaries.push({ suite: suite.name, passed: payload.passed, total: payload.total,
         accuracy: payload.accuracy, fatalReplayIssueCount, gatePassed: false });
     } catch {

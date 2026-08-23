@@ -36,7 +36,7 @@ export interface ActionProposalAudit {
 export interface InteractionIrAudit {
   auditId: string;
   rootTurnId: string;
-  mode: "shadow";
+  mode: "shadow" | "guard";
   inputHash: string;
   status: "agreed" | "disagreed" | "invalid" | "model_error";
   proposal?: unknown;

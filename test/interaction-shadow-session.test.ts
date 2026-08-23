@@ -56,3 +56,34 @@ test("model or shadow telemetry failure cannot block legacy execution", async ()
     assert.equal((await store.listInteractionIrAudits())[0]?.status, "model_error");
   } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
 });
+
+test("guard mode blocks non-executing or unresolved language but only passes agreed actual actions", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-interaction-guard-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const capabilitySession = new BedroomSession({ sessionId: "guard-capability", store, jury: new PassingBedroomJury(), renderer: new ChineseBedroomRenderer(),
+      interactionIr: { mode: "guard", left: fixed(capability), right: fixed(capability) } });
+    const blocked = await capabilitySession.submit("我能拿起笔吗");
+    assert.equal(blocked.kind, "interface");
+    assert.equal(blocked.kind === "interface" ? blocked.code : undefined, "INTERACTION_CAPABILITY_QUERY");
+    assert.equal((await store.list()).length, 0);
+
+    const action = { schemaVersion: "1.0.0", inputLanguage: "zh", speechAct: "action_request", actuality: "actual", clauses: [
+      { clauseId: "c1", operation: "take", verbSpan: "拿起", roles: [{ role: "target", mention: "笔" }] },
+    ] };
+    const actionSession = new BedroomSession({ sessionId: "guard-action", store, jury: new PassingBedroomJury(), renderer: new ChineseBedroomRenderer(),
+      interactionIr: { mode: "guard", left: fixed(action), right: fixed(action) } });
+    assert.equal((await actionSession.submit("我拿起笔")).kind, "committed");
+    assert.equal((await store.list()).length, 1);
+
+    const disagreement = new BedroomSession({ sessionId: "guard-disagreement", store, jury: new PassingBedroomJury(), renderer: new ChineseBedroomRenderer(),
+      interactionIr: { mode: "guard", left: fixed(capability), right: fixed(action) } });
+    const unresolved = await disagreement.submit("我能拿起笔吗");
+    assert.equal(unresolved.kind, "interface");
+    assert.equal(unresolved.kind === "interface" ? unresolved.code : undefined, "INTERACTION_UNRESOLVED");
+    assert.equal((await store.list()).length, 1);
+    assert.deepEqual((await store.listInteractionIrAudits()).map((audit) => [audit.mode, audit.status, audit.legacyOutcome]), [
+      ["guard", "agreed", "interface"], ["guard", "agreed", "committed"], ["guard", "disagreed", "interface"],
+    ]);
+  } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
+});

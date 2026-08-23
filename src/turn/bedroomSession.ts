@@ -35,7 +35,7 @@ export interface BedroomSessionOptions {
   actionIr?: { mode: "off" | "shadow" | "active"; proposer?: ActionIrProposer; semanticAuditor?: ActionIrSemanticAuditor };
   semanticIr?: { proposer: SemanticIrProposer; auditor: SemanticIrAuditor };
   queryRenderer?: ApprovedPresentationRenderer;
-  interactionIr?: { mode: "off" | "shadow"; left?: InteractionWorkstation; right?: InteractionWorkstation };
+  interactionIr?: { mode: "off" | "shadow" | "guard"; left?: InteractionWorkstation; right?: InteractionWorkstation };
 }
 
 export class BedroomSession {
@@ -48,8 +48,8 @@ export class BedroomSession {
     if (options.actionIr?.mode === "active" && (!options.actionIr.proposer || !options.actionIr.semanticAuditor)) {
       throw new Error("Active Action IR requires both a proposer and semantic auditor.");
     }
-    if (options.interactionIr?.mode === "shadow" && (!options.interactionIr.left || !options.interactionIr.right)) {
-      throw new Error("Shadow Interaction IR requires two independent workstations.");
+    if (options.interactionIr && options.interactionIr.mode !== "off" && (!options.interactionIr.left || !options.interactionIr.right)) {
+      throw new Error("Interaction IR shadow/guard mode requires two independent workstations.");
     }
   }
 
@@ -67,17 +67,45 @@ export class BedroomSession {
     await this.auditRepair;
     const rootTurnId = `${this.options.sessionId}:${randomUUID()}`;
     const priorFocus = this.discourseContext.consumeFocus();
-    const shadow = this.options.interactionIr?.mode === "shadow"
+    const shadow = this.options.interactionIr && this.options.interactionIr.mode !== "off"
       ? runInteractionShadow(rawTtd, this.options.interactionIr.left!, this.options.interactionIr.right!)
       : null;
     try {
-      const result = await this.submitRouted(rawTtd, rootTurnId, priorFocus);
+      const guarded = this.options.interactionIr?.mode === "guard" ? await this.guardInteraction(rawTtd, rootTurnId, shadow!) : null;
+      const result = guarded ?? await this.submitRouted(rawTtd, rootTurnId, priorFocus);
       await this.persistInteractionShadow(rootTurnId, rawTtd, result.kind, shadow);
       return result;
     } catch (error) {
       await this.persistInteractionShadow(rootTurnId, rawTtd, "rejected", shadow);
       throw error;
     }
+  }
+
+  private async guardInteraction(rawTtd: string, rootTurnId: string, pending: Promise<InteractionShadowOutcome>): Promise<TurnResult | null> {
+    const outcome = await pending;
+    const proposal = outcome.proposal;
+    if (outcome.status === "agreed" && proposal &&
+        ((proposal.speechAct === "action_request" && proposal.actuality === "actual") || proposal.speechAct === "world_query")) return null;
+    let code: "INTERACTION_CAPABILITY_QUERY" | "INTERACTION_NON_ACTUAL" | "INTERACTION_CONVERSATION" | "INTERACTION_INCOMPLETE" | "INTERACTION_UNSUPPORTED" | "INTERACTION_UNRESOLVED";
+    let zh: string;
+    let en: string;
+    if (outcome.status !== "agreed" || !proposal) {
+      code = "INTERACTION_UNRESOLVED"; zh = "两个语言工位尚未形成一致解释；请换一种更明确的说法。"; en = "The language workstations did not reach a consistent interpretation; please rephrase more explicitly.";
+    } else if (proposal.speechAct === "capability_query") {
+      code = "INTERACTION_CAPABILITY_QUERY"; zh = "这是能力询问，不会作为行动执行；当前能力回答尚未接入。"; en = "That is a capability question and will not be executed; capability answers are not connected yet.";
+    } else if (proposal.speechAct === "conversation") {
+      code = "INTERACTION_CONVERSATION"; zh = "你好。这里是 ttd；请告诉我你想尝试做什么，或输入 help。"; en = "Hello. This is ttd; tell me what you want to try, or enter help.";
+    } else if (proposal.speechAct === "incomplete") {
+      code = "INTERACTION_INCOMPLETE"; zh = "这句话还不完整；请补充你想尝试或询问的内容。"; en = "That utterance is incomplete; please finish what you want to try or ask.";
+    } else if (proposal.speechAct === "unsupported") {
+      code = "INTERACTION_UNSUPPORTED"; zh = "这个表达目前还不能进入世界处理。"; en = "That expression cannot enter world processing yet.";
+    } else {
+      code = "INTERACTION_NON_ACTUAL"; zh = "这是否定、假设或条件表达，不会作为实际行动执行。"; en = "That is a negated, hypothetical, or conditional expression and will not be executed as an actual action.";
+    }
+    await this.options.store.appendTurnAttempt({ attemptId: `${rootTurnId}:0`, rootTurnId, stepIndex: 0, stepCount: 1, rawTtd,
+      status: "interface", interfaceCode: code, createdAt: new Date().toISOString() });
+    return { kind: "interface", code, response: /[\u3400-\u9fff]/u.test(rawTtd) ? zh : en,
+      intent: parseMvpIntent(rawTtd), commitPackage: undefined as never };
   }
 
   private async submitRouted(rawTtd: string, rootTurnId: string, priorFocus: readonly string[]): Promise<TurnResult> {
@@ -157,7 +185,7 @@ export class BedroomSession {
     try {
       const outcome = await pending;
       await this.options.store.appendInteractionIrAudit({
-        auditId: `${rootTurnId}:interaction-ir`, rootTurnId, mode: "shadow",
+        auditId: `${rootTurnId}:interaction-ir`, rootTurnId, mode: this.options.interactionIr?.mode === "guard" ? "guard" : "shadow",
         inputHash: createHash("sha256").update(rawTtd).digest("hex"), status: outcome.status,
         ...(outcome.proposal ? { proposal: outcome.proposal } : {}),
         ...(outcome.workstations ? { workstations: outcome.workstations.map((result) => ({ outputHash: result.outputHash,

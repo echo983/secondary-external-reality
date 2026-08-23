@@ -13,6 +13,13 @@
 - 合计：40/40；
 - 三套 suite 均为 0 fatal canonical replay issue。
 
+2026-08-23 Interaction IR guard 扩展后，统一门禁增加：
+
+- interaction-ir-shadow：14/14；
+- interaction-ir-guard：11/11；
+- 新合计：65/65；
+- 五套 suite 全部 gate passed，fatal replay issue 仍为 0。
+
 本地完整回归同时保持 155/155。
 
 ## 实现
