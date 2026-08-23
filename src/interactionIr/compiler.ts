@@ -11,6 +11,7 @@ export type CompiledInteraction =
 const operationMap: Partial<Record<InteractionEnvelopeV10["clauses"][number]["operation"], ObjectOperationKind>> = {
   take: "take", place: "place", put_inside: "put_inside", open: "open", close: "close", observe: "observe",
   write: "write", read: "read", look_around: "look_around", inspect_contents: "inspect_contents", locate: "locate", inventory: "inventory",
+  move: "move",
 };
 
 function rolesOf(clause: InteractionEnvelopeV10["clauses"][number], role: InteractionRole): string[] {
@@ -28,8 +29,8 @@ export function compileInteraction(proposal: InteractionEnvelopeV10, rawTtd: str
     if (!operation) return { kind: "clarification", code: "UNSUPPORTED_OPERATION" };
     const targetMentions = rolesOf(clause, "target");
     const destinationMentions = rolesOf(clause, "destination");
-    if (!["look_around", "inventory"].includes(operation) && targetMentions.length === 0) return { kind: "clarification", code: "MISSING_TARGET" };
-    if (["place", "put_inside"].includes(operation) && destinationMentions.length === 0) return { kind: "clarification", code: "MISSING_DESTINATION" };
+    if (!["look_around", "inventory", "move"].includes(operation) && targetMentions.length === 0) return { kind: "clarification", code: "MISSING_TARGET" };
+    if (["place", "put_inside", "move"].includes(operation) && destinationMentions.length === 0) return { kind: "clarification", code: "MISSING_DESTINATION" };
     const mentionedEntityIds: string[] = [];
     let placementRelation: "inside" | "on" | undefined;
     const boundMentions = ["look_around", "inventory"].includes(operation)

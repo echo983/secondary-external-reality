@@ -56,9 +56,12 @@ test("compiler treats inventory as zero-arity even when a workstation emits a re
   assert.deepEqual(result.kind === "executable" ? result.steps[0]?.mentionedEntityIds : null, []);
 });
 
-test("compiler distinguishes an understood move from unresolved language", () => {
+test("compiler compiles move to a resolvable landmark and still requires a destination", () => {
   const proposal = envelope("move", [{ role: "destination", mention: "门口" }]);
-  assert.deepEqual(compileInteraction(proposal, "走到门口"), { kind: "clarification", code: "UNSUPPORTED_OPERATION" });
+  const result = compileInteraction(proposal, "走到门口");
+  assert.equal(result.kind, "executable");
+  assert.deepEqual(result.kind === "executable" ? result.steps[0]?.mentionedEntityIds : [], ["door-1"]);
+  assert.deepEqual(compileInteraction(envelope("move", []), "走"), { kind: "clarification", code: "MISSING_DESTINATION" });
 });
 
 test("compiler separates spatial suffixes from destination entities", () => {

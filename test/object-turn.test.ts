@@ -100,6 +100,42 @@ test("grounds generic placement by destination affordance and treats a bed as a 
   } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
+test("moves self between the two known landmarks and reports the current position", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-move-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    const beforeMove = MaterializedWorld.replay([], createObjectWorldFixture().seedCommitments);
+    assert.equal(beforeMove.entities.get("self")?.attributes.position, "bedside");
+
+    assert.equal((await current.submit("走到门口")).response, "你走到了门口。");
+    const atDoorway = MaterializedWorld.replay(await store.list(), createObjectWorldFixture().seedCommitments);
+    assert.equal(atDoorway.entities.get("self")?.attributes.position, "doorway");
+
+    assert.equal((await current.submit("走到床边")).response, "你走到了床边。");
+    const backAtBedside = MaterializedWorld.replay(await store.list(), createObjectWorldFixture().seedCommitments);
+    assert.equal(backAtBedside.entities.get("self")?.attributes.position, "bedside");
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("rejects moving to the current position and to a non-landmark destination", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-move-reject-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    await assert.rejects(current.submit("走到床边"), ObjectTurnError);
+    assert.equal((await store.list()).length, 0);
+    await assert.rejects(current.submit("走到桌子"), ObjectTurnError);
+    assert.equal((await store.list()).length, 0);
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("rejects replay under a different world-basis version", async () => {
   const directory = await mkdtemp(join(tmpdir(), "secondary-reality-basis-"));
   const store = new LanceCommitStore(join(directory, "world.lancedb"));

@@ -18,6 +18,11 @@ import { DeterministicPresentationRenderer, RiskAwarePresentationRenderer, type 
 
 export class ObjectTurnError extends Error {}
 
+// The only two Place nodes this MVP models. Doorway/bedside are anchored to the
+// existing door/bed landmark entities rather than a new entity type or PlaceGraph,
+// per the minimal-space-movement design (docs/MVP-minimal-space-movement-design-v0.3.md).
+const MOVE_DESTINATIONS: Readonly<Record<string, "bedside" | "doorway">> = { "door-1": "doorway", "bed-1": "bedside" };
+
 function candidatesByCapability(world: MaterializedWorld, ids: string[], attribute: string): MaterializedEntity[] {
   return ids.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.attributes[attribute] === "true");
 }
@@ -156,6 +161,9 @@ export async function runObjectTurn(options: {
     const names = visible.map((entity) => label(entity, parsed.inputLanguage));
     observations.push({ kind: "visible_entities", entityIds: visible.map((entity) => entity.entityId) });
     presentationItems.push({ kind: "observed_entities", entityIds: visible.map((entity) => entity.entityId) });
+    // This response is discarded and rebuilt from `observed_entities` by the
+    // presentation renderer (look_around has a queryKind), so position-aware
+    // wording would need a new presentation item, not a local string — descoped.
     response = parsed.inputLanguage === "zh" ? `你环顾四周，可以看到：${names.join("、")}。` : `You look around and can see: ${names.join(", ")}.`;
   } else if (parsed.operation === "inventory") {
     const held = world.entitiesRelatedTo("held_by", "self");
@@ -340,6 +348,24 @@ export async function runObjectTurn(options: {
     events.push({ eventId, type: "action_result", actionKind: parsed.operation, outcome: "success", subjectRef: "self", objectRef: target.entityId });
     commitments.push({ kind: "attribute_set", entityId: target.entityId, attribute: "open_state", value: next });
     response = parsed.inputLanguage === "zh" ? `你${parsed.operation === "open" ? "打开" : "关上"}了${label(target, "zh")}。` : `You ${parsed.operation} the ${label(target, "en")}.`;
+  } else if (parsed.operation === "move") {
+    const landmark = exactlyOne(
+      mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity !== undefined && Object.hasOwn(MOVE_DESTINATIONS, entity.entityId)),
+      "move destination",
+    );
+    const destination = MOVE_DESTINATIONS[landmark.entityId]!;
+    const self = world.entities.get("self")!;
+    const currentPosition = self.attributes.position;
+    if (!currentPosition) throw new ObjectTurnError("self has no position.");
+    const destinationLabel = destination === "doorway" ? { zh: "门口", en: "the doorway" } : { zh: "床边", en: "the bedside" };
+    if (currentPosition === destination) {
+      throw new ObjectTurnError(parsed.inputLanguage === "zh" ? `你已经在${destinationLabel.zh}了。` : `You are already at ${destinationLabel.en}.`);
+    }
+    fact(registry, snapshots, conditions, "entity:self.position", currentPosition, self.attributeRevisions.position ?? 0);
+    const eventId = `event-move-${options.commitSequence}`;
+    events.push({ eventId, type: "action_result", actionKind: "move", outcome: "success", subjectRef: "self", objectRef: landmark.entityId });
+    commitments.push({ kind: "attribute_set", entityId: "self", attribute: "position", value: destination });
+    response = parsed.inputLanguage === "zh" ? `你走到了${destinationLabel.zh}。` : `You walk to ${destinationLabel.en}.`;
   } else if (parsed.operation === "take") {
     const object = exactlyOne(candidatesByCapability(world, mentionedIds, "portable"), "portable object");
     const location = currentLocation(world, object);
