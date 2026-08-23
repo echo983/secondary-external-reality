@@ -148,3 +148,55 @@ test("reopens and filters non-authoritative turn attempts", async () => {
     }
   });
 });
+
+test("repairs a missing success audit from an authoritative commit after restart", async () => {
+  await withStore(async (store, uri) => {
+    const input = commit("turn-0", 0);
+    input.rootTurnId = "root-1";
+    input.stepIndex = 0;
+    input.stepCount = 1;
+    input.attemptedTtd = "开门";
+    await store.append(input);
+    store.close();
+
+    const reopened = new LanceCommitStore(uri);
+    try {
+      assert.deepEqual(await reopened.repairTurnAttempts(), { repaired: 1, existing: 0, skipped: 0 });
+      assert.deepEqual(await reopened.repairTurnAttempts(), { repaired: 0, existing: 1, skipped: 0 });
+      const [attempt] = await reopened.listTurnAttempts("root-1");
+      assert.deepEqual({
+        attemptId: attempt?.attemptId,
+        rawTtd: attempt?.rawTtd,
+        status: attempt?.status,
+        commitSequence: attempt?.commitSequence,
+      }, { attemptId: "root-1:0", rawTtd: "开门", status: "committed", commitSequence: 0 });
+    } finally {
+      reopened.close();
+    }
+  });
+});
+
+test("skips legacy commits that lack recovery metadata", async () => {
+  await withStore(async (store) => {
+    await store.append(commit("legacy", 0));
+    assert.deepEqual(await store.repairTurnAttempts(), { repaired: 0, existing: 0, skipped: 1 });
+    assert.deepEqual(await store.listTurnAttempts(), []);
+  });
+});
+
+test("refuses to overwrite a failed audit that conflicts with a world commit", async () => {
+  await withStore(async (store) => {
+    const input = commit("turn-0", 0);
+    input.rootTurnId = "root-1";
+    input.stepIndex = 0;
+    input.stepCount = 1;
+    input.attemptedTtd = "开门";
+    await store.append(input);
+    await store.appendTurnAttempt({
+      attemptId: "root-1:0", rootTurnId: "root-1", stepIndex: 0, stepCount: 1,
+      rawTtd: "开门", status: "failed", failureCode: "ACTION_NOT_COMMITTED",
+      createdAt: "2026-08-23T00:00:00.000Z",
+    });
+    await assert.rejects(store.repairTurnAttempts(), CommitConflictError);
+  });
+});

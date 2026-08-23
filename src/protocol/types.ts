@@ -214,6 +214,7 @@ export interface CommitPackage {
   rootTurnId?: string;
   stepIndex?: number;
   stepCount?: number;
+  attemptedTtd?: string;
   commitSequence: number;
   selectedCandidateId: string;
   worldBasis?: WorldBasis;

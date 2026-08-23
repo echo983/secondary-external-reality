@@ -59,6 +59,7 @@ export async function runBedroomTurn(options: {
   rootTurnId?: string;
   stepIndex?: number;
   stepCount?: number;
+  attemptedTtd?: string;
 }): Promise<TurnResult> {
   const intent = parseMvpIntent(options.rawTtd);
   if (intent.actions.map((action) => action.kind).join(",") !== "stand,move,open") {
@@ -96,6 +97,7 @@ export async function runBedroomTurn(options: {
   if (options.rootTurnId !== undefined) prepared.commitPackage.rootTurnId = options.rootTurnId;
   if (options.stepIndex !== undefined) prepared.commitPackage.stepIndex = options.stepIndex;
   if (options.stepCount !== undefined) prepared.commitPackage.stepCount = options.stepCount;
+  if (options.attemptedTtd !== undefined) prepared.commitPackage.attemptedTtd = options.attemptedTtd;
   await options.store.append(prepared.commitPackage);
   const response = await options.renderer.render(prepared.commitPackage, intent);
   return { response, commitPackage: prepared.commitPackage, intent };

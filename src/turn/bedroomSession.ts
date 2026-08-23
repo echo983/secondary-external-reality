@@ -19,6 +19,7 @@ export interface BedroomSessionOptions {
 
 export class BedroomSession {
   private tail: Promise<void> = Promise.resolve();
+  private auditRepair: Promise<unknown> | null = null;
 
   constructor(private readonly options: BedroomSessionOptions) {
     if (!options.sessionId.trim()) throw new Error("Session ID must be non-empty.");
@@ -34,6 +35,8 @@ export class BedroomSession {
   }
 
   private async submitSerial(rawTtd: string): Promise<TurnResult> {
+    this.auditRepair ??= this.options.store.repairTurnAttempts();
+    await this.auditRepair;
     const wholeObjectIntent = parseObjectIntent(rawTtd);
     const atomicComposite = wholeObjectIntent?.operation === "write_and_hide" || wholeObjectIntent?.operation === "open_and_observe" || wholeObjectIntent?.operation === "read";
     const steps = atomicComposite ? [rawTtd.trim()] : splitActionSequence(rawTtd);
@@ -124,7 +127,7 @@ export class BedroomSession {
         jury: this.options.jury,
         renderer: this.options.renderer,
         store: this.options.store,
-        rootTurnId, stepIndex, stepCount,
+        rootTurnId, stepIndex, stepCount, attemptedTtd: rawTtd,
       });
     }
     if (isObjectIntent(rawTtd)) {
@@ -135,7 +138,7 @@ export class BedroomSession {
         priorCommits: commits,
         jury: this.options.jury,
         store: this.options.store,
-        rootTurnId, stepIndex, stepCount,
+        rootTurnId, stepIndex, stepCount, attemptedTtd: rawTtd,
       });
     }
     return runBedroomTurn({
@@ -146,7 +149,7 @@ export class BedroomSession {
       jury: this.options.jury,
       renderer: this.options.renderer,
       store: this.options.store,
-      rootTurnId, stepIndex, stepCount,
+      rootTurnId, stepIndex, stepCount, attemptedTtd: rawTtd,
     });
   }
 }

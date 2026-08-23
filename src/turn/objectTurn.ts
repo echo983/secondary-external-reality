@@ -54,6 +54,7 @@ export async function runObjectTurn(options: {
   rootTurnId?: string;
   stepIndex?: number;
   stepCount?: number;
+  attemptedTtd?: string;
 }): Promise<TurnResult> {
   const parsed = parseObjectIntent(options.rawTtd);
   if (!parsed) throw new ObjectTurnError("Unsupported object intent.");

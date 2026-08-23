@@ -20,6 +20,7 @@ export async function commitCandidateEnvelope(options: {
   rootTurnId?: string;
   stepIndex?: number;
   stepCount?: number;
+  attemptedTtd?: string;
 }): Promise<CommitPackage> {
   const validation = validateCandidateEnvelope(options.envelope, options.registry);
   if (!validation.valid) throw new CandidateCommitError("Candidate protocol validation failed.");
@@ -32,6 +33,7 @@ export async function commitCandidateEnvelope(options: {
   if (options.rootTurnId !== undefined) prepared.commitPackage.rootTurnId = options.rootTurnId;
   if (options.stepIndex !== undefined) prepared.commitPackage.stepIndex = options.stepIndex;
   if (options.stepCount !== undefined) prepared.commitPackage.stepCount = options.stepCount;
+  if (options.attemptedTtd !== undefined) prepared.commitPackage.attemptedTtd = options.attemptedTtd;
   await options.store.append(prepared.commitPackage);
   return prepared.commitPackage;
 }

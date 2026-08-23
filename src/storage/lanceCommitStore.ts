@@ -42,6 +42,12 @@ export interface AppendCommitResult {
   tableVersion: number;
 }
 
+export interface RepairTurnAttemptsResult {
+  repaired: number;
+  existing: number;
+  skipped: number;
+}
+
 export class CommitConflictError extends Error {
   constructor(message: string) {
     super(message);
@@ -151,6 +157,60 @@ export class LanceCommitStore {
       .map((row) => JSON.parse(row.record_json) as TurnAttempt)
       .filter((attempt) => rootTurnId === undefined || attempt.rootTurnId === rootTurnId)
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.stepIndex - right.stepIndex);
+  }
+
+  async repairTurnAttempts(): Promise<RepairTurnAttemptsResult> {
+    const operation = this.writeTail.then(
+      () => this.repairTurnAttemptsSerialized(),
+      () => this.repairTurnAttemptsSerialized(),
+    );
+    this.writeTail = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
+  private async repairTurnAttemptsSerialized(): Promise<RepairTurnAttemptsResult> {
+    await this.open();
+    const result: RepairTurnAttemptsResult = { repaired: 0, existing: 0, skipped: 0 };
+    if (!this.table) return result;
+    const commitRows = normalizeRows(await this.table.query().toArray())
+      .sort((left, right) => Number(left.commit_sequence) - Number(right.commit_sequence));
+    for (const row of commitRows) {
+      const commitPackage = JSON.parse(row.package_json) as CommitPackage;
+      if (commitPackage.rootTurnId === undefined || commitPackage.stepIndex === undefined ||
+          commitPackage.stepCount === undefined || commitPackage.attemptedTtd === undefined) {
+        result.skipped += 1;
+        continue;
+      }
+      const attemptId = `${commitPackage.rootTurnId}:${commitPackage.stepIndex}`;
+      const recovered: TurnAttempt = {
+        attemptId,
+        rootTurnId: commitPackage.rootTurnId,
+        stepIndex: commitPackage.stepIndex,
+        stepCount: commitPackage.stepCount,
+        rawTtd: commitPackage.attemptedTtd,
+        status: "committed",
+        commitSequence: commitPackage.commitSequence,
+        selectedCandidateId: commitPackage.selectedCandidateId,
+        createdAt: String(row.created_at),
+      };
+      const existingRow = this.attemptTable
+        ? (await this.attemptTable.query().toArray() as AttemptRow[]).find((attempt) => attempt.attempt_id === attemptId)
+        : undefined;
+      if (existingRow) {
+        const existing = JSON.parse(existingRow.record_json) as TurnAttempt;
+        const matchesCommit = existing.status === "committed" &&
+          existing.rootTurnId === recovered.rootTurnId && existing.stepIndex === recovered.stepIndex &&
+          existing.stepCount === recovered.stepCount && existing.rawTtd === recovered.rawTtd &&
+          existing.commitSequence === recovered.commitSequence &&
+          existing.selectedCandidateId === recovered.selectedCandidateId;
+        if (!matchesCommit) throw new CommitConflictError(`Turn attempt ${attemptId} conflicts with its world commit.`);
+        result.existing += 1;
+        continue;
+      }
+      await this.appendAttemptSerialized(recovered);
+      result.repaired += 1;
+    }
+    return result;
   }
 
   private async appendAttemptSerialized(attempt: TurnAttempt): Promise<void> {
