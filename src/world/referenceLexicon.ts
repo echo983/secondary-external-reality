@@ -1,6 +1,10 @@
 import type { ObjectWorldFixture } from "./objectFixture.js";
 import { MaterializedWorld } from "./materializedWorld.js";
 
+function stripLeadingEnglishArticle(normalized: string): string {
+  return normalized.replace(/^(the|an?)\s+/, "");
+}
+
 export class ReferenceLexicon {
   private readonly aliases = new Map<string, readonly string[]>();
   private readonly labels = new Map<string, { zh: string; en: string }>();
@@ -18,15 +22,18 @@ export class ReferenceLexicon {
   }
 
   resolveMention(mention: string): string[] {
-    const normalized = mention.trim().toLocaleLowerCase();
+    const normalized = stripLeadingEnglishArticle(mention.trim().toLocaleLowerCase());
     const exact = this.resolveExactMention(normalized);
     if (exact.length > 0) return exact;
     return [...this.aliases.entries()].filter(([, names]) => names.some((name) => normalized.includes(name.toLocaleLowerCase())))
       .map(([entityId]) => entityId).sort();
   }
 
+  // English source spans keep their determiner ("the note", "a pen"), unlike the
+  // Chinese mentions this lexicon was originally matched against; strip it before
+  // exact comparison so bilingual mentions of the same fixture alias are symmetric.
   resolveExactMention(mention: string): string[] {
-    const normalized = mention.trim().toLocaleLowerCase();
+    const normalized = stripLeadingEnglishArticle(mention.trim().toLocaleLowerCase());
     return [...this.aliases.entries()].filter(([, names]) => names.some((name) => normalized === name.toLocaleLowerCase()))
       .map(([entityId]) => entityId).sort();
   }

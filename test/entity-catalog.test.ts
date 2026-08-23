@@ -23,3 +23,12 @@ test("round-trips every approved rendered label and note alias through one lexic
   }
   assert.deepEqual(lexicon.resolveMention("那张空白便签呢"), ["blank-note-1"]);
 });
+
+test("exact and spatial mention resolution strip a leading English article", () => {
+  const fixture = createObjectWorldFixture();
+  const lexicon = new ReferenceLexicon(fixture);
+  assert.deepEqual(lexicon.resolveExactMention("the note"), ["blank-note-1"]);
+  assert.deepEqual(lexicon.resolveExactMention("a key"), ["key-1"]);
+  assert.deepEqual(lexicon.resolveExactMention("the nightstand"), ["nightstand-1"]);
+  assert.deepEqual(lexicon.resolveSpatialMention("the table").entityIds, ["table-1"]);
+});

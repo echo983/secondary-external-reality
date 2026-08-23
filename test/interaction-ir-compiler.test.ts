@@ -14,6 +14,20 @@ test("compiler binds agreed source roles to fixture IDs without deciding capabil
   assert.deepEqual(result.kind === "executable" ? result.steps[0]?.mentionedEntityIds : [], ["table-1"]);
 });
 
+test("compiler resolves English target, instrument and destination mentions that carry a leading article", () => {
+  const located = compileInteraction(envelope("locate", [{ role: "target", mention: "the note" }], "world_query"), "where is the note");
+  assert.equal(located.kind, "executable");
+  assert.deepEqual(located.kind === "executable" ? located.steps[0]?.mentionedEntityIds : [], ["blank-note-1"]);
+
+  const taken = compileInteraction(envelope("take", [{ role: "target", mention: "a key" }]), "pick up a key");
+  assert.equal(taken.kind, "executable");
+  assert.deepEqual(taken.kind === "executable" ? taken.steps[0]?.mentionedEntityIds : [], ["key-1"]);
+
+  const placed = compileInteraction(envelope("place", [{ role: "target", mention: "the pen" }, { role: "destination", mention: "the table" }]), "put the pen on the table");
+  assert.equal(placed.kind, "executable");
+  assert.deepEqual(placed.kind === "executable" ? placed.steps[0]?.mentionedEntityIds.sort() : [], ["pen-1", "table-1"]);
+});
+
 test("compiler emits structured slot clarifications and preserves numeric literal", () => {
   assert.deepEqual(compileInteraction(envelope("place", [{ role: "target", mention: "笔" }]), "我放下笔"), { kind: "clarification", code: "MISSING_DESTINATION" });
   assert.deepEqual(compileInteraction(envelope("write", [{ role: "target", mention: "便签" }]), "我写"), { kind: "clarification", code: "INVALID_LITERAL" });
