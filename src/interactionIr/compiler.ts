@@ -31,7 +31,9 @@ export function compileInteraction(proposal: InteractionEnvelopeV10, rawTtd: str
     if (!["look_around", "inventory"].includes(operation) && targetMentions.length === 0) return { kind: "clarification", code: "MISSING_TARGET" };
     if (["place", "put_inside"].includes(operation) && destinationMentions.length === 0) return { kind: "clarification", code: "MISSING_DESTINATION" };
     const mentionedEntityIds: string[] = [];
-    for (const mention of [...targetMentions, ...destinationMentions, ...rolesOf(clause, "instrument")]) {
+    const boundMentions = ["look_around", "inventory"].includes(operation)
+      ? [] : [...targetMentions, ...destinationMentions, ...rolesOf(clause, "instrument")];
+    for (const mention of boundMentions) {
       const matches = lexicon.resolveExactMention(mention);
       if (matches.length !== 1) return { kind: "clarification", code: matches.length > 1 ? "AMBIGUOUS_REFERENCE" : "UNRESOLVED_REFERENCE" };
       if (!mentionedEntityIds.includes(matches[0]!)) mentionedEntityIds.push(matches[0]!);

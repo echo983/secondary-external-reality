@@ -12,6 +12,7 @@ import { createObjectWorldFixture } from "../world/objectFixture.js";
 const cases = [
   { id: "conversation", input: "你好", kind: "interface", delta: 0, code: "INTERACTION_CONVERSATION" },
   { id: "look-around", input: "看看周围", kind: "committed", delta: 1, response: "床" },
+  { id: "empty-inventory", input: "我手里有什么", kind: "committed", delta: 1, response: "没有" },
   { id: "capability", input: "我能拿起笔吗", kind: "interface", delta: 0, code: "INTERACTION_CAPABILITY_QUERY" },
   { id: "drawer-location", input: "抽屉在哪", kind: "committed", delta: 1, response: "床头柜" },
   { id: "outside-scope", input: "看看门外", kind: "interface", delta: 0, code: "INTERACTION_UNRESOLVED_REFERENCE" },

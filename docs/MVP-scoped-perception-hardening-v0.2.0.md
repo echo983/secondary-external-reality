@@ -18,6 +18,7 @@
 - 首次 invalid、disagreed 或 model error 时，完整的两个独立工位共同重采样一次；第二次仍未一致则 fail closed。任何单工位结果都不能进入 compiler。
 - Consensus 只比较会改变 compiler 的 query mode；冗余 `contents` 的省略差异不构成执行分歧，`presence/value` 仍严格比较。
 - Action 上的冗余查询标记在验证边界机械擦除，但 `queryMode=capability` 与 action 的危险矛盾仍严格拒绝。
+- `inventory` 与 `look_around` 是零参数原语；工位偶发附带的“我手里/周围”角色不参与 consensus 或实体绑定，不能制造虚假 unresolved reference。
 - 项目版本由 `0.1.0` 升至 `0.2.0`。
 
 ## 验证
@@ -25,7 +26,7 @@
 - `看看门外` 与 `门外有什么` 已加入真实 Workers AI active 门禁。
 - 修正省略目标提示后，active 语料连续两轮 14/14，双工位一致 14/14，fatal replay issue 0。
 - 人类复测首次 `看看周围` 因两个工位生成非法 query mode 而安全地零提交；协议现明确规定 unscoped look-around 省略 queryMode，并已加入 active 实测语料。
-- 本地测试 169/169；统一真实门禁 80/80，六套语料 fatal replay issue 均为 0。
+- 本地测试 171/171；统一真实门禁 81/81，六套语料 fatal replay issue 均为 0。
 
 ## 仍未开放
 

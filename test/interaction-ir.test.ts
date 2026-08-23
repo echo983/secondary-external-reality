@@ -45,6 +45,12 @@ test("consensus ignores redundant query modes but preserves compiler-relevant at
   assert.equal(interactionConsensus(base, value).agreed, false);
 });
 
+test("consensus ignores non-authoritative roles on zero-arity operations", () => {
+  const base = proposal({ speechAct: "world_query", clauses: [{ clauseId: "c1", operation: "inventory", verbSpan: "有什么", roles: [], queryMode: "inventory" }] });
+  const redundant = structuredClone(base); redundant.clauses[0]!.roles = [{ role: "target", mention: "我手里" }];
+  assert.equal(interactionConsensus(base, redundant).agreed, true);
+});
+
 test("mechanically erases non-authoritative query modes from actions", () => {
   const action = { schemaVersion: "1.0.0", inputLanguage: "zh", speechAct: "action_request", actuality: "actual", clauses: [
     { clauseId: "c1", operation: "place", verbSpan: "放下", roles: [{ role: "target", mention: "笔" }], queryMode: null },

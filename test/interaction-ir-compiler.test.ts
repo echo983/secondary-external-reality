@@ -34,3 +34,10 @@ test("compiler preserves an unsupported observation scope as a zero-commit bound
   proposal.clauses[0]!.queryMode = "contents";
   assert.deepEqual(compileInteraction(proposal, "看看门外"), { kind: "clarification", code: "UNRESOLVED_REFERENCE" });
 });
+
+test("compiler treats inventory as zero-arity even when a workstation emits a redundant role", () => {
+  const proposal = envelope("inventory", [{ role: "target", mention: "我手里" }], "world_query");
+  proposal.clauses[0]!.queryMode = "inventory";
+  const result = compileInteraction(proposal, "我手里有什么");
+  assert.deepEqual(result.kind === "executable" ? result.steps[0]?.mentionedEntityIds : null, []);
+});

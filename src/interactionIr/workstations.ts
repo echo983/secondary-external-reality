@@ -30,6 +30,7 @@ Only world_query and capability_query clauses use queryMode. Action clauses alwa
 Exact example: {"schemaVersion":"1.0.0","inputLanguage":"zh","speechAct":"capability_query","actuality":"non_executing","clauses":[{"clauseId":"c1","operation":"take","verbSpan":"拿起","roles":[{"role":"target","mention":"笔"}],"queryMode":"capability"}]}
 "我在哪里" is world_query/non_executing, locate, target 我, queryMode location. "你好" is conversation/non_executing with no clauses. "我向" is incomplete/non_executing with no clauses.
 "看看周围" is world_query/non_executing, look_around, verbSpan 看看周围, no roles, and queryMode must be omitted. The operation already carries the complete query semantics; never invent surroundings or environment as an enum value.
+"我手里有什么" is world_query/non_executing, inventory, verbSpan 有什么, no roles, queryMode inventory. Inventory and look_around are zero-argument operations; phrases such as 我手里, 手中, 周围, and surroundings are not target entities.
 "我向空白便签写2236" is action_request/actual, write, target 空白便签, content 2236, and no queryMode.
 "纸条上写着什么" is world_query/non_executing, read, target 纸条, queryMode value. Asking for an inscription value is read/value, not generic observe.
 "便签上有什么" asks for the note's inscription value: world_query/non_executing, read, target 便签, queryMode value. It is not inspect_contents because a note is not being treated as a container.
