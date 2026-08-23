@@ -20,7 +20,10 @@ export function triageFixedQuery(request: QueryRequest, world: MaterializedWorld
     const path = mayInspectContents(world, target);
     return path.allowed ? { kind: "perceive_fixed_now", request } : { kind: "epistemic_boundary", request, code: path.code };
   }
-  return isEntityPerceivable(world, target)
-    ? { kind: "perceive_fixed_now", request }
-    : { kind: "epistemic_boundary", request, code: "TARGET_NOT_PERCEIVABLE" };
+  if (isEntityPerceivable(world, target)) return { kind: "perceive_fixed_now", request };
+  if (request.propositionAddress) {
+    const latest = epistemic.evidenceFor(request.agentId, request.propositionAddress).sort((left, right) => right.acquiredAtCommitSequence - left.acquiredAtCommitSequence)[0];
+    if (latest) return { kind: "consult_acquired_evidence", request, evidenceId: latest.evidenceId, acquiredAtCommitSequence: latest.acquiredAtCommitSequence };
+  }
+  return { kind: "epistemic_boundary", request, code: "TARGET_NOT_PERCEIVABLE" };
 }

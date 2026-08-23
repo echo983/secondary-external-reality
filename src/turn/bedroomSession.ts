@@ -82,7 +82,7 @@ export class BedroomSession {
     for (const [stepIndex, step] of steps.entries()) {
       try {
         const result = await this.executeAudited(step, rootTurnId, stepIndex, steps.length);
-        if (result.kind === "boundary") return result;
+        if (result.kind !== "committed") return result;
         completed.push(result);
       } catch (error) {
         if (completed.length === 0) throw error;
@@ -133,7 +133,7 @@ export class BedroomSession {
         const world = MaterializedWorld.replay(await this.options.store.list(), fixture.seedCommitments);
         const executable = compileSemanticIntent(intent, normalized.normalized, proposed.validation.proposal.inputLanguage, fixture, world);
         const result = await this.executeAudited(rawTtd, rootTurnId, index, proposed.validation.proposal.intents.length, executable.objectIntent, executable.mentionedEntityIds);
-        if (result.kind === "boundary") return result;
+        if (result.kind !== "committed") return result;
         completed.push(result);
       }
       const last = completed.at(-1)!;
@@ -200,7 +200,7 @@ export class BedroomSession {
       const compiled = compileGroundedAction(grounded.steps[0], rawTtd, proposal.inputLanguage);
       try {
         const result = await this.executeAudited(rawTtd, rootTurnId, stepIndex, proposal.steps.length, compiled.intent, compiled.mentionedEntityIds);
-        if (result.kind === "boundary") return result;
+        if (result.kind !== "committed") return result;
         completed.push(result);
       } catch (error) {
         if (completed.length === 0) throw error;
@@ -236,6 +236,8 @@ export class BedroomSession {
       const boundary = result.packet.items[0];
       await this.options.store.appendTurnAttempt({ attemptId, rootTurnId, stepIndex, stepCount, rawTtd, status: "boundary",
         ...(boundary?.kind === "boundary" ? { boundaryCode: boundary.code } : {}), createdAt: new Date().toISOString() });
+    } else if (result.kind === "evidence") {
+      await this.options.store.appendTurnAttempt({ attemptId, rootTurnId, stepIndex, stepCount, rawTtd, status: "presented", createdAt: new Date().toISOString() });
     } else {
       await this.options.store.appendTurnAttempt({ attemptId, rootTurnId, stepIndex, stepCount, rawTtd, status: "committed",
         commitSequence: result.commitPackage.commitSequence, selectedCandidateId: result.commitPackage.selectedCandidateId, createdAt: new Date().toISOString() });

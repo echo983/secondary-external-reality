@@ -29,7 +29,16 @@ export interface BoundaryTurnResult {
   commitPackages?: never;
   partial?: false;
 }
-export type TurnResult = CommittedTurnResult | BoundaryTurnResult;
+export interface EvidenceTurnResult {
+  kind: "evidence";
+  response: string;
+  packet: ApprovedPresentationPacket;
+  intent: NormalizedIntent;
+  commitPackage: never;
+  commitPackages?: never;
+  partial?: false;
+}
+export type TurnResult = CommittedTurnResult | BoundaryTurnResult | EvidenceTurnResult;
 
 export class BedroomTurnError extends Error {}
 

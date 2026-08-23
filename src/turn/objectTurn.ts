@@ -91,9 +91,18 @@ export async function runObjectTurn(options: {
         : parsed.operation === "look_around" ? "look_around" : parsed.operation === "inventory" ? "inventory" : undefined;
   if (queryKind) {
     const targetEntityId = mentionedIds.length === 1 ? mentionedIds[0] : undefined;
-    const request: QueryRequest = { queryId: `${options.turnId}:query`, agentId: "self", kind: queryKind, ...(targetEntityId ? { targetEntityId } : {}), language: parsed.inputLanguage };
+    const propositionAddress = queryKind === "inspect_attribute" && targetEntityId ? entityAttributeAddress(targetEntityId, "inscription") : undefined;
+    const request: QueryRequest = { queryId: `${options.turnId}:query`, agentId: "self", kind: queryKind, ...(targetEntityId ? { targetEntityId } : {}), ...(propositionAddress ? { propositionAddress } : {}), language: parsed.inputLanguage };
     const epistemic = replayCanonicalViews(options.priorCommits, { seedCommitments: fixture.seedCommitments }).epistemic;
     const decision = triageFixedQuery(request, world, epistemic);
+    if (decision.kind === "consult_acquired_evidence" && request.propositionAddress) {
+      const edge = epistemic.evidenceFor(request.agentId, request.propositionAddress).find((entry) => entry.evidenceId === decision.evidenceId)!;
+      const evidence = { kind: request.kind === "inspect_relation" || request.kind === "locate" ? "relation_evidence" as const : "attribute_evidence" as const,
+        semanticAddress: request.propositionAddress, value: Array.isArray(edge.representedValue) ? edge.representedValue.join(",") : edge.representedValue, evidenceId: edge.evidenceId };
+      const packet = { packetId: `${options.turnId}:prior-evidence`, outcome: "answer" as const, language: parsed.inputLanguage,
+        items: [{ kind: "prior_evidence" as const, evidence, acquiredAtCommitSequence: edge.acquiredAtCommitSequence }] };
+      return { kind: "evidence", response: await queryRenderer.render(packet, options.rawTtd), packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never };
+    }
     if (decision.kind === "epistemic_boundary" || decision.kind === "unsupported_boundary" || decision.kind === "resolution_deferred") {
       const code: PublicBoundaryCode = decision.code;
       const zh: Record<PublicBoundaryCode, string> = {

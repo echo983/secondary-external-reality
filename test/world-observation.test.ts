@@ -70,11 +70,18 @@ test("distinguishes blank inscription presence from exact inscription value", as
     await session.submit("我在纸条上写下001739并藏到枕头下面");
     const before = (await store.list()).length;
     const hidden = await session.submit("纸条上写着什么");
-    assert.equal(hidden.kind, "boundary");
+    assert.equal(hidden.kind, "evidence");
     assert.doesNotMatch(hidden.response, /001739/u);
+    assert.match(hidden.response, /此前获得的证据.*不证明.*现在/u);
     assert.equal((await store.list()).length, before);
     const read = await session.submit("我找到枕头下的纸条并读它");
     assert.match(read.response, /001739/u);
     assert.equal(read.commitPackage.canonical?.presentationPacket.items.length, 2);
+    const beforeConsult = (await store.list()).length;
+    const consulted = await session.submit("纸条上写着什么");
+    assert.equal(consulted.kind, "evidence");
+    assert.match(consulted.response, /此前获得的证据.*001739.*不证明.*现在/u);
+    assert.equal((await store.list()).length, beforeConsult);
+    assert.equal((await store.listTurnAttempts()).at(-1)?.status, "presented");
   } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
 });

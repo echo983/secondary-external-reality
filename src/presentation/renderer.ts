@@ -28,7 +28,11 @@ export class DeterministicPresentationRenderer implements ApprovedPresentationRe
       if (item.predicate === "held_by") return packet.language === "zh" ? (names.length ? `你手里拿着：${names.join("、")}。` : "你手里没有拿着东西。") : (names.length ? `You are holding: ${names.join(", ")}.` : "You are not holding anything.");
       return packet.language === "zh" ? (names.length ? `${name(item.objectId)}里面有：${names.join("、")}。` : `${name(item.objectId)}里面是空的。`) : (names.length ? `Inside the ${name(item.objectId)} you see: ${names.join(", ")}.` : `The ${name(item.objectId)} is empty.`);
     }
-    const evidence = item.kind === "prior_evidence" ? item.evidence : item;
+    if (item.kind === "prior_evidence") {
+      const value = String(item.evidence.value ?? "");
+      return packet.language === "zh" ? `你此前获得的证据记录为“${value}”（取得于提交序号 ${item.acquiredAtCommitSequence}）；这不证明它现在仍然相同。` : `Your previously acquired evidence recorded “${value}” at commit sequence ${item.acquiredAtCommitSequence}; this does not establish that it is still current.`;
+    }
+    const evidence = item;
     if (evidence.kind === "attribute_evidence") {
       const value = String(evidence.value ?? "");
       const presence = /有字|writing on/iu.test(languageSample);
