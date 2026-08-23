@@ -25,7 +25,8 @@ try {
     const client = new Client();
     let text = "";
     let prompts = 0;
-    const timer = setTimeout(() => { client.end(); reject(new Error("Live SSH evaluation timed out.")); }, 90_000);
+    const inputs = ["help", "看能看到什么", "打开抽屉", "抽屉里有什么", "拿起钥匙", "我手里有什么", "钥匙在哪里", "把钥匙放进抽屉", "抽屉里有什么", "exit"];
+    const timer = setTimeout(() => { client.end(); reject(new Error("Live SSH evaluation timed out.")); }, 180_000);
     client.on("ready", () => client.shell((error, channel) => {
       if (error) { clearTimeout(timer); reject(error); return; }
       channel.on("data", (chunk: Buffer) => {
@@ -33,8 +34,8 @@ try {
         const count = text.split("ttd: ").length - 1;
         if (count > prompts) {
           prompts = count;
-          if (prompts === 1) channel.write("我打开抽屉，然后把抽屉关上\n");
-          else if (prompts === 2) channel.write("exit\n");
+          const next = inputs[prompts - 1];
+          if (next) channel.write(`${next}\n`);
         }
       });
       channel.on("close", () => { clearTimeout(timer); client.end(); resolve(text); });
@@ -47,7 +48,7 @@ try {
   process.stdout.write(`${JSON.stringify({ promptCount: output.split("ttd: ").length - 1, commitCount: commits.length,
     auditStatuses: audits.map((audit) => audit.status), selectedCandidateIds: commits.map((commit) => commit.selectedCandidateId),
     responseText: output.replaceAll("ttd: ", "").trim() }, null, 2)}\n`);
-  if (commits.length !== 2 || audits.length !== 1 || audits[0]?.status !== "validated") process.exitCode = 1;
+  if (commits.length !== 8 || audits.length !== 0) process.exitCode = 1;
 } finally {
   await new Promise<void>((resolve) => server.close(() => resolve()));
   store.close();

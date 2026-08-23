@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DualRoleBedroomJury, WorkersAiBedroomJury, WorkersAiTurnRenderer, type ChatCompletionClient } from "../src/ai/bedroomAdapters.js";
+import { DualRoleBedroomJury, KernelAwareBedroomJury, WorkersAiBedroomJury, WorkersAiTurnRenderer, type ChatCompletionClient } from "../src/ai/bedroomAdapters.js";
 import { ChineseBedroomRenderer } from "../src/turn/bedroomTurn.js";
-import type { JuryBatch, CommitPackage } from "../src/protocol/types.js";
+import type { JuryBatch, CommitPackage, ConditionalCandidate } from "../src/protocol/types.js";
 
 const candidate = { candidateId: "c1", outcomeKind: "partial" as const, requiresResolution: [], conditions: [], proposedEvents: [], proposedStateChanges: [], observations: [], newWorldCommitments: [] };
 const batch: JuryBatch = { projectionRevisions: {}, candidates: [candidate] };
@@ -57,6 +57,17 @@ test("dual reality jury rejects missing or identity-mismatched role reports", as
   const pass = { async review() { return [{ candidateId: "c1", verdict: "pass" as const, violations: [] }]; } };
   const missing = { async review() { return []; } };
   await assert.rejects(new DualRoleBedroomJury(pass, missing).review(batch));
+});
+
+test("mechanically constituted read-only observations do not become probabilistic", async () => {
+  let called = false;
+  const jury = new KernelAwareBedroomJury({ async review() { called = true; throw new Error("should not run"); } });
+  const observation: ConditionalCandidate = structuredClone(candidate);
+  observation.candidateId = "observe";
+  observation.proposedEvents = [{ eventId: "e", type: "action_result", actionKind: "look_around", outcome: "success", subjectRef: "self" }];
+  observation.observations = [{ kind: "visible_entities", entityIds: [] }];
+  assert.deepEqual(await jury.review({ projectionRevisions: {}, candidates: [observation] }), [{ candidateId: "observe", verdict: "pass", violations: [] }]);
+  assert.equal(called, false);
 });
 
 test("uses model prose and falls back when rendering fails", async () => {

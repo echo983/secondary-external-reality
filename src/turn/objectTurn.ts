@@ -39,7 +39,7 @@ function currentLocation(world: MaterializedWorld, entity: MaterializedEntity): 
 }
 
 function label(entity: MaterializedEntity, language: "zh" | "en"): string {
-  const fallbackZh: Record<string, string> = { door: "门", drawer: "抽屉", key: "钥匙", pen: "笔", paper_note: "纸条", pillow: "枕头", table: "桌子", nightstand: "床头柜" };
+  const fallbackZh: Record<string, string> = { bed: "床", door: "门", drawer: "抽屉", key: "钥匙", pen: "笔", paper_note: "纸条", pillow: "枕头", table: "桌子", nightstand: "床头柜" };
   return entity.attributes[language === "zh" ? "zh_name" : "en_name"] ?? (language === "zh" ? fallbackZh[entity.entityType] : undefined) ?? entity.entityType;
 }
 

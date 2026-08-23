@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import ssh2 from "ssh2";
 import type { AuthContext, Server as SshServer, ServerChannel } from "ssh2";
-import { DualRoleBedroomJury, WorkersAiBedroomJury, WorkersAiTurnRenderer } from "../ai/bedroomAdapters.js";
+import { DualRoleBedroomJury, KernelAwareBedroomJury, WorkersAiBedroomJury, WorkersAiTurnRenderer } from "../ai/bedroomAdapters.js";
 import { WorkersAiClient } from "../ai/workersAiClient.js";
 import { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import { BedroomSession } from "../turn/bedroomSession.js";
@@ -37,10 +37,10 @@ export function createSshMvpServer(config: SshMvpConfig): { server: SshServer; s
   const session = new BedroomSession({
     sessionId: "ssh-world",
     store,
-    jury: new DualRoleBedroomJury(
+    jury: new KernelAwareBedroomJury(new DualRoleBedroomJury(
       new WorkersAiBedroomJury(client, "world_causality"),
       new WorkersAiBedroomJury(client, "experience_epistemic"),
-    ),
+    )),
     renderer: new WorkersAiTurnRenderer(client, new ChineseBedroomRenderer()),
     actionIr: {
       mode: config.actionIrMode ?? "off",

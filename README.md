@@ -40,6 +40,12 @@ world; `active` requires strict schema validation, semantic audit, deterministic
 entity grounding and both reality-jury roles before the existing commit
 admission can run. The default remains `off`.
 
+The v0.8 bounded-world kernel supports exploratory queries: `help`, `look`,
+`inventory`, object location, and open-container contents. Visibility is derived
+from replayed relations; closed containers and hidden inscriptions are not
+leaked. Deterministic parser matches use the kernel fast path, while Action IR
+handles natural paraphrases outside that closed parser.
+
 ## Development
 
 ```sh

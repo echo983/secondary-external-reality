@@ -76,6 +76,30 @@ export class DualRoleBedroomJury implements BedroomJury {
   }
 }
 
+const DETERMINISTIC_KERNEL_ACTIONS = new Set([
+  "take", "place", "put_inside", "open", "close", "observe", "open_and_observe", "write", "find", "read",
+  "look_around", "inventory", "inspect_contents", "locate",
+]);
+
+export class KernelAwareBedroomJury implements BedroomJury {
+  constructor(private readonly realityJury: BedroomJury) {}
+
+  async review(batch: JuryBatch): Promise<JuryReport[]> {
+    const deterministic: JuryReport[] = [];
+    const needsReality = [];
+    for (const candidate of batch.candidates) {
+      const kernelConstituted = candidate.proposedEvents.length > 0 &&
+        candidate.proposedEvents.every((event) => event.actionKind !== undefined && DETERMINISTIC_KERNEL_ACTIONS.has(event.actionKind));
+      if (kernelConstituted) deterministic.push({ candidateId: candidate.candidateId, verdict: "pass", violations: [] });
+      else needsReality.push(candidate);
+    }
+    const reviewed = needsReality.length === 0 ? [] : await this.realityJury.review({ ...batch, candidates: needsReality });
+    const byId = new Map([...deterministic, ...reviewed].map((report) => [report.candidateId, report]));
+    if (byId.size !== batch.candidates.length) throw new Error("Kernel-aware jury did not cover every candidate.");
+    return batch.candidates.map((candidate) => byId.get(candidate.candidateId)!);
+  }
+}
+
 export class WorkersAiTurnRenderer implements TurnRenderer {
   constructor(private readonly client: ChatCompletionClient, private readonly fallback: TurnRenderer) {}
 

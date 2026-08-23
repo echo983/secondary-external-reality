@@ -16,4 +16,6 @@ SSH 支持 `help / 帮助 / ?`，以及 `look`、`inventory`、自然语言位�
 
 ## 本地验证
 
-113 项测试通过，包括隐藏信息不泄露、容器开闭、提交后内容变化、持有物、位置、实体目录、affordance 与 help。
+封闭内核候选完全由本地 world replay 与 compiler 构成，因此使用身份绑定的确定性陪审；只有含未决现实判断的候选才进入双 LLM 陪审。这样避免让已经确定的 WorldTruth 读取和机械状态变化重新随机化。确定性 parser 作为 fast path，Action IR active 处理它不理解的自然改写；shadow 仍可全量采样。
+
+114 项测试通过，包括隐藏信息不泄露、容器开闭、提交后内容变化、持有物、位置、实体目录、affordance、陪审分流与 help。

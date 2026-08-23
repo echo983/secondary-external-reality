@@ -1,5 +1,7 @@
 # MVP 有界开放世界内核计划 v0.8
 
+执行状态：完成；验收见 `MILESTONE-bounded-open-world-v0.8.0.md`。
+
 日期：2026-08-23  
 前置里程碑：`mvp-open-action-ir-v0.7.0`
 

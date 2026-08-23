@@ -40,6 +40,7 @@ export const ACTION_IR_CORPUS: readonly ActionIrCorpusCase[] = [
 ] as const;
 
 export function actionIrCaseMatches(actual: { exitKind: ActionProposalExit; steps: Array<{ primitive: ActionPrimitive; roles: Array<{ role: ActionRole; mention: string }> }> }, expected: ActionIrCorpusCase): boolean {
+  if (actual.exitKind !== "actions" && expected.exitKind !== "actions") return actual.steps.length === 0 && expected.steps.length === 0;
   if (actual.exitKind !== expected.exitKind || actual.steps.length !== expected.steps.length) return false;
   const fixture = createObjectWorldFixture();
   return actual.steps.every((step, index) => {

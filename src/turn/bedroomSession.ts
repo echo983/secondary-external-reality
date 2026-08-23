@@ -54,8 +54,10 @@ export class BedroomSession {
     const atomicComposite = wholeObjectIntent?.operation === "write_and_hide" || wholeObjectIntent?.operation === "open_and_observe" || wholeObjectIntent?.operation === "read";
     const steps = atomicComposite ? [rawTtd.trim()] : splitActionSequence(rawTtd);
     const rootTurnId = `${this.options.sessionId}:${randomUUID()}`;
-    const activeProposal = await this.runActionIr(rawTtd, rootTurnId);
-    if (this.options.actionIr?.mode === "active") {
+    const deterministicFastPath = steps.length > 0 && steps.every((step) => isObjectIntent(step));
+    const useActiveIr = this.options.actionIr?.mode === "active" && !deterministicFastPath;
+    const activeProposal = this.options.actionIr?.mode === "shadow" || useActiveIr ? await this.runActionIr(rawTtd, rootTurnId) : null;
+    if (useActiveIr) {
       if (!activeProposal) throw new BedroomTurnError(this.failureMessage(rawTtd, "这个尝试目前无法可靠地理解。", "This attempt cannot yet be understood reliably."));
       if (activeProposal.exitKind !== "actions") {
         throw new BedroomTurnError(activeProposal.exitKind === "not_an_action"
