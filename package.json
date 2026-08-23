@@ -11,6 +11,7 @@
     "eval:semantic-ir:live": "npm run build && node dist/src/eval/runSemanticIrLiveEval.js",
     "eval:human-input:live": "npm run build && node dist/src/eval/runHumanInputLiveEval.js",
     "eval:adversarial-language:live": "npm run build && node dist/src/eval/runAdversarialLanguageLiveEval.js",
+    "eval:discourse-contract:live": "npm run build && node dist/src/eval/runDiscourseContractLiveEval.js",
     "start:ssh": "node dist/src/ssh/server.js"
   },
   "devDependencies": {

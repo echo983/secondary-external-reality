@@ -23,6 +23,7 @@ import { normalizeSemanticInput } from "../semanticIr/normalization.js";
 import { DeterministicPresentationRenderer, type ApprovedPresentationRenderer } from "../presentation/renderer.js";
 import { classifyInterfaceInput, interfaceResponse } from "./inputClassification.js";
 import { ReferenceLexicon } from "../world/referenceLexicon.js";
+import { DiscourseContext } from "./discourseContext.js";
 
 export interface BedroomSessionOptions {
   sessionId: string;
@@ -38,7 +39,7 @@ export interface BedroomSessionOptions {
 export class BedroomSession {
   private tail: Promise<void> = Promise.resolve();
   private auditRepair: Promise<unknown> | null = null;
-  private readonly exposedEntityIds = new Set<string>();
+  private readonly discourseContext = new DiscourseContext();
 
   constructor(private readonly options: BedroomSessionOptions) {
     if (!options.sessionId.trim()) throw new Error("Session ID must be non-empty.");
@@ -60,13 +61,14 @@ export class BedroomSession {
     this.auditRepair ??= this.options.store.repairTurnAttempts();
     await this.auditRepair;
     const rootTurnId = `${this.options.sessionId}:${randomUUID()}`;
+    const priorFocus = this.discourseContext.consumeFocus();
     const interfaceClass = classifyInterfaceInput(rawTtd);
     if (interfaceClass) {
       await this.options.store.appendTurnAttempt({ attemptId: `${rootTurnId}:0`, rootTurnId, stepIndex: 0, stepCount: 1, rawTtd,
         status: "interface", interfaceCode: interfaceClass, createdAt: new Date().toISOString() });
       return { kind: "interface", code: interfaceClass, response: interfaceResponse(interfaceClass, /[\u3400-\u9fff]/u.test(rawTtd)), intent: parseMvpIntent(rawTtd), commitPackage: undefined as never };
     }
-    const discourse = this.resolveDiscourseIntent(rawTtd);
+    const discourse = this.resolveDiscourseIntent(rawTtd, priorFocus);
     const wholeObjectIntent = parseObjectIntent(rawTtd) ?? discourse?.intent;
     const atomicComposite = wholeObjectIntent?.operation === "write_and_hide" || wholeObjectIntent?.operation === "open_and_observe" || wholeObjectIntent?.operation === "open_and_inspect" || wholeObjectIntent?.operation === "read";
     const steps = atomicComposite ? [rawTtd.trim()] : splitActionSequence(rawTtd);
@@ -310,23 +312,29 @@ export class BedroomSession {
     return result;
   }
 
-  private resolveDiscourseIntent(rawTtd: string): { intent: ObjectIntent; entityIds: string[] } | null {
+  private resolveDiscourseIntent(rawTtd: string, priorFocus: readonly string[]): { intent: ObjectIntent; entityIds: string[] } | null {
+    const parsed = parseObjectIntent(rawTtd);
+    if (/(?:它|\bit\b)/iu.test(rawTtd) && parsed && priorFocus.length === 1) {
+      return { intent: parsed, entityIds: [...priorFocus] };
+    }
     if (!/(?:呢|where about|what about)\s*[？?]*$/iu.test(rawTtd.trim())) return null;
     const lexicon = new ReferenceLexicon(createObjectWorldFixture());
-    const candidates = lexicon.resolveMention(rawTtd).filter((entityId) => this.exposedEntityIds.has(entityId));
+    const candidates = this.discourseContext.exposedCandidates(lexicon.resolveMention(rawTtd));
     return candidates.length === 1 ? { intent: { operation: "locate", rawTtd: rawTtd.trim(), inputLanguage: /[\u3400-\u9fff]/u.test(rawTtd) ? "zh" : "en" }, entityIds: candidates } : null;
   }
 
   private recordExposedEntities(result: TurnResult): void {
     if (result.kind !== "committed" || !result.commitPackage.canonical) return;
+    const focused: string[] = [];
     for (const item of result.commitPackage.canonical.presentationPacket.items) {
-      if (item.kind === "observed_entities") item.entityIds.forEach((id) => this.exposedEntityIds.add(id));
-      if (item.kind === "bounded_relation_set") { this.exposedEntityIds.add(item.objectId); item.subjectIds.forEach((id) => this.exposedEntityIds.add(id)); }
+      if (item.kind === "observed_entities") this.discourseContext.expose(item.entityIds);
+      if (item.kind === "bounded_relation_set") this.discourseContext.expose([item.objectId, ...item.subjectIds]);
       if (item.kind === "attribute_evidence" || item.kind === "relation_evidence") {
         const subject = String(item.semanticAddress).match(/^(?:entity|relation-slot):([^.]+)/u)?.[1];
-        if (subject) this.exposedEntityIds.add(subject);
+        if (subject) { this.discourseContext.expose([subject]); focused.push(subject); }
       }
     }
+    this.discourseContext.setFocus(focused.length === 1 ? focused : []);
   }
 
   private async executeSingle(rawTtd: string, rootTurnId: string, stepIndex: number, stepCount: number, objectIntent?: ObjectIntent, mentionedEntityIds?: string[]): Promise<TurnResult> {

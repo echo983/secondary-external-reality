@@ -70,6 +70,45 @@ test("never executes negated, hypothetical, or conditional language on the deter
   });
 });
 
+test("resolves a pronoun only from the immediately prior unique presentation focus", async () => {
+  await withSession(async (session, store) => {
+    await session.submit("钥匙在哪里");
+    const taken = await session.submit("拿起它");
+    assert.equal(taken.kind, "committed");
+    assert.match(taken.response, /钥匙/u);
+    const inventory = await session.submit("手里有什么");
+    assert.match(inventory.response, /钥匙/u);
+    assert.equal((await store.list()).length, 3);
+  });
+});
+
+test("does not guess a pronoun after a multi-entity view or an intervening interface turn", async () => {
+  await withSession(async (session, store) => {
+    await session.submit("看看周围");
+    const afterLook = (await store.list()).length;
+    await assert.rejects(session.submit("拿起它"));
+    assert.equal((await store.list()).length, afterLook);
+
+    await session.submit("钥匙在哪里");
+    await session.submit("你好");
+    const afterGreeting = (await store.list()).length;
+    await assert.rejects(session.submit("拿起它"));
+    assert.equal((await store.list()).length, afterGreeting);
+  });
+});
+
+test("rechecks perception when a focused entity becomes hidden before the pronoun turn", async () => {
+  await withSession(async (session, store) => {
+    await session.submit("纸条在哪里");
+    const other = new BedroomSession({ sessionId: "other", store, jury: new PassingBedroomJury(), renderer: new ChineseBedroomRenderer() });
+    await other.submit("在纸条上写下731并藏到枕头下面");
+    const before = (await store.list()).length;
+    const result = await session.submit("它在哪里");
+    assert.equal(result.kind, "boundary");
+    assert.equal((await store.list()).length, before);
+  });
+});
+
 test("resolves an exposed alias in discourse but rechecks visibility after hiding", async () => {
   await withSession(async (session, store) => {
     await session.submit("看看周围");

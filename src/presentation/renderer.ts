@@ -12,7 +12,30 @@ export class RiskAwarePresentationRenderer implements ApprovedPresentationRender
       item.kind === "boundary" || item.kind === "prior_evidence" || item.kind === "attribute_evidence" ||
       (item.kind === "bounded_relation_set" && item.subjectIds.length === 0),
     );
-    return (highRisk ? this.deterministic : this.lowRisk).render(packet, languageSample);
+    if (highRisk) return this.deterministic.render(packet, languageSample);
+    const rendered = await this.lowRisk.render(packet, languageSample);
+    return this.isGroundedRendering(rendered, packet) ? rendered : this.deterministic.render(packet, languageSample);
+  }
+
+  private isGroundedRendering(rendered: string, packet: ApprovedPresentationPacket): boolean {
+    const fixture = createObjectWorldFixture();
+    const lexicon = new ReferenceLexicon(fixture);
+    if (fixture.names.some(({ entityId }) => rendered.includes(entityId))) return false;
+    const required = new Set<string>();
+    for (const item of packet.items) {
+      if (item.kind === "observed_entities") item.entityIds.forEach((id) => required.add(id));
+      if (item.kind === "bounded_relation_set") {
+        if (item.objectId !== "self") required.add(item.objectId);
+        item.subjectIds.forEach((id) => required.add(id));
+      }
+      if (item.kind === "relation_evidence") {
+        const subject = String(item.semanticAddress).match(/^relation-slot:([^.]+)\./u)?.[1];
+        if (subject) required.add(subject);
+        if (typeof item.value === "string" && fixture.names.some(({ entityId }) => entityId === item.value)) required.add(item.value);
+      }
+    }
+    const normalized = rendered.toLocaleLowerCase();
+    return [...required].every((entityId) => lexicon.names(entityId).some((alias) => normalized.includes(alias.toLocaleLowerCase())));
   }
 }
 
