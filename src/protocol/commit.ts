@@ -72,6 +72,9 @@ export function prepareCommitPackage(
       commitSequence,
       selectedCandidateId: selected.candidateId,
       expectedProjectionRevisions,
+      resolvedProjections: structuredClone(expectedSnapshots.filter((snapshot) =>
+        selected.requiresResolution.some((requirement) => requirement.projection === snapshot.projection),
+      )),
       events: structuredClone(selected.proposedEvents),
       stateChanges: structuredClone(selected.proposedStateChanges),
       observations: structuredClone(selected.observations),

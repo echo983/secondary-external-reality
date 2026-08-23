@@ -18,6 +18,7 @@ function commit(turnId: string, commitSequence: number): CommitPackage {
     expectedProjectionRevisions: {
       "entity:self.position": commitSequence,
     },
+    resolvedProjections: [],
     events: [
       {
         eventId: `event-${commitSequence}`,

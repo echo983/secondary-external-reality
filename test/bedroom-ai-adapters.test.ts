@@ -22,7 +22,7 @@ test("rejects malformed or contradictory jury output", async () => {
 });
 
 test("uses model prose and falls back when rendering fails", async () => {
-  const commit = { turnId: "t", commitSequence: 1, selectedCandidateId: "c1", expectedProjectionRevisions: {}, events: [], stateChanges: [], observations: [], newWorldCommitments: [] } satisfies CommitPackage;
+  const commit = { turnId: "t", commitSequence: 1, selectedCandidateId: "c1", expectedProjectionRevisions: {}, resolvedProjections: [], events: [], stateChanges: [], observations: [], newWorldCommitments: [] } satisfies CommitPackage;
   const intent = { actorId: "self" as const, rawTtd: "我去开门", actions: [], inputLanguage: "zh" as const };
   const rendered = new WorkersAiTurnRenderer(client("你走到门边。"), new ChineseBedroomRenderer());
   assert.equal(await rendered.render(commit, intent), "你走到门边。");

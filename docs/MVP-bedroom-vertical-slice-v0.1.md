@@ -11,7 +11,7 @@
 3. 对条件化候选做纯代码协议验证和资格判定；
 4. 只把 eligible 候选交给 Mistral Small 3.1 审查；
 5. 由代码选择最小承诺候选并检查投影 revision；
-6. 将不可变 commit package 原子追加到 LanceDB；
+6. 将解析值及其 revision 连同不可变 commit package 原子追加到 LanceDB；
 7. 让 Qwen3-30B-A3B 将已提交的玩家可见事实渲染成同语言自然文本。
 
 陪审模型不能选择隐藏现实，也不能修改候选。渲染模型只接收已提交事件、状态变化与观察；调用失败时退回确定性中文渲染。

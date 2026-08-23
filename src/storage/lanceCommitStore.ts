@@ -13,6 +13,7 @@ interface CommitRow extends Record<string, unknown> {
   commit_sequence: number;
   selected_candidate_id: string;
   expected_projection_revisions_json: string;
+  resolved_projections_json: string;
   events_json: string;
   state_changes_json: string;
   observations_json: string;
@@ -55,6 +56,7 @@ function rowFromPackage(commitPackage: CommitPackage): CommitRow {
     expected_projection_revisions_json: JSON.stringify(
       commitPackage.expectedProjectionRevisions,
     ),
+    resolved_projections_json: JSON.stringify(commitPackage.resolvedProjections),
     events_json: JSON.stringify(commitPackage.events),
     state_changes_json: JSON.stringify(commitPackage.stateChanges),
     observations_json: JSON.stringify(commitPackage.observations),

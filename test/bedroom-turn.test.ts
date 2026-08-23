@@ -22,6 +22,10 @@ test("runs the first complete ttd turn and persists it atomically", async () => 
     });
     assert.match(result.response, /左腿/);
     assert.deepEqual(result.intent.actions.map((action) => action.kind), ["stand", "move", "open"]);
+    assert.deepEqual(result.commitPackage.resolvedProjections.map(({ projection, value }) => ({ projection, value })), [
+      { projection: "entity:self.action_outcome.move_3m_now", value: "impaired_success" },
+      { projection: "entity:self.action_outcome.stand_now", value: "unstable_success" },
+    ]);
     assert.deepEqual(result.commitPackage.stateChanges.map((change) => change.to), ["standing", "doorway", "open"]);
     assert.deepEqual(await store.list(), [result.commitPackage]);
   } finally {

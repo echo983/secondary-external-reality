@@ -149,6 +149,7 @@ export interface CommitPackage {
   commitSequence: number;
   selectedCandidateId: string;
   expectedProjectionRevisions: Record<string, number>;
+  resolvedProjections: ProjectionSnapshot[];
   events: ProposedEvent[];
   stateChanges: StateChange[];
   observations: unknown[];
