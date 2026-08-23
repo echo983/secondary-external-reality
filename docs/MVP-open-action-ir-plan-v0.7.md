@@ -54,6 +54,7 @@ raw ttd
 interface ActionProposalEnvelopeV07 {
   schemaVersion: "0.7.0";
   inputLanguage: "zh" | "en";
+  exitKind: "actions" | "unsupported_action" | "not_an_action";
   steps: ActionStepProposalV07[];
 }
 
@@ -86,6 +87,7 @@ interface ActionStepProposalV07 {
 - `mention` 必须是用户原文的连续片段；模型不得规范化成不存在于输入中的对象名。
 - 模型不得输出实体 ID、结果、成功率、世界事实、状态变化或承诺。
 - primitive 来自版本化闭集；未知动词必须走 `unsupported_action`，不能硬套最相近动作。
+- `unsupported_action` 和 `not_an_action` 必须携带空 steps，因此能够明确、安全地表达零执行出口。
 - `content` 仅用于已经定义的精确内容类型；v0.7 继续保持纸条数字的逐字精确性。
 - 根回合最多 4 个原子步骤、每步最多 4 个角色，超限保守拒绝，防止模型把叙述无限展开。
 
