@@ -28,14 +28,16 @@ function parseViolations(value: unknown): ValidationIssue[] {
 }
 
 export class WorkersAiBedroomJury implements BedroomJury {
-  constructor(private readonly client: ChatCompletionClient) {}
+  constructor(private readonly client: ChatCompletionClient, private readonly role: "world_causality" | "experience_epistemic" = "world_causality") {}
 
   async review(batch: JuryBatch): Promise<JuryReport[]> {
     const reports: JuryReport[] = [];
     for (const candidate of batch.candidates) {
       const result = await this.client.chat(WORKERS_AI_MODELS.jury, [
-        { role: "system", content: "You are a conservative reality-protocol auditor. Return JSON only. Fail only for a concrete contradiction, causal defect, or unsupported commitment inside the candidate. Conditions describe the eligible PRE-STATE. Proposed events occur next. State changes and new world commitments describe the POST-STATE caused by those events, so a lawful transition such as closed → open is not a contradiction. Do not invent world facts and do not choose an outcome." },
-        { role: "user", content: JSON.stringify({ task: "audit_candidate", projectionRevisions: batch.projectionRevisions, candidate, output: { candidateId: candidate.candidateId, verdict: "pass|fail", violations: [{ code: "string", path: "string", message: "string" }] } }) },
+        { role: "system", content: this.role === "world_causality"
+          ? "You are the world-causality reality auditor. Return JSON only. Fail concrete contradictions in entities, history, preconditions, causality, or commitments. Conditions are PRE-STATE; events and changes are POST-STATE. Do not invent facts or choose outcomes."
+          : "You are the experience-epistemic reality auditor. Return JSON only. Fail physically implausible experience, observations unavailable to the actor, or evidence/knowledge not caused by the events. Conditions are PRE-STATE; events and changes are POST-STATE. Do not invent facts or choose outcomes." },
+        { role: "user", content: JSON.stringify({ task: "audit_candidate", role: this.role, projectionRevisions: batch.projectionRevisions, candidate, output: { candidateId: candidate.candidateId, verdict: "pass|fail", violations: [{ code: "string", path: "string", message: "string" }] } }) },
       ], { temperature: 0, max_tokens: 500 });
       const parsed = parseJsonObject(result.content);
       if (parsed.candidateId !== candidate.candidateId || (parsed.verdict !== "pass" && parsed.verdict !== "fail")) {
@@ -47,6 +49,30 @@ export class WorkersAiBedroomJury implements BedroomJury {
       reports.push({ candidateId: candidate.candidateId, verdict: parsed.verdict, violations });
     }
     return reports;
+  }
+}
+
+export class DualRoleBedroomJury implements BedroomJury {
+  constructor(private readonly worldCausality: BedroomJury, private readonly experienceEpistemic: BedroomJury) {}
+
+  async review(batch: JuryBatch): Promise<JuryReport[]> {
+    const [world, experience] = await Promise.all([
+      this.worldCausality.review(batch), this.experienceEpistemic.review(batch),
+    ]);
+    const expected = batch.candidates.map((candidate) => candidate.candidateId);
+    const index = (reports: JuryReport[], role: string): Map<string, JuryReport> => {
+      if (reports.length !== expected.length) throw new Error(`${role} jury report count is invalid.`);
+      const mapped = new Map(reports.map((report) => [report.candidateId, report]));
+      if (mapped.size !== expected.length || expected.some((id) => !mapped.has(id))) throw new Error(`${role} jury identities are invalid.`);
+      return mapped;
+    };
+    const worldById = index(world, "world_causality");
+    const experienceById = index(experience, "experience_epistemic");
+    return expected.map((candidateId) => {
+      const reports = [worldById.get(candidateId)!, experienceById.get(candidateId)!];
+      const violations = reports.flatMap((report) => report.violations);
+      return { candidateId, verdict: reports.every((report) => report.verdict === "pass") ? "pass" : "fail", violations };
+    });
   }
 }
 

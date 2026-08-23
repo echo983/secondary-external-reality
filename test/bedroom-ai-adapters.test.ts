@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { WorkersAiBedroomJury, WorkersAiTurnRenderer, type ChatCompletionClient } from "../src/ai/bedroomAdapters.js";
+import { DualRoleBedroomJury, WorkersAiBedroomJury, WorkersAiTurnRenderer, type ChatCompletionClient } from "../src/ai/bedroomAdapters.js";
 import { ChineseBedroomRenderer } from "../src/turn/bedroomTurn.js";
 import type { JuryBatch, CommitPackage } from "../src/protocol/types.js";
 
@@ -30,6 +30,33 @@ test("tells the jury that conditions and commitments belong to different times",
 test("rejects malformed or contradictory jury output", async () => {
   await assert.rejects(new WorkersAiBedroomJury(client('{"candidateId":"other","verdict":"pass","violations":[]}')).review(batch));
   await assert.rejects(new WorkersAiBedroomJury(client('{"candidateId":"c1","verdict":"fail","violations":[]}')).review(batch));
+});
+
+test("dual reality jury runs both roles and requires both to pass", async () => {
+  let active = 0;
+  let maximum = 0;
+  const reviewer = (verdict: "pass" | "fail") => ({
+    async review(reviewBatch: JuryBatch) {
+      active += 1;
+      maximum = Math.max(maximum, active);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      active -= 1;
+      return reviewBatch.candidates.map((candidate) => ({
+        candidateId: candidate.candidateId, verdict,
+        violations: verdict === "pass" ? [] : [{ code: "REALITY", path: "$.candidate", message: "rejected" }],
+      }));
+    },
+  });
+  const reports = await new DualRoleBedroomJury(reviewer("pass"), reviewer("fail")).review(batch);
+  assert.equal(maximum, 2);
+  assert.equal(reports[0]?.verdict, "fail");
+  assert.equal(reports[0]?.violations.length, 1);
+});
+
+test("dual reality jury rejects missing or identity-mismatched role reports", async () => {
+  const pass = { async review() { return [{ candidateId: "c1", verdict: "pass" as const, violations: [] }]; } };
+  const missing = { async review() { return []; } };
+  await assert.rejects(new DualRoleBedroomJury(pass, missing).review(batch));
 });
 
 test("uses model prose and falls back when rendering fails", async () => {

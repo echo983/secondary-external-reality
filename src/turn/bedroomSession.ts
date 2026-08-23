@@ -13,6 +13,7 @@ import { createHash } from "node:crypto";
 import { createObjectWorldFixture } from "../world/objectFixture.js";
 import { MaterializedWorld } from "../world/materializedWorld.js";
 import { groundActionProposal } from "../actionIr/grounding.js";
+import type { ActionIrSemanticAuditor } from "../actionIr/semanticAuditor.js";
 
 export interface BedroomSessionOptions {
   sessionId: string;
@@ -20,7 +21,7 @@ export interface BedroomSessionOptions {
   jury: BedroomJury;
   renderer: TurnRenderer;
   fixtureFactory?: () => BedroomFixture;
-  actionIr?: { mode: "off" | "shadow"; proposer?: ActionIrProposer };
+  actionIr?: { mode: "off" | "shadow"; proposer?: ActionIrProposer; semanticAuditor?: ActionIrSemanticAuditor };
 }
 
 export class BedroomSession {
@@ -88,16 +89,21 @@ export class BedroomSession {
     try {
       const result = await config.proposer.propose(rawTtd);
       let groundingIssues: unknown[] = [];
+      let semanticIssues: unknown[] = [];
       if (result.validation.proposal) {
+        if (config.semanticAuditor) {
+          const semantic = await config.semanticAuditor.review(rawTtd, result.validation.proposal);
+          semanticIssues = semantic.violations;
+        }
         const fixture = createObjectWorldFixture();
         const world = MaterializedWorld.replay(await this.options.store.list(), fixture.seedCommitments);
         groundingIssues = groundActionProposal(result.validation.proposal, fixture, world).issues;
       }
       await this.options.store.appendActionProposalAudit({
         auditId, rootTurnId, mode: "shadow", inputHash, outputHash: result.outputHash,
-        status: result.validation.valid && groundingIssues.length === 0 ? "validated" : "rejected",
+        status: result.validation.valid && groundingIssues.length === 0 && semanticIssues.length === 0 ? "validated" : "rejected",
         proposal: result.validation.proposal ?? undefined,
-        validationIssues: result.validation.issues, groundingIssues,
+        validationIssues: result.validation.issues, groundingIssues, semanticIssues,
         model: result.model, latencyMs: result.latencyMs, usage: result.usage,
         createdAt: new Date().toISOString(),
       });

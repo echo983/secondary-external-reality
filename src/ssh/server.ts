@@ -2,13 +2,14 @@ import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import ssh2 from "ssh2";
 import type { AuthContext, Server as SshServer, ServerChannel } from "ssh2";
-import { WorkersAiBedroomJury, WorkersAiTurnRenderer } from "../ai/bedroomAdapters.js";
+import { DualRoleBedroomJury, WorkersAiBedroomJury, WorkersAiTurnRenderer } from "../ai/bedroomAdapters.js";
 import { WorkersAiClient } from "../ai/workersAiClient.js";
 import { LanceCommitStore } from "../storage/lanceCommitStore.js";
 import { BedroomSession } from "../turn/bedroomSession.js";
 import { ChineseBedroomRenderer } from "../turn/bedroomTurn.js";
 import { TtdTextShell } from "./textShell.js";
 import { WorkersAiActionIrProposer } from "../actionIr/proposer.js";
+import { WorkersAiActionIrSemanticAuditor } from "../actionIr/semanticAuditor.js";
 
 const { Server } = ssh2;
 
@@ -36,9 +37,16 @@ export function createSshMvpServer(config: SshMvpConfig): { server: SshServer; s
   const session = new BedroomSession({
     sessionId: "ssh-world",
     store,
-    jury: new WorkersAiBedroomJury(client),
+    jury: new DualRoleBedroomJury(
+      new WorkersAiBedroomJury(client, "world_causality"),
+      new WorkersAiBedroomJury(client, "experience_epistemic"),
+    ),
     renderer: new WorkersAiTurnRenderer(client, new ChineseBedroomRenderer()),
-    actionIr: { mode: config.actionIrMode ?? "off", proposer: new WorkersAiActionIrProposer(client) },
+    actionIr: {
+      mode: config.actionIrMode ?? "off",
+      proposer: new WorkersAiActionIrProposer(client),
+      semanticAuditor: new WorkersAiActionIrSemanticAuditor(client),
+    },
   });
   const server = new Server({ hostKeys: [config.hostKey] }, (connection) => {
     connection.on("authentication", (context: AuthContext) => {

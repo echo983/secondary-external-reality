@@ -22,6 +22,7 @@ export interface ActionProposalAudit {
   proposal?: unknown;
   validationIssues: unknown[];
   groundingIssues: unknown[];
+  semanticIssues?: unknown[];
   model?: string;
   latencyMs?: number;
   usage?: Record<string, unknown>;
