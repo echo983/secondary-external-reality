@@ -415,6 +415,8 @@ export class LanceCommitStore {
           commitSequence: commitPackage.commitSequence,
           eventIds: new Set(commitPackage.events.map((event) => event.eventId)),
           knownAgentIds: new Set([...futureWorld.entities.values()].filter((entity) => entity.entityType === "person").map((entity) => entity.entityId)),
+          legacyEvidence: commitPackage.evidenceGenerated ?? [],
+          legacyEpistemicChanges: commitPackage.epistemicChanges ?? [],
         });
         if (canonicalIssues.length > 0) throw new CommitConflictError(`Canonical envelope rejected: ${canonicalIssues.map((entry) => `${entry.code} at ${entry.path}`).join("; ")}`);
       }

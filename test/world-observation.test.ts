@@ -23,6 +23,7 @@ test("looks around without leaking hidden contents or inscriptions", async () =>
     assert.doesNotMatch(looked.response, /纸条/u);
     assert.deepEqual(looked.commitPackage.stateChanges, []);
     assert.deepEqual(looked.commitPackage.newWorldCommitments, []);
+    assert.equal(looked.commitPackage.canonical?.presentationPacket.items[0]?.kind, "observed_entities");
   } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -37,7 +38,9 @@ test("closed containers hide contents and open containers expose committed conte
     assert.equal((await store.list()).length, before);
     assert.equal((await store.listTurnAttempts()).at(-1)?.status, "boundary");
     await session.submit("打开抽屉");
-    assert.match((await session.submit("抽屉里有什么")).response, /空/u);
+    const empty = await session.submit("抽屉里有什么");
+    assert.match(empty.response, /空/u);
+    assert.equal(empty.commitPackage.canonical?.observations.some((entry) => entry.kind === "relation_set_perception" && entry.subjectIds.length === 0 && entry.completeness === "complete_for_scope"), true);
     await session.submit("拿起钥匙");
     await session.submit("把钥匙放进抽屉");
     assert.match((await session.submit("抽屉里有什么")).response, /钥匙/u);
@@ -70,6 +73,8 @@ test("distinguishes blank inscription presence from exact inscription value", as
     assert.equal(hidden.kind, "boundary");
     assert.doesNotMatch(hidden.response, /001739/u);
     assert.equal((await store.list()).length, before);
-    assert.match((await session.submit("我找到枕头下的纸条并读它")).response, /001739/u);
+    const read = await session.submit("我找到枕头下的纸条并读它");
+    assert.match(read.response, /001739/u);
+    assert.equal(read.commitPackage.canonical?.presentationPacket.items.length, 2);
   } finally { store.close(); await rm(directory, { recursive: true, force: true }); }
 });

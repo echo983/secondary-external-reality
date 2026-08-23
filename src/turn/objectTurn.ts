@@ -11,6 +11,9 @@ import { triageFixedQuery } from "../query/queryTriage.js";
 import { replayCanonicalViews } from "../replay/canonicalReplay.js";
 import type { PublicBoundaryCode } from "../presentation/types.js";
 import type { FixedQueryKind, QueryRequest } from "../query/types.js";
+import { buildCanonicalQueryEnvelope, type CompleteRelationSetInput } from "../query/canonicalQueryEnvelope.js";
+import type { ApprovedPresentationItem } from "../presentation/types.js";
+import { entityAttributeAddress, relationSlotAddress } from "../world/semanticAddress.js";
 
 export class ObjectTurnError extends Error {}
 
@@ -110,6 +113,8 @@ export async function runObjectTurn(options: {
   const observations: unknown[] = [];
   const evidenceGenerated: EvidenceRecord[] = [];
   const epistemicChanges: EpistemicChange[] = [];
+  const presentationItems: ApprovedPresentationItem[] = [];
+  let completeRelationSet: CompleteRelationSetInput | undefined;
   let response: string;
 
   if (parsed.operation === "look_around") {
@@ -123,6 +128,7 @@ export async function runObjectTurn(options: {
     }
     const names = visible.map((entity) => label(entity, parsed.inputLanguage));
     observations.push({ kind: "visible_entities", entityIds: visible.map((entity) => entity.entityId) });
+    presentationItems.push({ kind: "observed_entities", entityIds: visible.map((entity) => entity.entityId) });
     response = parsed.inputLanguage === "zh" ? `你环顾四周，可以看到：${names.join("、")}。` : `You look around and can see: ${names.join(", ")}.`;
   } else if (parsed.operation === "inventory") {
     const held = world.entitiesRelatedTo("held_by", "self");
@@ -137,6 +143,8 @@ export async function runObjectTurn(options: {
     }
     const names = held.map((entity) => label(entity, parsed.inputLanguage));
     observations.push({ kind: "held_entities", entityIds: held.map((entity) => entity.entityId) });
+    completeRelationSet = { predicate: "held_by", objectId: "self", subjectIds: held.map((entity) => entity.entityId), sourceEventId: eventId };
+    presentationItems.push({ kind: "bounded_relation_set", predicate: "held_by", objectId: "self", subjectIds: held.map((entity) => entity.entityId), complete: true });
     response = parsed.inputLanguage === "zh" ? (names.length ? `你手里拿着：${names.join("、")}。` : "你手里没有拿着东西。") : (names.length ? `You are holding: ${names.join(", ")}.` : "You are not holding anything.");
   } else if (parsed.operation === "inspect_contents") {
     const container = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.attributes.container === "true"), "container");
@@ -153,6 +161,8 @@ export async function runObjectTurn(options: {
     }
     const names = contents.map((entity) => label(entity, parsed.inputLanguage));
     observations.push({ kind: "container_contents", containerId: container.entityId, entityIds: contents.map((entity) => entity.entityId) });
+    completeRelationSet = { predicate: "contained_by", objectId: container.entityId, subjectIds: contents.map((entity) => entity.entityId), sourceEventId: eventId };
+    presentationItems.push({ kind: "bounded_relation_set", predicate: "contained_by", objectId: container.entityId, subjectIds: contents.map((entity) => entity.entityId), complete: true });
     response = parsed.inputLanguage === "zh" ? (names.length ? `${label(container, "zh")}里面有：${names.join("、")}。` : `${label(container, "zh")}里面是空的。`) : (names.length ? `Inside the ${label(container, "en")} you see: ${names.join(", ")}.` : `The ${label(container, "en")} is empty.`);
   } else if (parsed.operation === "locate") {
     const target = exactlyOne(mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity !== undefined && entity.entityType !== "person"), "locatable object");
@@ -165,6 +175,7 @@ export async function runObjectTurn(options: {
     const evidenceId = `evidence-location-${target.entityId}-${options.commitSequence}`;
     evidenceGenerated.push({ evidenceId, kind: "relation_observed", sourceEventId: eventId, subjectId: target.entityId, predicate: location.predicate, objectId: location.objectId });
     epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
+    presentationItems.push({ kind: "relation_evidence", semanticAddress: relationSlotAddress(target.entityId, location.predicate), value: location.objectId, evidenceId });
     response = parsed.inputLanguage === "zh" ? `${label(target, "zh")}${relationWords(location, locationObject, "zh")}。` : `The ${label(target, "en")} is ${relationWords(location, locationObject, "en")}.`;
   } else if (parsed.operation === "write_and_hide") {
     const inscription = parsed.rawTtd.match(/[0-9]{1,64}/u)?.[0];
@@ -200,6 +211,7 @@ export async function runObjectTurn(options: {
     const evidenceId = `evidence-inscription-${note.entityId}-${options.commitSequence}`;
     evidenceGenerated.push({ evidenceId, kind: "attribute_observed", sourceEventId: eventId, subjectId: note.entityId, attribute: "inscription", value: inscription });
     epistemicChanges.push({ agentId: "self", kind: "acquired_evidence", evidenceId });
+    presentationItems.push({ kind: "attribute_evidence", semanticAddress: entityAttributeAddress(note.entityId, "inscription"), value: inscription, evidenceId });
     if (parsed.inputLanguage === "zh") response = inscription ? (parsed.operation === "inspect_inscription_presence" ? "纸条上有字。" : `纸条上写着“${inscription}”。`) : "纸条上没有字。";
     else response = inscription ? (parsed.operation === "inspect_inscription_presence" ? "There is writing on the note." : `The note reads “${inscription}”.`) : "There is no writing on the note.";
   } else if (parsed.operation === "read") {
@@ -231,6 +243,10 @@ export async function runObjectTurn(options: {
     epistemicChanges.push(
       { agentId: "self", kind: "acquired_evidence", evidenceId: locationEvidenceId },
       { agentId: "self", kind: "acquired_evidence", evidenceId: inscriptionEvidenceId },
+    );
+    presentationItems.push(
+      { kind: "relation_evidence", semanticAddress: relationSlotAddress(note.entityId, location.predicate), value: location.objectId, evidenceId: locationEvidenceId },
+      { kind: "attribute_evidence", semanticAddress: entityAttributeAddress(note.entityId, "inscription"), value: inscription, evidenceId: inscriptionEvidenceId },
     );
     response = parsed.inputLanguage === "zh" ? `你在${location.objectId === "pillow-1" ? "枕头下面" : "那里"}找到${label(note, "zh")}。上面写着“${inscription}”。` : `You find the ${label(note, "en")} and read “${inscription}”.`;
   } else if (parsed.operation === "open_and_observe") {
@@ -327,7 +343,9 @@ export async function runObjectTurn(options: {
 
   const candidateId = `object-${parsed.operation}-${options.commitSequence}`;
   const envelope: CandidateEnvelope = { candidates: [{ candidateId, outcomeKind: "success", requiresResolution: [], conditions, proposedEvents: events, proposedStateChanges: [], observations, evidenceGenerated, epistemicChanges, newWorldCommitments: commitments }] };
-  const commitPackage = await commitCandidateEnvelope({ ...options, envelope, registry, snapshots, worldBasis: fixture.worldBasis, seedCommitments: fixture.seedCommitments });
+  const canonical = (queryKind || parsed.operation === "read") ? buildCanonicalQueryEnvelope({ turnId: options.turnId, commitSequence: options.commitSequence, language: parsed.inputLanguage,
+    evidence: evidenceGenerated, presentationItems, ...(completeRelationSet ? { completeRelationSet } : {}) }) : undefined;
+  const commitPackage = await commitCandidateEnvelope({ ...options, envelope, registry, snapshots, worldBasis: fixture.worldBasis, seedCommitments: fixture.seedCommitments, ...(canonical ? { canonical } : {}) });
   return { kind: "committed", response, commitPackage, intent: parseMvpIntent(options.rawTtd) };
 }
 

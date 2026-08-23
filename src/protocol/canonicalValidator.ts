@@ -1,9 +1,11 @@
-import type { CanonicalCommitEnvelopeV1, ValidationIssue } from "./types.js";
+import type { CanonicalCommitEnvelopeV1, EpistemicChange, EvidenceRecord, ValidationIssue } from "./types.js";
 
 export interface CanonicalValidationOptions {
   commitSequence: number;
   eventIds: ReadonlySet<string>;
   knownAgentIds: ReadonlySet<string>;
+  legacyEvidence?: readonly EvidenceRecord[];
+  legacyEpistemicChanges?: readonly EpistemicChange[];
 }
 
 export function validateCanonicalEnvelope(envelope: CanonicalCommitEnvelopeV1, options: CanonicalValidationOptions): ValidationIssue[] {
@@ -41,6 +43,31 @@ export function validateCanonicalEnvelope(envelope: CanonicalCommitEnvelopeV1, o
     if (approvedEvidence) {
       const source = evidence.get(approvedEvidence.evidenceId);
       if (source && (source.propositionAddress !== approvedEvidence.semanticAddress || JSON.stringify(source.representedValue) !== JSON.stringify(approvedEvidence.value))) add("PRESENTATION_EVIDENCE_MISMATCH", `canonical.presentationPacket.items[${index}]`, "Presentation evidence must exactly match its canonical record.");
+    }
+    if (item.kind === "observed_entities") {
+      const approved = new Set(envelope.observations.filter((entry) => entry.kind === "entity_presence").flatMap((entry) => entry.entityIds));
+      if (item.entityIds.some((entityId) => !approved.has(entityId))) add("UNAPPROVED_PRESENTATION_ENTITY", `canonical.presentationPacket.items[${index}]`, "Presented entities must occur in canonical presence observations.");
+    }
+    if (item.kind === "bounded_relation_set") {
+      const matching = envelope.observations.find((entry) => entry.kind === "relation_set_perception" && entry.predicate === item.predicate && entry.objectId === item.objectId && JSON.stringify(entry.subjectIds) === JSON.stringify(item.subjectIds));
+      if (!matching) add("UNAPPROVED_RELATION_SET", `canonical.presentationPacket.items[${index}]`, "Presented relation set must exactly match a complete canonical observation.");
+    }
+  }
+  if (options.legacyEvidence) {
+    const canonicalById = new Map(envelope.evidence.map((record) => [record.evidenceId, record]));
+    for (const [index, legacy] of options.legacyEvidence.entries()) {
+      const canonical = canonicalById.get(legacy.evidenceId);
+      const observation = canonical ? observations.get(canonical.sourceObservationId) : undefined;
+      let equivalent = false;
+      if (canonical && observation?.kind === "entity_presence" && legacy.kind === "entity_observed") equivalent = observation.entityIds.length === 1 && observation.entityIds[0] === legacy.subjectId;
+      if (canonical && observation?.kind === "attribute_perception" && legacy.kind === "attribute_observed") equivalent = observation.semanticAddress === `entity:${legacy.subjectId}.attribute:${legacy.attribute}` && canonical.representedValue === legacy.value;
+      if (canonical && observation?.kind === "relation_perception" && legacy.kind === "relation_observed") equivalent = observation.semanticAddress === `relation-slot:${legacy.subjectId}.${legacy.predicate}` && canonical.representedValue === legacy.objectId;
+      if (!equivalent) add("CANONICAL_LEGACY_EVIDENCE_MISMATCH", `evidenceGenerated[${index}]`, "Legacy and canonical evidence must be mechanically equivalent.");
+    }
+  }
+  if (options.legacyEpistemicChanges) {
+    for (const [index, change] of options.legacyEpistemicChanges.entries()) {
+      if (!envelope.acquisitions.some((entry) => entry.agentId === change.agentId && entry.evidenceId === change.evidenceId)) add("CANONICAL_LEGACY_ACQUISITION_MISMATCH", `epistemicChanges[${index}]`, "Legacy acquisition must have a canonical equivalent.");
     }
   }
   return issues;
