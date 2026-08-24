@@ -116,6 +116,20 @@ function label(entity: MaterializedEntity, language: "zh" | "en"): string {
   return entity.attributes[language === "zh" ? "zh_name" : "en_name"] ?? (language === "zh" ? fallbackZh[entity.entityType] : undefined) ?? entity.entityType;
 }
 
+// Physical manipulation requires the target to be perceivable from self's
+// current position — reusing isEntityPerceivable rather than inventing a
+// separate "reach" predicate, since on this MVP's object set the two are
+// equivalent: PLACE_VISIBILITY_EXCEPTIONS only ever applies to hallway-1/
+// living-room-1 themselves, never to a take/open/place-able physical object
+// (docs/MVP-subject-physical-reach-capability-design-v0.7.md §2). If a future
+// change ever grants a manipulable object a cross-room visibility exception,
+// this equivalence breaks and this check must switch to a stricter predicate
+// that ignores PLACE_VISIBILITY_EXCEPTIONS.
+function requireReachable(world: MaterializedWorld, entity: MaterializedEntity, language: "zh" | "en"): void {
+  if (isEntityPerceivable(world, entity)) return;
+  throw new ObjectTurnError(language === "zh" ? `你现在够不着${label(entity, "zh")}。` : `You cannot reach the ${label(entity, "en")} from here.`);
+}
+
 function relationWords(relation: MaterializedRelation, object: MaterializedEntity, language: "zh" | "en"): string {
   const place = label(object, language);
   if (language === "zh") return relation.predicate === "held_by" ? "在你手里" : relation.predicate === "contained_by" ? `在${place}里面` : relation.predicate === "part_of" ? `是${place}的一部分` : `在${place}上`;
@@ -476,6 +490,7 @@ export async function runObjectTurn(options: {
     response = parsed.inputLanguage === "zh" ? `你打开${label(container, "zh")}，在里面找到了${label(target, "zh")}。` : `You open the ${label(container, "en")} and find the ${label(target, "en")} inside.`;
   } else if (parsed.operation === "open" || parsed.operation === "close") {
     const target = exactlyOne(candidatesByCapability(world, mentionedIds, "openable"), "openable object");
+    requireReachable(world, target, parsed.inputLanguage);
     const expected = parsed.operation === "open" ? "closed" : "open";
     const next = parsed.operation === "open" ? "open" : "closed";
     if (target.attributes.open_state !== expected) throw new ObjectTurnError(`${target.entityId} is not ${expected}.`);
@@ -521,6 +536,7 @@ export async function runObjectTurn(options: {
     response = parsed.inputLanguage === "zh" ? `你走到了${destinationLabel[destination].zh}。` : `You walk to ${destinationLabel[destination].en}.`;
   } else if (parsed.operation === "take") {
     const object = exactlyOne(candidatesByCapability(world, mentionedIds, "portable"), "portable object");
+    requireReachable(world, object, parsed.inputLanguage);
     const location = currentLocation(world, object);
     if (location.predicate === "held_by" && location.objectId === "self") throw new ObjectTurnError(`${object.entityId} is already held.`);
     if (location.predicate === "contained_by") {
@@ -545,6 +561,10 @@ export async function runObjectTurn(options: {
     const destination = useContainer ? exactlyOne(containers, "container") : exactlyOne(surfaces, "surface");
     const location = currentLocation(world, object);
     if (location.predicate !== "held_by" || location.objectId !== "self") throw new ObjectTurnError(`${object.entityId} is not held by self.`);
+    // object needs no separate reachability check: it is already confirmed
+    // held_by self above, and isEntityPerceivable always treats a held item
+    // as reachable wherever self stands. The destination is the only new gate.
+    requireReachable(world, destination, parsed.inputLanguage);
     if (useContainer && destination.attributes.openable === "true" && destination.attributes.open_state !== "open") throw new ObjectTurnError(`${destination.entityId} is closed.`);
     fact(registry, snapshots, conditions, `relation:${location.relationId}.active`, "true", location.setAtSequence);
     if (useContainer && destination.attributes.openable === "true") fact(registry, snapshots, conditions, `entity:${destination.entityId}.open_state`, "open", destination.attributeRevisions.open_state ?? 0, ["closed", "open"]);
@@ -566,6 +586,7 @@ export async function runObjectTurn(options: {
       const container = world.entities.get(location.objectId);
       if (container?.attributes.openable === "true" && container.attributes.open_state !== "open") throw new ObjectTurnError(`${container.entityId} is closed.`);
     }
+    requireReachable(world, target, parsed.inputLanguage);
     fact(registry, snapshots, conditions, `relation:${location.relationId}.active`, "true", location.setAtSequence);
     const eventId = `event-observe-${target.entityId}-${options.commitSequence}`;
     events.push({ eventId, type: "action_result", actionKind: "observe", outcome: "success", subjectRef: "self", objectRef: target.entityId });

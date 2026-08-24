@@ -334,6 +334,54 @@ test("recalling an inscription the player has never read is a distinct boundary 
   }
 });
 
+test("physical manipulation of unheld objects is blocked outside their room, and restored on return", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-reach-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    await current.submit("打开门");
+    await current.submit("走到走廊");
+    await current.submit("走到客厅");
+    const commitsAfterMoving = (await store.list()).length;
+
+    await assert.rejects(current.submit("拿起钥匙"), ObjectTurnError);
+    await assert.rejects(current.submit("打开抽屉"), ObjectTurnError);
+    await assert.rejects(current.submit("找钥匙"), ObjectTurnError);
+    assert.equal((await store.list()).length, commitsAfterMoving, "rejected physical actions must not commit anything");
+
+    await current.submit("走到走廊");
+    await current.submit("走到床边");
+    assert.equal((await current.submit("拿起钥匙")).response, "你拿起了钥匙。");
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a held object stays reachable in any room, but a placement destination is still gated by position", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-reach-held-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    await current.submit("拿起笔");
+    await current.submit("打开门");
+    await current.submit("走到走廊");
+    await current.submit("走到客厅");
+
+    const observedWhileHeld = await current.submit("找笔");
+    assert.equal(observedWhileHeld.kind, "committed");
+
+    await assert.rejects(current.submit("把笔放到桌子上"), ObjectTurnError);
+
+    await current.submit("走到走廊");
+    await current.submit("走到床边");
+    assert.match((await current.submit("把笔放到桌子上")).response, /桌子/u);
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("rejects moving to the current position and to a non-landmark destination", async () => {
   const directory = await mkdtemp(join(tmpdir(), "secondary-reality-move-reject-"));
   const store = new LanceCommitStore(join(directory, "world.lancedb"));
