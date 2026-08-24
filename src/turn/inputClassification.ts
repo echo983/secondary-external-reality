@@ -5,7 +5,7 @@ export function classifyInterfaceInput(rawTtd: string): InterfaceInputClass | nu
   if (/^(?:你好|您好|嗨)(?:呀|啊|哇|哦|喔|哈)?[！!。.]*$/u.test(text) || /^(?:hello|hi|hey)(?:\s+there)?[！!。.]*$/iu.test(text)) return "CONVERSATION";
   if (/(?:门外|房间外|outside (?:the )?(?:door|room))/iu.test(text)) return "UNSUPPORTED_WORLD_SCOPE";
   if (/(?:不要|别|禁止|不许|不(?:想|会|能|打开|关闭|拿|放|看|读|写)|假如|如果|要是|假装|想象|would|could|suppose|pretend|what if|if i|do not|don't|won't)/iu.test(text)) return "UNSUPPORTED_MODIFIER";
-  if (/(?=.*(?:纸条|便签|note|paper))(?=.*(?:写|write))/iu.test(text) && !/(?:写着什么|写了什么|写没写|有没有.{0,6}(?:字|内容|东西)|有字|what.*written|any (?:text|writing)|记得|记不得|记不清|还记得|回忆|remember|recall)/iu.test(text) && !/[0-9]{1,64}/u.test(text)) return "UNSUPPORTED_CAPABILITY";
+  if (/(?=.*(?:纸条|便签|note|paper))(?=.*(?:写|write))/iu.test(text) && !/(?:写着什么|写了什么|写没写|有没有.{0,6}(?:字|内容|东西)|有字|what.*written|any (?:text|writing)|记得|记不得|记不清|还记得|回忆|remember|recall|室友|roommate)/iu.test(text) && !/[0-9]{1,64}/u.test(text)) return "UNSUPPORTED_CAPABILITY";
   if (/^(?:在|把|向|从|用)\s*.{0,3}$/u.test(text) || /(?:在|把|向|从|用|and|then)\s*$/iu.test(text)) return "INCOMPLETE_FRAGMENT";
   return null;
 }

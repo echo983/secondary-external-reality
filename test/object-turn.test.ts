@@ -445,6 +445,93 @@ test("the compound find-and-read action also requires bedside, and rejects rathe
   }
 });
 
+test("the roommate independently witnesses what self writes and can relay it as testimony, without self ever reading it", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-testimony-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    await current.submit("拿起笔");
+    await current.submit("我在纸条上写下42并藏到枕头下面");
+    const commitsAfterWrite = (await store.list()).length;
+
+    const testimony = await current.submit("问室友纸条上写的是什么");
+    assert.equal(testimony.kind, "committed");
+    assert.equal(testimony.response, "室友说，纸条上写着“42”。");
+    assert.equal(testimony.commitPackage.newWorldCommitments.length, 0, "testimony must never author WorldTruth");
+    assert.equal((await store.list()).length, commitsAfterWrite + 1, "a successful testimony query is still a real, freshly committed event");
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("testimony is unavailable when the roommate never witnessed anything", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-testimony-never-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    const testimony = await current.submit("问室友纸条上写的是什么");
+    assert.equal(testimony.kind, "boundary");
+    assert.equal(testimony.response, "室友似乎不知道这件事。");
+    assert.equal((await store.list()).length, 0, "a boundary must not commit anything");
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("testimony requires being in the same room as the roommate", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-testimony-room-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    await current.submit("拿起笔");
+    await current.submit("我在纸条上写下42并藏到枕头下面");
+    await current.submit("打开门");
+    await current.submit("走到走廊");
+    const commitsInHallway = (await store.list()).length;
+
+    const testimony = await current.submit("问室友纸条上写的是什么");
+    assert.equal(testimony.kind, "boundary");
+    assert.equal(testimony.response, "你现在无法感知到目标。");
+    assert.equal((await store.list()).length, commitsInHallway, "a boundary must not commit anything");
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("testimony survives after self's own recollection fades, and agrees with what self directly read earlier", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-testimony-outlasts-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    await current.submit("拿起笔");
+    await current.submit("我在纸条上写下42并藏到枕头下面");
+    const directRead = await current.submit("翻开枕头看看下面，并读纸条");
+    assert.match(directRead.response, /42/);
+
+    await current.submit("打开门");
+    await current.submit("走到走廊");
+    await current.submit("走到客厅");
+    await current.submit("走到走廊");
+    await current.submit("走到客厅");
+    await current.submit("走到走廊");
+    await current.submit("走到床边");
+
+    const faded = await current.submit("我还记得纸条上写的是什么");
+    assert.equal(faded.kind, "boundary");
+    assert.equal(faded.response, "你努力回想，但已经记不清了。");
+
+    const testimony = await current.submit("问室友纸条上写的是什么");
+    assert.equal(testimony.kind, "committed");
+    assert.equal(testimony.response, "室友说，纸条上写着“42”。");
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("rejects moving to the current position and to a non-landmark destination", async () => {
   const directory = await mkdtemp(join(tmpdir(), "secondary-reality-move-reject-"));
   const store = new LanceCommitStore(join(directory, "world.lancedb"));

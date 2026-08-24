@@ -11,7 +11,7 @@ export type CompiledInteraction =
 const operationMap: Partial<Record<InteractionEnvelopeV10["clauses"][number]["operation"], ObjectOperationKind>> = {
   take: "take", place: "place", put_inside: "put_inside", open: "open", close: "close", observe: "observe",
   write: "write", read: "read", look_around: "look_around", inspect_contents: "inspect_contents", locate: "locate", inventory: "inventory",
-  move: "move",
+  move: "move", consult_testimony: "consult_testimony",
 };
 
 function rolesOf(clause: InteractionEnvelopeV10["clauses"][number], role: InteractionRole): string[] {

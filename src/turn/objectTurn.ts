@@ -206,12 +206,12 @@ export async function runObjectTurn(options: {
       const zh: Record<PublicBoundaryCode, string> = {
         TARGET_NOT_PERCEIVABLE: "你现在无法感知到目标。", CONTAINER_CLOSED: "容器关着，你现在看不到里面。", NO_ACQUIRED_EVIDENCE: "你没有可供查阅的既有证据。",
         UNSUPPORTED_PROJECTION: "当前世界还不能回答这个问题。", RESOLUTION_DEFERRED: "这个事实目前尚未固定。", AMBIGUOUS_TARGET: "你指的目标不够明确。", RECOLLECTION_FADED: "你努力回想，但已经记不清了。",
-        OUT_OF_OBSERVATION_BANDWIDTH: "你离得太远，看不清上面写的字。",
+        OUT_OF_OBSERVATION_BANDWIDTH: "你离得太远，看不清上面写的字。", TESTIMONY_UNAVAILABLE: "室友似乎不知道这件事。",
       };
       const en: Record<PublicBoundaryCode, string> = {
         TARGET_NOT_PERCEIVABLE: "You cannot currently perceive the target.", CONTAINER_CLOSED: "The container is closed, so you cannot see inside.", NO_ACQUIRED_EVIDENCE: "You have no acquired evidence to consult.",
         UNSUPPORTED_PROJECTION: "The current world cannot answer that yet.", RESOLUTION_DEFERRED: "That fact has not yet been fixed.", AMBIGUOUS_TARGET: "The target is ambiguous.", RECOLLECTION_FADED: "You try to recall, but it's faded from memory.",
-        OUT_OF_OBSERVATION_BANDWIDTH: "You are too far away to make out what is written on it.",
+        OUT_OF_OBSERVATION_BANDWIDTH: "You are too far away to make out what is written on it.", TESTIMONY_UNAVAILABLE: "The roommate doesn't seem to know anything about that.",
       };
       const packet = { packetId: `${options.turnId}:boundary`, outcome: "boundary" as const, language: parsed.inputLanguage, items: [{ kind: "boundary" as const, code }] };
       return { kind: "boundary", response: await queryRenderer.render(packet, options.rawTtd), packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never };
@@ -251,6 +251,47 @@ export async function runObjectTurn(options: {
     return packet.outcome === "boundary"
       ? { kind: "boundary", response: await queryRenderer.render(packet, options.rawTtd), packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never }
       : { kind: "evidence", response: await queryRenderer.render(packet, options.rawTtd), packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never };
+  }
+  if (parsed.operation === "consult_testimony") {
+    // A third, independent epistemic path alongside direct perception and
+    // self-recollection: the roommate's own acquired evidence, relayed as
+    // testimony rather than re-verified against current WorldTruth (P7 —
+    // language only establishes "who said what", never re-authors it).
+    // Scoped to one hardcoded witness and one hardcoded fact (the note's
+    // inscription), matching every other MVP-scale cut in this project
+    // (docs/MVP-testimony-multi-agent-aeg-design-v1.0.md §3). Unlike
+    // recall_inscription, a successful answer here is a real, freshly
+    // committed event every time it is asked (matching how repeat
+    // observe/look_around queries always commit a fresh receipt) — only the
+    // failure paths below are non-committing early returns.
+    const roommate = world.entities.get("roommate-1")!;
+    const selfEntity = world.entities.get("self")!;
+    if (roomForPosition(selfEntity.attributes.position) !== roomForPosition(roommate.attributes.position)) {
+      const packet: ApprovedPresentationPacket = { packetId: `${options.turnId}:testimony-boundary`, outcome: "boundary", language: parsed.inputLanguage,
+        items: [{ kind: "boundary", code: "TARGET_NOT_PERCEIVABLE" }] };
+      return { kind: "boundary", response: await queryRenderer.render(packet, options.rawTtd), packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never };
+    }
+    const note = exactlyOne([...world.entities.values()].filter((entity) => entity.entityType === "paper_note"), "paper note");
+    const address = entityAttributeAddress(note.entityId, "inscription");
+    const epistemic = replayCanonicalViews(options.priorCommits, { seedCommitments: fixture.seedCommitments }).epistemic;
+    const witnessed = epistemic.evidenceFor("roommate-1", address).sort((left, right) => right.acquiredAtCommitSequence - left.acquiredAtCommitSequence)[0];
+    if (!witnessed) {
+      const packet: ApprovedPresentationPacket = { packetId: `${options.turnId}:testimony-boundary`, outcome: "boundary", language: parsed.inputLanguage,
+        items: [{ kind: "boundary", code: "TESTIMONY_UNAVAILABLE" }] };
+      return { kind: "boundary", response: await queryRenderer.render(packet, options.rawTtd), packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never };
+    }
+    const value = Array.isArray(witnessed.representedValue) ? witnessed.representedValue.join(",") : witnessed.representedValue;
+    const testifyEventId = `event-testify-${note.entityId}-${options.commitSequence}`;
+    const testimonyEvidenceId = `evidence-testimony-${note.entityId}-${options.commitSequence}`;
+    const testimonyEnvelope: CandidateEnvelope = { candidates: [{ candidateId: `object-consult_testimony-${options.commitSequence}`, outcomeKind: "success", requiresResolution: [], conditions: [],
+      proposedEvents: [{ eventId: testifyEventId, type: "action_result", actionKind: "consult_testimony", outcome: "success", subjectRef: "self", objectRef: "roommate-1" }],
+      proposedStateChanges: [], observations: [],
+      evidenceGenerated: [{ evidenceId: testimonyEvidenceId, kind: "attribute_observed", sourceEventId: testifyEventId, subjectId: note.entityId, attribute: "inscription", value: String(value) }],
+      epistemicChanges: [{ agentId: "self", kind: "acquired_evidence", evidenceId: testimonyEvidenceId }],
+      newWorldCommitments: [] }] };
+    const testimonyCommitPackage = await commitCandidateEnvelope({ ...options, envelope: testimonyEnvelope, registry: [], snapshots: [], worldBasis: fixture.worldBasis, seedCommitments: fixture.seedCommitments });
+    const testimonyResponse = parsed.inputLanguage === "zh" ? `室友说，纸条上写着“${value}”。` : `The roommate says the note reads “${value}”.`;
+    return { kind: "committed", response: testimonyResponse, commitPackage: testimonyCommitPackage, intent: parseMvpIntent(options.rawTtd) };
   }
   const registry: ProjectionDefinition[] = [];
   const snapshots: ProjectionSnapshot[] = [];
@@ -409,6 +450,24 @@ export async function runObjectTurn(options: {
         { kind: "relation_ended", relationId: noteLocation.relationId },
         { kind: "relation_asserted", relationId: `${note.entityId}-location-${options.commitSequence}`, subjectId: note.entityId, predicate: "contained_by", objectId: pillow.entityId },
       );
+    }
+    // A witness's evidence uses its OWN event (subjectRef: the witness, not
+    // self) rather than reusing writeEventId above. adaptLegacyCommits
+    // resolves an ObservationRecord's observerId from sourceEvent.subjectRef
+    // first, falling back to the epistemicChanges agentId only when subjectRef
+    // is absent — reusing self's write event would make the witness's own
+    // observation record claim "self" observed it, even though the
+    // EpistemicAcquisition itself would still (correctly, separately) be
+    // scoped to the witness. A dedicated event sidesteps that mismatch
+    // entirely instead of relying on the fallback
+    // (docs/MVP-testimony-multi-agent-aeg-design-v1.0.md §2).
+    const roommate = world.entities.get("roommate-1");
+    if (roommate && roomForPosition(roommate.attributes.position) === roomForPosition(world.entities.get("self")?.attributes.position)) {
+      const witnessEventId = `event-witness-${note.entityId}-${options.commitSequence}`;
+      events.push({ eventId: witnessEventId, type: "action_result", actionKind: "witness", outcome: "success", subjectRef: roommate.entityId, objectRef: note.entityId });
+      const witnessEvidenceId = `evidence-witness-inscription-${note.entityId}-${options.commitSequence}`;
+      evidenceGenerated.push({ evidenceId: witnessEvidenceId, kind: "attribute_observed", sourceEventId: witnessEventId, subjectId: note.entityId, attribute: "inscription", value: inscription });
+      epistemicChanges.push({ agentId: roommate.entityId, kind: "acquired_evidence", evidenceId: witnessEvidenceId });
     }
     response = parsed.inputLanguage === "zh"
       ? (pillow ? `你在${label(note, "zh")}上写下“${inscription}”，把它放在${label(pillow, "zh")}下面。` : `你在${label(note, "zh")}上写下“${inscription}”。`)

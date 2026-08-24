@@ -107,6 +107,7 @@ function emptyOrFirstPlaceResolution(): ShapeCheck {
 const CLOSURE_TEMPLATES: Record<string, ShapeCheck> = {
   "": exactlyEmpty(),
   "close": singleOpenStateChange(),
+  "consult_testimony": exactlyEmpty(),
   "open": singleOpenStateChange(),
   "find,read": exactlyEmpty(),
   "inspect_contents": exactlyEmpty(),
@@ -120,11 +121,13 @@ const CLOSURE_TEMPLATES: Record<string, ShapeCheck> = {
   "observe": exactlyEmpty(),
   "observe,open": singleOpenStateChange(),
   "place": relocatePair("located_on"),
+  "place,witness,write": inscriptionAndRelocate(),
   "place,write": inscriptionAndRelocate(),
   "put_inside": relocatePair("contained_by"),
   "self_position": exactlyEmpty(),
   "self_posture": exactlyEmpty(),
   "take": relocatePair("held_by"),
+  "witness,write": singleInscriptionSet(),
   "write": singleInscriptionSet(),
 };
 

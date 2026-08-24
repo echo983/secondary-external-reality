@@ -10,7 +10,8 @@ export type PublicBoundaryCode =
   | "RESOLUTION_DEFERRED"
   | "AMBIGUOUS_TARGET"
   | "RECOLLECTION_FADED"
-  | "OUT_OF_OBSERVATION_BANDWIDTH";
+  | "OUT_OF_OBSERVATION_BANDWIDTH"
+  | "TESTIMONY_UNAVAILABLE";
 
 export type ApprovedEvidenceItem =
   | { kind: "attribute_evidence"; semanticAddress: SemanticAddress; value: JsonScalar; evidenceId: string }

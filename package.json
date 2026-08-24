@@ -27,6 +27,7 @@
     "eval:reachability-sequence:live": "npm run build && node dist/src/eval/runReachabilitySequenceLiveEval.js",
     "eval:observation-bandwidth-sequence:live": "npm run build && node dist/src/eval/runObservationBandwidthSequenceLiveEval.js",
     "eval:intensional-commitment-fidelity:live": "npm run build && node dist/src/eval/runIntensionalCommitmentFidelityLiveEval.js",
+    "eval:testimony-sequence:live": "npm run build && node dist/src/eval/runTestimonySequenceLiveEval.js",
     "eval:human-simulation-corpus:live": "npm run build && node dist/src/eval/runHumanSimulationCorpusLiveEval.js",
     "eval:human-persona-exploration:live": "npm run build && node dist/src/eval/runHumanPersonaExplorationLiveEval.js",
     "start:ssh": "node dist/src/ssh/server.js"

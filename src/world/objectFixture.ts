@@ -17,6 +17,11 @@ export interface ObjectWorldFixture {
 export function createObjectWorldFixture(): ObjectWorldFixture {
   const entities: Array<{ id: string; type: string; names: string[]; attributes?: Record<string, string> }> = [
     { id: "self", type: "person", names: ["我", "自己", "self", "me", "I"], attributes: { posture: "sitting_on_bed_edge", position: "bedside" } },
+    // Statically anchored — no autonomous movement or behavior (deliberately
+    // out of scope, see docs/MVP-testimony-multi-agent-aeg-design-v1.0.md
+    // §4). Existing purely to prove a second epistemic agent can hold
+    // independent evidence and relay it as testimony.
+    { id: "roommate-1", type: "person", names: ["室友", "roommate"], attributes: { position: "bedside", zh_name: "室友", en_name: "roommate" } },
     { id: "bed-1", type: "bed", names: ["床", "bed", "床边", "bedside"] },
     { id: "pillow-1", type: "pillow", names: ["枕头", "pillow"], attributes: { zh_name: "枕头", en_name: "pillow" } },
     { id: "nightstand-1", type: "nightstand", names: ["床头柜", "nightstand"], attributes: { surface: "true", zh_name: "床头柜", en_name: "nightstand" } },
@@ -49,7 +54,7 @@ export function createObjectWorldFixture(): ObjectWorldFixture {
   );
   const worldBasis: WorldBasis = {
     fixtureId: "mvp-bedroom-objects",
-    fixtureVersion: "0.5.0",
+    fixtureVersion: "0.6.0",
     seedHash: createHash("sha256").update(JSON.stringify(seedCommitments)).digest("hex"),
   };
   return { seedCommitments, names: entities.map((entity) => ({ entityId: entity.id, names: entity.names })), worldBasis };
