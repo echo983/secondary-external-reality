@@ -76,3 +76,26 @@ test("rejects relations whose endpoint capabilities are invalid", () => {
     { kind: "relation_asserted", relationId: "r1", subjectId: "key-1", predicate: "located_on", objectId: "pillow-1" },
   ])]), /surface object/);
 });
+
+test("present_at requires a place object and one active place per entity", () => {
+  const world = MaterializedWorld.replay([commit(0, [
+    { kind: "entity_created", entityId: "villager-1", entityType: "person" },
+    { kind: "entity_created", entityId: "square-1", entityType: "place" },
+    { kind: "relation_asserted", relationId: "r1", subjectId: "villager-1", predicate: "present_at", objectId: "square-1" },
+  ])]);
+  assert.equal(world.entitiesRelatedTo("present_at", "square-1")[0]?.entityId, "villager-1");
+
+  assert.throws(() => MaterializedWorld.replay([commit(0, [
+    { kind: "entity_created", entityId: "villager-1", entityType: "person" },
+    { kind: "entity_created", entityId: "table-1", entityType: "table" },
+    { kind: "relation_asserted", relationId: "r1", subjectId: "villager-1", predicate: "present_at", objectId: "table-1" },
+  ])]), /place object/);
+
+  assert.throws(() => MaterializedWorld.replay([commit(0, [
+    { kind: "entity_created", entityId: "villager-1", entityType: "person" },
+    { kind: "entity_created", entityId: "square-1", entityType: "place" },
+    { kind: "entity_created", entityId: "square-2", entityType: "place" },
+    { kind: "relation_asserted", relationId: "r1", subjectId: "villager-1", predicate: "present_at", objectId: "square-1" },
+    { kind: "relation_asserted", relationId: "r2", subjectId: "villager-1", predicate: "present_at", objectId: "square-2" },
+  ])]), /already present at another place/);
+});

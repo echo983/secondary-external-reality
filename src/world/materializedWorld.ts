@@ -92,6 +92,9 @@ export class MaterializedWorld {
         object.entityType !== "container" && object.entityType !== "pillow") {
       throw new MaterializedWorldError("contained_by requires a container or pillow object.");
     }
+    if (commitment.predicate === "present_at" && object.entityType !== "place") {
+      throw new MaterializedWorldError("present_at requires a place object.");
+    }
     const relationId = commitment.kind === "relation_asserted"
       ? commitment.relationId
       : `legacy:${commitment.subjectId}:${commitment.predicate}`;
@@ -104,6 +107,18 @@ export class MaterializedWorld {
       );
       if (existingLocation && existingLocation.relationId !== relationId) {
         throw new MaterializedWorldError(`Entity ${commitment.subjectId} already has an active direct location.`);
+      }
+    }
+    // present_at tracks coarse place membership, a separate axis from the
+    // located_on/contained_by/held_by "precise physical support" group above
+    // — an entity can in principle have both — but it has its own exclusivity:
+    // an entity cannot be present at two places at once.
+    if (commitment.predicate === "present_at") {
+      const existingPresence = [...this.relations.values()].find((relation) =>
+        relation.subjectId === commitment.subjectId && relation.predicate === "present_at",
+      );
+      if (existingPresence && existingPresence.relationId !== relationId) {
+        throw new MaterializedWorldError(`Entity ${commitment.subjectId} is already present at another place.`);
       }
     }
     if (commitment.predicate === "contained_by") {
