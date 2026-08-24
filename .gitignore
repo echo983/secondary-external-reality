@@ -1,6 +1,11 @@
 # Local credentials and other secrets must never be committed.
 secret/
 
+# User's own legally-owned game data, never redistributable — see
+# content-pipeline/sdlpal-import/README.md.
+content-pipeline/sdlpal-import/game-data/
+content-pipeline/sdlpal-import/output/
+
 # Generated Node.js artifacts.
 node_modules/
 dist/
