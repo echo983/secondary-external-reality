@@ -7,20 +7,42 @@ export class WorldSchemaError extends Error {
   }
 }
 
-const attributesByType: Readonly<Record<string, ReadonlySet<string>>> = {
-  person: new Set(["posture", "position", "zh_name", "en_name"]),
-  bed: new Set(["zh_name", "en_name"]),
-  pillow: new Set(["zh_name", "en_name"]),
-  nightstand: new Set(["surface", "zh_name", "en_name"]),
-  drawer: new Set(["container", "openable", "open_state", "zh_name", "en_name"]),
-  table: new Set(["surface", "zh_name", "en_name"]),
-  key: new Set(["portable", "zh_name", "en_name"]),
-  paper_note: new Set(["portable", "inscription", "zh_name", "en_name"]),
-  pen: new Set(["portable", "zh_name", "en_name"]),
-  door: new Set(["openable", "open_state", "zh_name", "en_name"]),
-  container: new Set(["container", "openable", "open_state", "portable", "zh_name", "en_name"]),
-  place: new Set(["notable_feature", "zh_name", "en_name"]),
-};
+// A registry, not a closed literal (docs/STAGE2-schema-registry-design-v1.0.md)
+// — content-loading code can call registerEntityType() to declare a new type
+// without editing this file. The built-in types below are the kernel's own
+// bedroom fixture's types, pre-registered for full backward compatibility.
+const attributesByType = new Map<string, ReadonlySet<string>>([
+  ["person", new Set(["posture", "position", "zh_name", "en_name"])],
+  ["bed", new Set(["zh_name", "en_name"])],
+  ["pillow", new Set(["zh_name", "en_name"])],
+  ["nightstand", new Set(["surface", "zh_name", "en_name"])],
+  ["drawer", new Set(["container", "openable", "open_state", "zh_name", "en_name"])],
+  ["table", new Set(["surface", "zh_name", "en_name"])],
+  ["key", new Set(["portable", "zh_name", "en_name"])],
+  ["paper_note", new Set(["portable", "inscription", "zh_name", "en_name"])],
+  ["pen", new Set(["portable", "zh_name", "en_name"])],
+  ["door", new Set(["openable", "open_state", "zh_name", "en_name"])],
+  ["container", new Set(["container", "openable", "open_state", "portable", "zh_name", "en_name"])],
+  ["place", new Set(["notable_feature", "zh_name", "en_name"])],
+]);
+
+// Registration only ever adds, never edits or removes — matches the
+// additive-only governance stage 2's formal contract will spell out fully
+// (docs/STAGE2-BOUNDARY-DEFINITION-v1.0.md step 4). Re-registering a type
+// with an identical attribute set is a no-op (safe to call more than once,
+// e.g. from multiple independent content loaders); registering the same
+// type name with a different attribute set is rejected, so two content
+// sources can never silently overwrite each other's definition of a type.
+export function registerEntityType(entityType: string, attributes: readonly string[]): void {
+  const attributeSet = new Set(attributes);
+  const existing = attributesByType.get(entityType);
+  if (existing) {
+    const identical = existing.size === attributeSet.size && [...existing].every((attribute) => attributeSet.has(attribute));
+    if (identical) return;
+    throw new WorldSchemaError(`Entity type ${entityType} is already registered with a different attribute set.`);
+  }
+  attributesByType.set(entityType, attributeSet);
+}
 
 export const HALLWAY_NOTABLE_FEATURES = ["none", "framed_photo", "umbrella_stand", "wall_lamp"] as const;
 export const LIVING_ROOM_NOTABLE_FEATURES = ["none", "bookshelf", "floor_lamp", "framed_painting"] as const;
@@ -41,11 +63,11 @@ const predicates = new Set(["located_on", "contained_by", "held_by", "part_of", 
 const booleanAttributes = new Set(["surface", "container", "openable", "portable"]);
 
 export function validateEntityType(entityType: string): void {
-  if (!Object.hasOwn(attributesByType, entityType)) throw new WorldSchemaError(`Unknown entity type ${entityType}.`);
+  if (!attributesByType.has(entityType)) throw new WorldSchemaError(`Unknown entity type ${entityType}.`);
 }
 
 export function validateAttribute(entityType: string, attribute: string, value: string): void {
-  const allowed = attributesByType[entityType];
+  const allowed = attributesByType.get(entityType);
   if (!allowed?.has(attribute)) throw new WorldSchemaError(`Attribute ${attribute} is not defined for ${entityType}.`);
   if (booleanAttributes.has(attribute) && value !== "true" && value !== "false") {
     throw new WorldSchemaError(`Attribute ${attribute} requires a boolean string.`);
