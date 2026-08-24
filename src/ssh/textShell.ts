@@ -21,7 +21,10 @@ export class TtdTextShell {
   ) {}
 
   start(): void {
-    this.sink.write("secondary external reality MVP\r\n输入 help 查看测试范围，输入 exit 退出。\r\nttd: ");
+    this.sink.write(
+      "你坐在床边。桌上放着一把钥匙，床头柜上有一支笔和一张空白的纸条。房门关着，室友就在旁边。\r\n" +
+      "(想做什么就直接说；输入 help 看使用提示，输入 exit 退出。)\r\nttd: ",
+    );
   }
 
   receive(chunk: Buffer | string): void {
@@ -65,7 +68,12 @@ export class TtdTextShell {
       return;
     }
     if (line === "help" || line === "帮助" || line === "?") {
-      this.sink.write("\r\n可用自然说法尝试：环顾、手中物品、位置与容器内容、打开/关闭、拿起、放到表面或容器、写藏并读取数字纸条。可用‘然后’连接动作；上一轮只突出一个对象时可用‘它’续接。否定、假设和条件不会作为实际行动执行。门外空间与任意文字写入尚未开放。输入 exit 退出。\r\nttd: ");
+      this.sink.write(
+        "\r\n可用自然说法尝试：环顾四周、查看手中物品、查看某处或容器内容、打开/关闭、拿起、放到某处；" +
+        "在卧室、门口、走廊、客厅之间走动；写下并藏起纸条，之后寻找并读取，或凭记忆回忆内容（记忆会随时间衰减）；" +
+        "向在场的其他人打听他们知道的事。可用'然后'连接多个动作；上一轮唯一被提到的对象可以用'它/it'续接。" +
+        "否定、假设和条件不会被当作实际行动执行。超出已建模范围的问题会被诚实告知，而不是编造。输入 exit 退出。\r\nttd: ",
+      );
       return;
     }
     this.sink.write("\r\n");

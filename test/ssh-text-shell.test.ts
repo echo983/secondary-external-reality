@@ -53,6 +53,6 @@ test("offers discoverable help without invoking the world handler", async () => 
   shell.start();
   shell.receive("help\n");
   await shell.settled();
-  assert.match(output, /自然说法.*它.*否定.*门外空间/u);
+  assert.match(output, /自然说法.*它.*否定.*编造/u);
   assert.deepEqual(inputs, []);
 });
