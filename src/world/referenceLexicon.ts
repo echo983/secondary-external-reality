@@ -5,8 +5,19 @@ function stripLeadingEnglishArticle(normalized: string): string {
   return normalized.replace(/^(the|an?)\s+/, "");
 }
 
+// "下面/下" ("under") joins the "inside" group, not a distinct relation:
+// this fixture's only real under-something destination is the pillow, and
+// hiding something under it is already modeled as contained_by (worldSchema.ts
+// allows pillow as a contained_by object, same as a container) — so
+// "枕头下面" and "枕头里面" must resolve to the same put_inside compilation.
+// Found live (docs/DEMO-PHASE-plan-v1.0.md §3.2): a person naturally chains
+// "写...然后藏在枕头下面" as two interaction-IR clauses (write, then place),
+// and without this, "枕头下面" fails to resolve at all — the atomic
+// write_and_hide phrasing this fixture's own tests use bypasses this lexicon
+// entirely, so the gap was invisible until an unscripted two-clause phrasing
+// exercised it.
 const LOCATIVE_SUFFIXES = [
-  { values: ["里面", "里头", "里", "中"], relation: "inside" as const },
+  { values: ["里面", "里头", "里", "中", "下面", "下"], relation: "inside" as const },
   { values: ["上面", "上"], relation: "on" as const },
 ];
 

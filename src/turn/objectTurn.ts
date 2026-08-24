@@ -641,7 +641,15 @@ export async function runObjectTurn(options: {
     const object = exactlyOne(candidatesByCapability(world, mentionedIds, "portable"), "portable object");
     const destinationIds = mentionedIds.filter((id) => id !== object.entityId);
     const surfaces = destinationIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.attributes.surface === "true" || entity?.entityType === "bed");
-    const containers = destinationIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.attributes.container === "true");
+    // pillow is a valid contained_by object without the container attribute
+    // (worldSchema.ts grants it the same exception explicitly) — mirrored
+    // here so a generic two-step "write it, then hide it under the pillow"
+    // (as opposed to the atomic write_and_hide operation below, which has
+    // its own dedicated pillow handling but doesn't exist as an
+    // interactionIr operation) has somewhere to resolve to. Found live
+    // (docs/DEMO-PHASE-plan-v1.0.md §3.2): without this, a naturally-chained
+    // "写...然后藏在枕头下面" always failed with "No container matched."
+    const containers = destinationIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity?.attributes.container === "true" || entity?.entityType === "pillow");
     const useContainer = parsed.operation === "put_inside" || parsed.placementRelation === "inside" || (surfaces.length === 0 && containers.length === 1);
     const destination = useContainer ? exactlyOne(containers, "container") : exactlyOne(surfaces, "surface");
     const location = currentLocation(world, object);
@@ -661,8 +669,12 @@ export async function runObjectTurn(options: {
       { kind: "relation_asserted", relationId: `${object.entityId}-location-${options.commitSequence}`, subjectId: object.entityId,
         predicate: useContainer ? "contained_by" : "located_on", objectId: destination.entityId },
     );
-    response = parsed.inputLanguage === "zh" ? `你把${label(object, "zh")}${useContainer ? "放进了" : "放在"}${label(destination, "zh")}${useContainer ? "" : "上"}。`
-      : `You ${useContainer ? "put" : "place"} the ${label(object, "en")} ${useContainer ? "into" : "on"} the ${label(destination, "en")}.`;
+    // "under X" reads more naturally than "into X" for a pillow specifically
+    // (matches write_and_hide's own established phrasing below), even though
+    // the underlying relation is the same contained_by as any other container.
+    const under = destination.entityType === "pillow";
+    response = parsed.inputLanguage === "zh" ? `你把${label(object, "zh")}${under ? "放到" : useContainer ? "放进了" : "放在"}${label(destination, "zh")}${under ? "下面" : useContainer ? "" : "上"}。`
+      : `You ${under || useContainer ? "put" : "place"} the ${label(object, "en")} ${under ? "under" : useContainer ? "into" : "on"} the ${label(destination, "en")}.`;
   } else {
     const visible = mentionedIds.map((id) => world.entities.get(id)).filter((entity): entity is MaterializedEntity => entity !== undefined);
     const target = exactlyOne(visible.filter((entity) => entity.entityType !== "person"), "observable object");

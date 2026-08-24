@@ -84,6 +84,36 @@ test("places any configured portable object onto a configured surface", async ()
   }
 });
 
+test("hides a held object under the pillow via generic placement (not just the atomic write_and_hide operation)", async () => {
+  // Found live (docs/DEMO-PHASE-plan-v1.0.md §3.2): a person naturally
+  // chains "write it, then hide it under the pillow" as two separate
+  // actions, which compiles to a generic "place" with placementRelation
+  // "inside" — pillow lacks the container:"true" attribute the generic
+  // handler used to require, even though worldSchema.ts already treats
+  // pillow as a valid contained_by object. mentionedEntityIds/placementRelation
+  // are set directly here to match exactly what compileInteraction produces,
+  // since the regex fast path (parseObjectIntent) never sets placementRelation.
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-objects-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    assert.equal((await current.submit("我拿起纸条")).response, "你拿起了纸条。");
+    const commits = await store.list();
+    const result = await runObjectTurn({
+      rawTtd: "我把纸条放到枕头下面", turnId: "objects:hide-under-pillow", commitSequence: commits.length,
+      priorCommits: commits, jury: new PassingBedroomJury(), store,
+      objectIntent: { operation: "place", rawTtd: "我把纸条放到枕头下面", inputLanguage: "zh", placementRelation: "inside" },
+      mentionedEntityIds: ["blank-note-1", "pillow-1"],
+    });
+    assert.equal(result.kind === "committed" ? result.response : undefined, "你把纸条放到枕头下面。");
+    const world = MaterializedWorld.replay(await store.list(), createObjectWorldFixture().seedCommitments);
+    assert.deepEqual(world.directLocation("blank-note-1"), { relationId: "blank-note-1-location-1", subjectId: "blank-note-1", predicate: "contained_by", objectId: "pillow-1", setAtSequence: 1 });
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("grounds generic placement by destination affordance and treats a bed as a surface", async () => {
   const directory = await mkdtemp(join(tmpdir(), "secondary-reality-placement-"));
   const store = new LanceCommitStore(join(directory, "world.lancedb"));

@@ -20,23 +20,25 @@ function rolesOf(clause: InteractionEnvelopeV10["clauses"][number], role: Intera
 
 // A "content" mention must stay an exact contiguous span of the raw input
 // (source-span validation elsewhere depends on that), so when someone
-// naturally quotes what they want written — "写上“1234”" — both workstations
-// correctly copy the quote marks along with the digits, verified live
-// against the real model (docs/DEMO-PHASE-plan-v1.0.md §3.2's robustness
-// pass). The digit check has to look past that punctuation deterministically
-// rather than asking the model to omit it, the same normalize-at-the-kernel
-// approach ReferenceLexicon already uses for Chinese locative suffixes.
-const ENCLOSING_QUOTE_PAIRS: ReadonlyArray<readonly [string, string]> = [
-  ["“", "”"], ["‘", "’"], ['"', '"'], ["'", "'"],
-];
+// naturally quotes what they want written — "写上“1234”", or "写在纸条上第
+// 数字“1234”" with a descriptive word riding along too — both workstations
+// correctly copy that surrounding text as part of the exact contiguous
+// mention span, verified live against the real model
+// (docs/DEMO-PHASE-plan-v1.0.md §3.2's robustness pass). The digit check has
+// to look past that deterministically rather than asking the model to
+// extract only the bare digits, the same normalize-at-the-kernel approach
+// ReferenceLexicon already uses for Chinese locative suffixes. Extraction is
+// only trusted when unambiguous: a quoted run of digits is used only if no
+// other digit appears anywhere else in the mention.
+const QUOTED_DIGITS = /[“"'‘]([0-9]{1,64})[”"'’]/u;
 
-function stripEnclosingQuotes(value: string): string {
-  for (const [open, close] of ENCLOSING_QUOTE_PAIRS) {
-    if (value.length > open.length + close.length && value.startsWith(open) && value.endsWith(close)) {
-      return value.slice(open.length, value.length - close.length).trim();
-    }
-  }
-  return value;
+function extractDigitLiteral(rawMention: string): string | undefined {
+  const trimmed = rawMention.trim();
+  if (/^[0-9]{1,64}$/u.test(trimmed)) return trimmed;
+  const match = QUOTED_DIGITS.exec(trimmed);
+  if (!match) return undefined;
+  const outsideQuotes = trimmed.slice(0, match.index) + trimmed.slice(match.index + match[0].length);
+  return /[0-9]/u.test(outsideQuotes) ? undefined : match[1];
 }
 
 export function compileInteraction(proposal: InteractionEnvelopeV10, rawTtd: string): CompiledInteraction {
@@ -72,9 +74,9 @@ export function compileInteraction(proposal: InteractionEnvelopeV10, rawTtd: str
     let content: string | undefined;
     if (operation === "write") {
       const contents = rolesOf(clause, "content");
-      const normalized = contents.length === 1 ? stripEnclosingQuotes(contents[0]!.trim()) : undefined;
-      if (normalized === undefined || !/^[0-9]{1,64}$/u.test(normalized)) return { kind: "clarification", code: "INVALID_LITERAL" };
-      content = normalized;
+      const literal = contents.length === 1 ? extractDigitLiteral(contents[0]!) : undefined;
+      if (literal === undefined) return { kind: "clarification", code: "INVALID_LITERAL" };
+      content = literal;
     }
     const compiledOperation = operation === "place" && placementRelation === "inside" ? "put_inside" : operation;
     steps.push({ objectIntent: { operation: compiledOperation, rawTtd, inputLanguage: proposal.inputLanguage,

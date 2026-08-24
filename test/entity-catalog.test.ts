@@ -33,6 +33,13 @@ test("exact and spatial mention resolution strip a leading English article", () 
   assert.deepEqual(lexicon.resolveSpatialMention("the table").entityIds, ["table-1"]);
 });
 
+test("resolveSpatialMention treats a trailing 下/下面 (\"under\") the same as inside, matching pillow's contained_by modeling", () => {
+  const fixture = createObjectWorldFixture();
+  const lexicon = new ReferenceLexicon(fixture);
+  assert.deepEqual(lexicon.resolveSpatialMention("枕头下面"), { entityIds: ["pillow-1"], relation: "inside" });
+  assert.deepEqual(lexicon.resolveSpatialMention("枕头下"), { entityIds: ["pillow-1"], relation: "inside" });
+});
+
 test("resolveGroundedMention strips a trailing Chinese locative particle but resolveExactMention does not", () => {
   const fixture = createObjectWorldFixture();
   const lexicon = new ReferenceLexicon(fixture);
