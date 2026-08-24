@@ -311,6 +311,11 @@ test("recalls a freshly written note exactly, forgets it after enough real-world
     assert.equal(faded.response, "你努力回想，但已经记不清了。");
     assert.equal((await store.list()).length, 8, "a faded recollection must not commit anything either");
 
+    // Reading fine print requires being at bedside (observation bandwidth),
+    // and self is currently in the living room from the filler moves above —
+    // walk back before proving the faded recollection never touched WorldTruth.
+    await current.submit("走到走廊");
+    await current.submit("走到床边");
     const rereadAfterFading = await current.submit("翻开枕头看看下面，并读纸条");
     assert.equal(rereadAfterFading.response, "你在枕头下面找到纸条。上面写着“42”。");
   } finally {
@@ -376,6 +381,64 @@ test("a held object stays reachable in any room, but a placement destination is 
     await current.submit("走到走廊");
     await current.submit("走到床边");
     assert.match((await current.submit("把笔放到桌子上")).response, /桌子/u);
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("reading a note's exact inscription requires being at bedside, not just the same room", async () => {
+  // The seed note sits openly on the nightstand (located_on, not hidden under
+  // the pillow) so this exercises the fresh perceive_fixed_now path bandwidth
+  // actually gates — a pillow-hidden note never takes that path at all (it
+  // has no open_state, so isEntityPerceivable always treats it as concealed
+  // and every inscription query falls back to consult_acquired_evidence /
+  // NO_ACQUIRED_EVIDENCE instead, regardless of position; that is a separate,
+  // pre-existing mechanic this milestone does not change). The inscription
+  // content itself does not matter for testing the gate, so the note is left
+  // blank rather than written on.
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-bandwidth-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    const valueAtBedside = await current.submit("纸条上写着什么");
+    assert.equal(valueAtBedside.kind, "committed");
+    assert.equal(valueAtBedside.response, "纸条上没有字。");
+
+    await current.submit("走到门口");
+    const commitsAtDoorway = (await store.list()).length;
+
+    const valueFromDoorway = await current.submit("纸条上写着什么");
+    assert.equal(valueFromDoorway.kind, "boundary");
+    assert.equal(valueFromDoorway.response, "你离得太远，看不清上面写的字。");
+    assert.equal((await store.list()).length, commitsAtDoorway, "a bandwidth boundary must not commit anything");
+
+    // Presence and existence are coarser than exact content: both stay
+    // answerable from the doorway, proving only "写的是什么" was gated.
+    const presenceFromDoorway = await current.submit("纸条上有没有字");
+    assert.equal(presenceFromDoorway.kind, "committed");
+    const locateFromDoorway = await current.submit("纸条在哪里");
+    assert.equal(locateFromDoorway.kind, "committed");
+
+    await current.submit("走到床边");
+    assert.equal((await current.submit("纸条上写着什么")).response, "纸条上没有字。");
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("the compound find-and-read action also requires bedside, and rejects rather than returning a boundary", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-bandwidth-read-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    await current.submit("拿起笔");
+    await current.submit("我在纸条上写下42并藏到枕头下面");
+    assert.match((await current.submit("翻开枕头看看下面，并读纸条")).response, /42/);
+
+    await current.submit("走到门口");
+    await assert.rejects(current.submit("翻开枕头看看下面，并读纸条"), ObjectTurnError);
   } finally {
     store.close();
     await rm(directory, { recursive: true, force: true });

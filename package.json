@@ -25,6 +25,7 @@
     "eval:living-room-sequence:live": "npm run build && node dist/src/eval/runLivingRoomSequenceLiveEval.js",
     "eval:memory-recollection-sequence:live": "npm run build && node dist/src/eval/runMemoryRecollectionSequenceLiveEval.js",
     "eval:reachability-sequence:live": "npm run build && node dist/src/eval/runReachabilitySequenceLiveEval.js",
+    "eval:observation-bandwidth-sequence:live": "npm run build && node dist/src/eval/runObservationBandwidthSequenceLiveEval.js",
     "eval:human-simulation-corpus:live": "npm run build && node dist/src/eval/runHumanSimulationCorpusLiveEval.js",
     "eval:human-persona-exploration:live": "npm run build && node dist/src/eval/runHumanPersonaExplorationLiveEval.js",
     "start:ssh": "node dist/src/ssh/server.js"

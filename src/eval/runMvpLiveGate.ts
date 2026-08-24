@@ -19,6 +19,7 @@ const suites = [
   { name: "living-room-sequence", module: "./runLivingRoomSequenceLiveEval.js" },
   { name: "memory-recollection-sequence", module: "./runMemoryRecollectionSequenceLiveEval.js" },
   { name: "reachability-sequence", module: "./runReachabilitySequenceLiveEval.js" },
+  { name: "observation-bandwidth-sequence", module: "./runObservationBandwidthSequenceLiveEval.js" },
   { name: "human-simulation-corpus", module: "./runHumanSimulationCorpusLiveEval.js" },
 ] as const;
 

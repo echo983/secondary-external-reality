@@ -201,12 +201,25 @@ export async function runObjectTurn(options: {
       const zh: Record<PublicBoundaryCode, string> = {
         TARGET_NOT_PERCEIVABLE: "你现在无法感知到目标。", CONTAINER_CLOSED: "容器关着，你现在看不到里面。", NO_ACQUIRED_EVIDENCE: "你没有可供查阅的既有证据。",
         UNSUPPORTED_PROJECTION: "当前世界还不能回答这个问题。", RESOLUTION_DEFERRED: "这个事实目前尚未固定。", AMBIGUOUS_TARGET: "你指的目标不够明确。", RECOLLECTION_FADED: "你努力回想，但已经记不清了。",
+        OUT_OF_OBSERVATION_BANDWIDTH: "你离得太远，看不清上面写的字。",
       };
       const en: Record<PublicBoundaryCode, string> = {
         TARGET_NOT_PERCEIVABLE: "You cannot currently perceive the target.", CONTAINER_CLOSED: "The container is closed, so you cannot see inside.", NO_ACQUIRED_EVIDENCE: "You have no acquired evidence to consult.",
         UNSUPPORTED_PROJECTION: "The current world cannot answer that yet.", RESOLUTION_DEFERRED: "That fact has not yet been fixed.", AMBIGUOUS_TARGET: "The target is ambiguous.", RECOLLECTION_FADED: "You try to recall, but it's faded from memory.",
+        OUT_OF_OBSERVATION_BANDWIDTH: "You are too far away to make out what is written on it.",
       };
       const packet = { packetId: `${options.turnId}:boundary`, outcome: "boundary" as const, language: parsed.inputLanguage, items: [{ kind: "boundary" as const, code }] };
+      return { kind: "boundary", response: await queryRenderer.render(packet, options.rawTtd), packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never };
+    }
+    // Room-level perceivability (checked above) only tells us the note is
+    // somewhere self could sense at all; reading its exact digits needs to be
+    // close, not just in the same room (docs/MVP-observation-bandwidth-design-v0.8.md).
+    // Scoped to inspect_inscription_value only — presence ("is there writing
+    // on it") stays room-level, matching the real-world intuition that you can
+    // tell a note has ink on it from across a room without reading it.
+    if (parsed.operation === "inspect_inscription_value" && world.entities.get("self")?.attributes.position !== "bedside") {
+      const packet = { packetId: `${options.turnId}:boundary`, outcome: "boundary" as const, language: parsed.inputLanguage,
+        items: [{ kind: "boundary" as const, code: "OUT_OF_OBSERVATION_BANDWIDTH" as PublicBoundaryCode }] };
       return { kind: "boundary", response: await queryRenderer.render(packet, options.rawTtd), packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never };
     }
   }
@@ -420,6 +433,14 @@ export async function runObjectTurn(options: {
     const location = currentLocation(world, note);
     const inscription = note.attributes.inscription;
     if (!inscription) throw new ObjectTurnError(`${note.entityId} has no readable inscription.`);
+    // Same observation-bandwidth rule as inspect_inscription_value, kept as a
+    // thrown ObjectTurnError rather than a boundary because "read" is a
+    // compound find-and-read action, not a queryKind-routed query, and its
+    // existing failure idiom (e.g. "no readable inscription" above) already
+    // throws (docs/MVP-observation-bandwidth-design-v0.8.md §3).
+    if (world.entities.get("self")?.attributes.position !== "bedside") {
+      throw new ObjectTurnError(parsed.inputLanguage === "zh" ? "你离得太远，看不清上面写的字。" : "You are too far away to make out what is written on it.");
+    }
     fact(registry, snapshots, conditions, `relation:${location.relationId}.active`, "true", location.setAtSequence);
     fact(registry, snapshots, conditions, `entity:${note.entityId}.inscription`, inscription, note.attributeRevisions.inscription ?? 0);
     const findEventId = `event-find-${note.entityId}-${options.commitSequence}`;

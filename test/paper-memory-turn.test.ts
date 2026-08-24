@@ -29,7 +29,10 @@ test("writes, restarts, finds, and reads the exact inscription", async () => {
       { kind: "relation_ended", relationId: "seed-note-location" },
       { kind: "relation_asserted", relationId: "blank-note-1-location-1", subjectId: "blank-note-1", predicate: "contained_by", objectId: "pillow-1" },
     ]);
-    const unrelated = await firstProcess.submit("走到门口");
+    // Deliberately unrelated to the note, but must not move self away from
+    // bedside — reading fine print later in this test now requires being at
+    // bedside (docs/MVP-observation-bandwidth-design-v0.8.md).
+    const unrelated = await firstProcess.submit("打开抽屉");
     assert.equal(unrelated.commitPackage.commitSequence, 2);
 
     store.close();
