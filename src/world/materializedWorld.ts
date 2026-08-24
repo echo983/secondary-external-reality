@@ -95,6 +95,14 @@ export class MaterializedWorld {
     if (commitment.predicate === "present_at" && object.entityType !== "place") {
       throw new MaterializedWorldError("present_at requires a place object.");
     }
+    if (commitment.predicate === "adjacent_to") {
+      if (subject.entityType !== "place" || object.entityType !== "place") {
+        throw new MaterializedWorldError("adjacent_to requires two place entities.");
+      }
+      if (commitment.subjectId === commitment.objectId) {
+        throw new MaterializedWorldError("A place cannot be adjacent_to itself.");
+      }
+    }
     const relationId = commitment.kind === "relation_asserted"
       ? commitment.relationId
       : `legacy:${commitment.subjectId}:${commitment.predicate}`;

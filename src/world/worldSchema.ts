@@ -59,7 +59,12 @@ const PLACE_NOTABLE_FEATURES = new Set<string>([...HALLWAY_NOTABLE_FEATURES, ...
 // located_on/contained_by/held_by all require a specific kind of physical
 // support object (surface/bed, container, person) that a place is never one
 // of, and part_of means structural composition, not spatial presence.
-const predicates = new Set(["located_on", "contained_by", "held_by", "part_of", "present_at"]);
+// adjacent_to was added for the stage-2 boundary work
+// (docs/STAGE2-placegraph-adjacency-data-design-v1.0.md) — lets place-graph
+// topology be expressed as WorldCommitments instead of the compile-time
+// PLACE_ADJACENCY table in objectTurn.ts. Deliberately not wired into the
+// bedroom fixture's own move logic yet; see the design doc for why.
+const predicates = new Set(["located_on", "contained_by", "held_by", "part_of", "present_at", "adjacent_to"]);
 const booleanAttributes = new Set(["surface", "container", "openable", "portable"]);
 
 export function validateEntityType(entityType: string): void {

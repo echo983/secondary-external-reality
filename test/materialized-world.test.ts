@@ -99,3 +99,27 @@ test("present_at requires a place object and one active place per entity", () =>
     { kind: "relation_asserted", relationId: "r2", subjectId: "villager-1", predicate: "present_at", objectId: "square-2" },
   ])]), /already present at another place/);
 });
+
+test("adjacent_to requires two distinct place entities, and allows many edges per place", () => {
+  const world = MaterializedWorld.replay([commit(0, [
+    { kind: "entity_created", entityId: "square-1", entityType: "place" },
+    { kind: "entity_created", entityId: "market-1", entityType: "place" },
+    { kind: "entity_created", entityId: "temple-1", entityType: "place" },
+    { kind: "relation_asserted", relationId: "r1", subjectId: "square-1", predicate: "adjacent_to", objectId: "market-1" },
+    { kind: "relation_asserted", relationId: "r2", subjectId: "market-1", predicate: "adjacent_to", objectId: "square-1" },
+    { kind: "relation_asserted", relationId: "r3", subjectId: "square-1", predicate: "adjacent_to", objectId: "temple-1" },
+  ])]);
+  assert.equal(world.entitiesRelatedTo("adjacent_to", "market-1")[0]?.entityId, "square-1");
+  assert.equal(world.entitiesRelatedTo("adjacent_to", "square-1").length, 1);
+
+  assert.throws(() => MaterializedWorld.replay([commit(0, [
+    { kind: "entity_created", entityId: "square-1", entityType: "place" },
+    { kind: "entity_created", entityId: "key-1", entityType: "key" },
+    { kind: "relation_asserted", relationId: "r1", subjectId: "square-1", predicate: "adjacent_to", objectId: "key-1" },
+  ])]), /two place entities/);
+
+  assert.throws(() => MaterializedWorld.replay([commit(0, [
+    { kind: "entity_created", entityId: "square-1", entityType: "place" },
+    { kind: "relation_asserted", relationId: "r1", subjectId: "square-1", predicate: "adjacent_to", objectId: "square-1" },
+  ])]), /cannot be adjacent_to itself/);
+});
