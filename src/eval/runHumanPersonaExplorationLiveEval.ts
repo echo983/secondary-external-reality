@@ -49,9 +49,37 @@ const PERSONAS: Persona[] = [
 - 参考完整历史决定下一步。
 - 探索完成后只输出 ${STOP_TOKEN}。`,
   },
+  {
+    // Added for docs/DEMO-PHASE-plan-v1.0.md §3.2 — the other three personas
+    // explore broadly, but nothing pushes toward the specific sequence a
+    // non-technical demo audience needs to hold up: write+hide a note, drift
+    // away to other things, come back and ask about it later (recollection
+    // decay), ask the roommate (testimony), and casually probe something
+    // clearly out of scope (honest refusal). This persona is deliberately
+    // NOT told about RECALL_FIDELITY_WINDOW or any internal mechanism — it
+    // only knows the surface scene, same as a real unbriefed visitor.
+    id: "demo-rehearsal-newcomer",
+    systemPrompt: `你在扮演一个第一次接触这个 "ttd:" 文本世界原型的普通人，不懂技术、不知道背后是怎么实现的，是被朋友邀请来试玩的。
+场景是卧室：床、纸条、门、抽屉、钥匙、床头柜、笔、枕头、桌子，房间里还有一位室友。
+你说话很随意、口语化，可能有点犹豫或东张西望，不会用任何"专业"说法。
+你这次探索有几件事迟早想试一下（不用按顺序，也不用刻意生硬地一件接一件，像真人一样自然地穿插）：
+1. 随便写点什么在纸条上并藏起来（内容随便编，比如几个数字或一句话）；
+2. 藏完之后先去做点别的事、四处看看、跟房间里的人聊两句，别马上回去看纸条；
+3. 过一会儿，很随意地问自己还记不记得刚才纸条上写的是什么；
+4. 问一下室友知不知道纸条上写的是什么；
+5. 随口问一个明显超出这个小房间范围的东西（比如"门外的天气怎么样"、"我手机在哪"、"现在几点了"），看看它会怎么应对。
+规则：
+- 每次只输出你接下来要在 ttd: 提示符后输入的**一句自然语言**，可中文可英文，可以口语化甚至带点犹豫或多余的话，不要解释你在做什么，不要输出任何前缀、引号或元评论。
+- 参考到目前为止的完整对话历史，像真人一样根据上一步的结果自然地决定下一步。
+- 五件事都试过、或者你觉得已经充分体验了，只输出 ${STOP_TOKEN}。`,
+  },
 ];
 
 const MAX_TURNS_PER_PERSONA = Number(process.env.SER_HUMAN_PERSONA_TURNS ?? 15);
+// Optional comma-separated persona id filter, so a single new persona can be
+// validated on its own without spending Workers AI quota re-running the
+// other already-proven personas every time.
+const PERSONA_ID_FILTER = process.env.SER_HUMAN_PERSONA_ID_FILTER?.split(",").map((id) => id.trim()).filter(Boolean);
 
 const client = await createLiveEvalClient();
 
@@ -122,7 +150,10 @@ async function runPersona(persona: Persona): Promise<PersonaRunOutcome> {
 // Run personas sequentially (not Promise.all) to avoid bursting the account's
 // Workers AI rate limit with 3x concurrent dual-workstation traffic.
 const outcomes: PersonaRunOutcome[] = [];
-for (const persona of PERSONAS) outcomes.push(await runPersona(persona));
+for (const persona of PERSONAS) {
+  if (PERSONA_ID_FILTER && !PERSONA_ID_FILTER.includes(persona.id)) continue;
+  outcomes.push(await runPersona(persona));
+}
 const allViolations = outcomes.flatMap((outcome) => outcome.violations);
 const gatePassed = allViolations.every((violation) => violation.severity !== "fatal");
 const totalTurns = outcomes.reduce((sum, outcome) => sum + outcome.rows.length, 0);

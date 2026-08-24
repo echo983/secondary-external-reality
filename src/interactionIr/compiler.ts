@@ -18,6 +18,27 @@ function rolesOf(clause: InteractionEnvelopeV10["clauses"][number], role: Intera
   return clause.roles.filter((item) => item.role === role).map((item) => item.mention);
 }
 
+// A "content" mention must stay an exact contiguous span of the raw input
+// (source-span validation elsewhere depends on that), so when someone
+// naturally quotes what they want written — "写上“1234”" — both workstations
+// correctly copy the quote marks along with the digits, verified live
+// against the real model (docs/DEMO-PHASE-plan-v1.0.md §3.2's robustness
+// pass). The digit check has to look past that punctuation deterministically
+// rather than asking the model to omit it, the same normalize-at-the-kernel
+// approach ReferenceLexicon already uses for Chinese locative suffixes.
+const ENCLOSING_QUOTE_PAIRS: ReadonlyArray<readonly [string, string]> = [
+  ["“", "”"], ["‘", "’"], ['"', '"'], ["'", "'"],
+];
+
+function stripEnclosingQuotes(value: string): string {
+  for (const [open, close] of ENCLOSING_QUOTE_PAIRS) {
+    if (value.length > open.length + close.length && value.startsWith(open) && value.endsWith(close)) {
+      return value.slice(open.length, value.length - close.length).trim();
+    }
+  }
+  return value;
+}
+
 export function compileInteraction(proposal: InteractionEnvelopeV10, rawTtd: string): CompiledInteraction {
   const lexicon = new ReferenceLexicon(createObjectWorldFixture());
   const steps: Array<{ objectIntent: ObjectIntent; mentionedEntityIds: string[] }> = [];
@@ -51,8 +72,9 @@ export function compileInteraction(proposal: InteractionEnvelopeV10, rawTtd: str
     let content: string | undefined;
     if (operation === "write") {
       const contents = rolesOf(clause, "content");
-      if (contents.length !== 1 || !/^[0-9]{1,64}$/u.test(contents[0]!.trim())) return { kind: "clarification", code: "INVALID_LITERAL" };
-      content = contents[0]!.trim();
+      const normalized = contents.length === 1 ? stripEnclosingQuotes(contents[0]!.trim()) : undefined;
+      if (normalized === undefined || !/^[0-9]{1,64}$/u.test(normalized)) return { kind: "clarification", code: "INVALID_LITERAL" };
+      content = normalized;
     }
     const compiledOperation = operation === "place" && placementRelation === "inside" ? "put_inside" : operation;
     steps.push({ objectIntent: { operation: compiledOperation, rawTtd, inputLanguage: proposal.inputLanguage,

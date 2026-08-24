@@ -52,6 +52,25 @@ test("compiler emits structured slot clarifications and preserves numeric litera
   assert.equal(written.kind === "executable" ? written.steps[0]?.objectIntent.content : undefined, "2236");
 });
 
+test("compiler strips a matching pair of quote marks a person naturally wraps around what they want written", () => {
+  // Found live against the real model (docs/DEMO-PHASE-plan-v1.0.md §3.2):
+  // both interaction-IR workstations faithfully copy the quote marks as part
+  // of the exact contiguous mention span when someone writes 写上"1234" — the
+  // digit check has to look past that punctuation, not assume it away.
+  const curly = compileInteraction(envelope("write", [{ role: "target", mention: "纸条" }, { role: "content", mention: "“1234”" }]), "我把纸条写上“1234”");
+  assert.equal(curly.kind, "executable");
+  assert.equal(curly.kind === "executable" ? curly.steps[0]?.objectIntent.content : undefined, "1234");
+
+  const straight = compileInteraction(envelope("write", [{ role: "target", mention: "note" }, { role: "content", mention: '"5678"' }]), 'write "5678" on the note');
+  assert.equal(straight.kind, "executable");
+  assert.equal(straight.kind === "executable" ? straight.steps[0]?.objectIntent.content : undefined, "5678");
+
+  // A lone, unmatched quote character is not stripped — it stays part of the
+  // literal and correctly fails the digit check, since it's not a real
+  // enclosing pair.
+  assert.deepEqual(compileInteraction(envelope("write", [{ role: "target", mention: "便签" }, { role: "content", mention: "12”34" }]), "x"), { kind: "clarification", code: "INVALID_LITERAL" });
+});
+
 test("compiler derives inscription queries from query mode instead of model operation wording", () => {
   const proposal = envelope("observe", [{ role: "target", mention: "便签" }], "world_query");
   proposal.clauses[0]!.queryMode = "value";
