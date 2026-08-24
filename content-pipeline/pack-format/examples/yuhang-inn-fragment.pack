@@ -1,0 +1,26 @@
+=== place
+id: yuhang-inn
+zh: 悦来客栈
+en: Yuelai Inn
+adjacent: yuhang-street
+adjacent: inn-backroom
+
+=== entity
+id: inn-door-1
+type: door
+zh: 客栈大门
+en: inn door
+place: yuhang-inn
+attrs: openable=true open_state=closed
+---
+一扇厚重的木门，常年被过往客商摩挲得发亮，门轴年久失修，每次推开都会发出长长的呻吟。
+
+=== entity
+id: xiaohu
+type: person
+zh: 王小虎
+en: Wang Xiaohu
+place: yuhang-inn
+attrs: position=yuhang-inn
+---
+客栈里帮工的少年，嘴上没个把门的，什么闲话都爱插一句，其实心眼不坏。
