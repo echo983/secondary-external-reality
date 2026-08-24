@@ -65,7 +65,12 @@ const PLACE_ADJACENCY: Readonly<Record<PositionValue, readonly MoveEdge[]>> = {
 // Every Place entity with a genuinely Free notable_feature projection, and
 // the closed value domain ΠS may resolve it into. Both entries share the one
 // resolver below — nothing here is hallway- or living-room-specific.
-const PLACE_FREE_PROJECTIONS: Readonly<Record<string, { valueDomain: readonly string[] }>> = {
+// Exported so the acceptance layer can independently regenerate and verify
+// these intensional commitments (checkIntensionalCommitmentFidelity in
+// acceptanceChecks.ts) against the same production resolver, rather than a
+// parallel reimplementation that could silently drift
+// (docs/MVP-intensional-commitment-fidelity-design-v0.9.md §2).
+export const PLACE_FREE_PROJECTIONS: Readonly<Record<string, { valueDomain: readonly string[] }>> = {
   "hallway-1": { valueDomain: HALLWAY_NOTABLE_FEATURES },
   "living-room-1": { valueDomain: LIVING_ROOM_NOTABLE_FEATURES },
 };
@@ -76,7 +81,7 @@ const PLACE_FREE_PROJECTIONS: Readonly<Record<string, { valueDomain: readonly st
 // accidentally resolve in lockstep even if they share a value domain), so
 // the same world always resolves the same value, and it is never re-resolved
 // once committed (I6 CounterfactualStability) — see design doc §3.2/§3.
-function resolvePlaceNotableFeature(placeId: string, seedHash: string, valueDomain: readonly string[]): string {
+export function resolvePlaceNotableFeature(placeId: string, seedHash: string, valueDomain: readonly string[]): string {
   const digest = createHash("sha256").update(`${seedHash}:${placeId}.notable_feature`).digest();
   const index = digest.readUInt32BE(0) % valueDomain.length;
   return valueDomain[index]!;

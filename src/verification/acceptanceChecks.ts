@@ -1,6 +1,7 @@
-import type { CommitPackage, WorldCommitment } from "../protocol/types.js";
+import type { CommitPackage, WorldBasis, WorldCommitment } from "../protocol/types.js";
 import { MaterializedWorld } from "../world/materializedWorld.js";
 import { replayCanonicalViews } from "../replay/canonicalReplay.js";
+import { PLACE_FREE_PROJECTIONS, resolvePlaceNotableFeature } from "../turn/objectTurn.js";
 
 export interface AcceptanceIssue {
   code: string;
@@ -89,7 +90,7 @@ function inscriptionAndRelocate(): ShapeCheck {
 // -living-room-design-v0.5.md §3 for the second place reusing this same
 // shape) — a legitimate example of one actionKind having two lawful closure
 // shapes depending on whether the world has already resolved this projection.
-const PLACES_WITH_FREE_NOTABLE_FEATURE = new Set(["hallway-1", "living-room-1"]);
+const PLACES_WITH_FREE_NOTABLE_FEATURE = new Set(Object.keys(PLACE_FREE_PROJECTIONS));
 function emptyOrFirstPlaceResolution(): ShapeCheck {
   return (commitments) => {
     if (commitments.length === 0) return null;
@@ -229,6 +230,37 @@ export function checkQueryConfluence(runs: readonly QueryConfluenceRun[]): Accep
       if (symmetricDifference.length > 0) {
         issues.push({ code: "QUERY_CONFLUENCE_VIOLATION", severity: "fatal",
           message: `Probe group "${probeGroup}" diverged between ordering "${first!.orderingLabel}" and "${run.orderingLabel}": ${symmetricDifference.join(", ")}` });
+      }
+    }
+  }
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// Intensional commitment fidelity (docs/MVP-intensional-commitment-fidelity-design-v0.9.md).
+//
+// checkReplayDeterminism above proves the append-only ledger is a pure
+// function of its own history. This proves a stronger, independent claim:
+// a place's notable_feature is not just replay-stable, it is regenerable —
+// calling the SAME production resolver fresh, from nothing but the committed
+// seedHash and the place's own value domain, must reproduce the exact value
+// that was actually committed. A mismatch means the generator either is not
+// truly deterministic, or was silently swapped for a different one without
+// that being reflected anywhere — either way, the intensional commitment
+// (rule + seed + domain, not the stored value) was violated.
+// ---------------------------------------------------------------------------
+
+export function checkIntensionalCommitmentFidelity(commits: readonly CommitPackage[], worldBasis: WorldBasis): AcceptanceIssue[] {
+  const issues: AcceptanceIssue[] = [];
+  for (const commit of commits) {
+    for (const commitment of commit.newWorldCommitments) {
+      if (commitment.kind !== "attribute_set" || commitment.attribute !== "notable_feature" || !PLACES_WITH_FREE_NOTABLE_FEATURE.has(commitment.entityId)) continue;
+      const valueDomain = PLACE_FREE_PROJECTIONS[commitment.entityId]!.valueDomain;
+      const regenerated = resolvePlaceNotableFeature(commitment.entityId, worldBasis.seedHash, valueDomain);
+      if (regenerated !== commitment.value) {
+        issues.push({ code: "INTENSIONAL_REGENERATION_MISMATCH", severity: "fatal",
+          message: `${commitment.entityId}.notable_feature was committed as "${commitment.value}" but regenerating from the committed seedHash and value domain produces "${regenerated}".`,
+          path: `${commit.turnId}#${commit.commitSequence}` });
       }
     }
   }

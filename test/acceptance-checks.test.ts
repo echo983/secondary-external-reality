@@ -7,8 +7,10 @@ import type { CommitPackage } from "../src/protocol/types.js";
 import { LanceCommitStore } from "../src/storage/lanceCommitStore.js";
 import { BedroomSession } from "../src/turn/bedroomSession.js";
 import { ChineseBedroomRenderer, PassingBedroomJury } from "../src/turn/bedroomTurn.js";
-import { checkCommitmentClosureTemplates, checkReplayDeterminism } from "../src/verification/acceptanceChecks.js";
+import { checkCommitmentClosureTemplates, checkIntensionalCommitmentFidelity, checkReplayDeterminism } from "../src/verification/acceptanceChecks.js";
 import { createObjectWorldFixture } from "../src/world/objectFixture.js";
+import { resolvePlaceNotableFeature } from "../src/turn/objectTurn.js";
+import { HALLWAY_NOTABLE_FEATURES } from "../src/world/worldSchema.js";
 
 function session(store: LanceCommitStore): BedroomSession {
   return new BedroomSession({ sessionId: "acceptance", store, jury: new PassingBedroomJury(), renderer: new ChineseBedroomRenderer() });
@@ -106,6 +108,44 @@ test("closure templates flag an unrecognized actionKind combination instead of s
   assert.equal(issues.length, 1);
   assert.equal(issues[0]?.code, "UNKNOWN_CLOSURE_TEMPLATE");
   assert.equal(issues[0]?.severity, "warn");
+});
+
+test("intensional commitment fidelity accepts a real hallway/living-room resolution regenerated from the committed seed", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-intensional-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    await current.submit("打开门");
+    await current.submit("走到走廊");
+    await current.submit("环顾四周");
+    await current.submit("走到客厅");
+    await current.submit("环顾四周");
+
+    const commits = await store.list();
+    const fixture = createObjectWorldFixture();
+    const issues = checkIntensionalCommitmentFidelity(commits, fixture.worldBasis);
+    assert.deepEqual(issues, []);
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("intensional commitment fidelity rejects a notable_feature value that does not regenerate from its own committed seed", () => {
+  const fixture = createObjectWorldFixture();
+  const trueValue = resolvePlaceNotableFeature("hallway-1", fixture.worldBasis.seedHash, HALLWAY_NOTABLE_FEATURES);
+  const wrongValue = HALLWAY_NOTABLE_FEATURES.find((candidate) => candidate !== trueValue)!;
+  const tampered: CommitPackage = {
+    turnId: "synthetic:hallway-drift", commitSequence: 0, selectedCandidateId: "synthetic",
+    expectedProjectionRevisions: {}, resolvedProjections: [],
+    events: [{ eventId: "e-1", type: "action_result", actionKind: "look_around", outcome: "success", subjectRef: "self", objectRef: "hallway-1" }],
+    stateChanges: [], observations: [],
+    newWorldCommitments: [{ kind: "attribute_set", entityId: "hallway-1", attribute: "notable_feature", value: wrongValue }],
+  };
+  const issues = checkIntensionalCommitmentFidelity([tampered], fixture.worldBasis);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0]?.code, "INTENSIONAL_REGENERATION_MISMATCH");
+  assert.equal(issues[0]?.severity, "fatal");
 });
 
 test("replay determinism detects a world that mutates on replay", () => {

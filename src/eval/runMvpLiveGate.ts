@@ -20,6 +20,7 @@ const suites = [
   { name: "memory-recollection-sequence", module: "./runMemoryRecollectionSequenceLiveEval.js" },
   { name: "reachability-sequence", module: "./runReachabilitySequenceLiveEval.js" },
   { name: "observation-bandwidth-sequence", module: "./runObservationBandwidthSequenceLiveEval.js" },
+  { name: "intensional-commitment-fidelity", module: "./runIntensionalCommitmentFidelityLiveEval.js" },
   { name: "human-simulation-corpus", module: "./runHumanSimulationCorpusLiveEval.js" },
 ] as const;
 
