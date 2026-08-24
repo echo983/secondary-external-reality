@@ -20,6 +20,12 @@ const attributesByType: Readonly<Record<string, ReadonlySet<string>>> = {
   door: new Set(["openable", "open_state", "zh_name", "en_name"]),
   container: new Set(["container", "openable", "open_state", "portable", "zh_name", "en_name"]),
   place: new Set(["notable_feature", "zh_name", "en_name"]),
+  // Added for the stage-2 pack-loader probe (docs/STATUS-four-stage-maturity-assessment-v1.0.md
+  // §6) — the first entity type this kernel has ever accepted from outside
+  // its own hand-authored bedroom fixture. Deliberately a plain literal
+  // entry, not a registry: one external content source is not enough
+  // evidence to justify generalizing the schema into something pluggable.
+  prop: new Set(["zh_name", "en_name"]),
 };
 
 export const HALLWAY_NOTABLE_FEATURES = ["none", "framed_photo", "umbrella_stand", "wall_lamp"] as const;
