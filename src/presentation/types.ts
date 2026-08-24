@@ -8,7 +8,8 @@ export type PublicBoundaryCode =
   | "NO_ACQUIRED_EVIDENCE"
   | "UNSUPPORTED_PROJECTION"
   | "RESOLUTION_DEFERRED"
-  | "AMBIGUOUS_TARGET";
+  | "AMBIGUOUS_TARGET"
+  | "RECOLLECTION_FADED";
 
 export type ApprovedEvidenceItem =
   | { kind: "attribute_evidence"; semanticAddress: SemanticAddress; value: JsonScalar; evidenceId: string }
@@ -19,6 +20,7 @@ export type ApprovedPresentationItem =
   | { kind: "bounded_relation_set"; predicate: RelationSetPredicate; objectId: string; subjectIds: string[]; complete: true }
   | ApprovedEvidenceItem
   | { kind: "prior_evidence"; evidence: ApprovedEvidenceItem; acquiredAtCommitSequence: number }
+  | { kind: "recollection"; evidence: ApprovedEvidenceItem; acquiredAtCommitSequence: number }
   | { kind: "boundary"; code: PublicBoundaryCode };
 
 export interface ApprovedPresentationPacket {

@@ -284,6 +284,56 @@ test("living room is visible from the hallway without a door, but not reachable 
   }
 });
 
+test("recalls a freshly written note exactly, forgets it after enough real-world turns pass, but never corrupts the underlying inscription", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-recall-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    await current.submit("拿起笔");
+    await current.submit("我在纸条上写下42并藏到枕头下面");
+    const read = await current.submit("翻开枕头看看下面，并读纸条");
+    assert.match(read.response, /42/);
+    const commitsAfterRead = (await store.list()).length;
+
+    const immediate = await current.submit("我还记得纸条上写的是什么");
+    assert.equal(immediate.kind, "evidence");
+    assert.equal(immediate.response, "你回忆起，纸条上写着“42”。");
+    assert.equal((await store.list()).length, commitsAfterRead, "recall must not commit anything");
+
+    await current.submit("打开门");
+    await current.submit("走到走廊");
+    await current.submit("走到客厅");
+    await current.submit("走到走廊");
+    await current.submit("走到客厅");
+
+    const faded = await current.submit("我还记得纸条上写的是什么");
+    assert.equal(faded.kind, "boundary");
+    assert.equal(faded.response, "你努力回想，但已经记不清了。");
+    assert.equal((await store.list()).length, 8, "a faded recollection must not commit anything either");
+
+    const rereadAfterFading = await current.submit("翻开枕头看看下面，并读纸条");
+    assert.equal(rereadAfterFading.response, "你在枕头下面找到纸条。上面写着“42”。");
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("recalling an inscription the player has never read is a distinct boundary from a faded recollection", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "secondary-reality-recall-never-"));
+  const store = new LanceCommitStore(join(directory, "world.lancedb"));
+  try {
+    const current = session(store);
+    const neverKnew = await current.submit("我还记得纸条上写的是什么");
+    assert.equal(neverKnew.kind, "boundary");
+    assert.equal(neverKnew.response, "你没有可供查阅的既有证据。");
+    assert.equal((await store.list()).length, 0, "a boundary must not commit anything");
+  } finally {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("rejects moving to the current position and to a non-landmark destination", async () => {
   const directory = await mkdtemp(join(tmpdir(), "secondary-reality-move-reject-"));
   const store = new LanceCommitStore(join(directory, "world.lancedb"));

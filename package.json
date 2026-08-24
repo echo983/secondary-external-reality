@@ -23,6 +23,7 @@
     "eval:query-confluence:live": "npm run build && node dist/src/eval/runQueryConfluenceLiveEval.js",
     "eval:hallway-sequence:live": "npm run build && node dist/src/eval/runHallwaySequenceLiveEval.js",
     "eval:living-room-sequence:live": "npm run build && node dist/src/eval/runLivingRoomSequenceLiveEval.js",
+    "eval:memory-recollection-sequence:live": "npm run build && node dist/src/eval/runMemoryRecollectionSequenceLiveEval.js",
     "eval:human-simulation-corpus:live": "npm run build && node dist/src/eval/runHumanSimulationCorpusLiveEval.js",
     "eval:human-persona-exploration:live": "npm run build && node dist/src/eval/runHumanPersonaExplorationLiveEval.js",
     "start:ssh": "node dist/src/ssh/server.js"

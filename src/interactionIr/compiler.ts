@@ -24,7 +24,8 @@ export function compileInteraction(proposal: InteractionEnvelopeV10, rawTtd: str
   for (const clause of proposal.clauses) {
     const queriedAttributeOperation: ObjectOperationKind | undefined = proposal.speechAct === "world_query" && clause.queryMode === "presence"
       ? "inspect_inscription_presence"
-      : proposal.speechAct === "world_query" && clause.queryMode === "value" ? "inspect_inscription_value" : undefined;
+      : proposal.speechAct === "world_query" && clause.queryMode === "value" ? "inspect_inscription_value"
+      : proposal.speechAct === "world_query" && clause.queryMode === "recollection" ? "recall_inscription" : undefined;
     const operation = queriedAttributeOperation ?? operationMap[clause.operation];
     if (!operation) return { kind: "clarification", code: "UNSUPPORTED_OPERATION" };
     const targetMentions = rolesOf(clause, "target");

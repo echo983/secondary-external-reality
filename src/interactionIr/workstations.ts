@@ -21,7 +21,7 @@ Do not flatten clause fields into the top level. Do not output the | notation li
 speechAct: action_request, world_query, capability_query, conversation, incomplete, unsupported.
 actuality: actual, non_executing, negated, hypothetical, conditional.
 operations: take, place, put_inside, open, close, observe, write, read, look_around, inspect_contents, locate, inventory, move, unknown.
-roles: target, destination, instrument, content. queryMode: presence, value, location, contents, inventory, capability.
+roles: target, destination, instrument, content. queryMode: presence, value, location, contents, inventory, capability, recollection.
 Role semantics: target is the entity acted on, including an object being taken and a note being written on. destination is where a target is placed or moved. instrument is a tool explicitly mentioned. content is literal information written or communicated, not a physical object being taken. Do not judge whether a target is physically capable of the action; that belongs to later grounding.
 Perception scope is material semantics and must never be dropped. Use look_around only for genuinely unscoped inspection of the current surroundings. For a scoped request, use observe and preserve the complete scope phrase as target even when the world may not contain it. Never rewrite scoped observation as look_around.
 Use zero to four ordered clauses c1-c4. verbSpan and every mention must be exact contiguous input spans. Never output entity IDs, types, capabilities, state, success, evidence, commitments, inferred destinations, or explanatory fields.
@@ -35,6 +35,7 @@ In contrast, a bare imperative such as "拿起钥匙" is action_request/actual w
 "我向空白便签写2236" is action_request/actual, write, target 空白便签, content 2236, and no queryMode.
 "纸条上写着什么" is world_query/non_executing, read, target 纸条, queryMode value. Asking for an inscription value is read/value, not generic observe.
 "便签上有什么" asks for the note's inscription value: world_query/non_executing, read, target 便签, queryMode value. It is not inspect_contents because a note is not being treated as a container.
+"我还记得纸条上写的是什么吗" is world_query/non_executing, read, target 纸条, queryMode recollection. This asks what the speaker's own memory still holds, not what the note currently, actually says — always distinguish this from queryMode value, which asks the current fact directly. Any phrase centered on 记得/记不清/回忆/remember/recall is recollection, never value, even though both share operation read and target the note.
 "看看门外" is world_query/non_executing, observe, target 门外, queryMode contents. "门外有什么" has the same material semantics with verbSpan 有什么 and target 门外. Neither is look_around; the later world layer decides whether 门外 exists.
 "我拿起桌子" is a syntactically complete action_request/actual with take and target 桌子 even if the world may later reject it. Never classify an utterance from physical feasibility.
 "走到门口" is action_request/actual, move, verbSpan 走到, destination 门口. Preserve the requested move even though the current world compiler may not provide a move primitive.

@@ -7,7 +7,7 @@ export const INTERACTION_OPERATIONS = ["take", "place", "put_inside", "open", "c
 export type InteractionOperation = (typeof INTERACTION_OPERATIONS)[number];
 export const INTERACTION_ROLES = ["target", "destination", "instrument", "content"] as const;
 export type InteractionRole = (typeof INTERACTION_ROLES)[number];
-export const INTERACTION_QUERY_MODES = ["presence", "value", "location", "contents", "inventory", "capability"] as const;
+export const INTERACTION_QUERY_MODES = ["presence", "value", "location", "contents", "inventory", "capability", "recollection"] as const;
 export type InteractionQueryMode = (typeof INTERACTION_QUERY_MODES)[number];
 
 export interface InteractionClauseV10 {

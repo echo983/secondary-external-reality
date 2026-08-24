@@ -9,7 +9,7 @@ export class RiskAwarePresentationRenderer implements ApprovedPresentationRender
 
   async render(packet: ApprovedPresentationPacket, languageSample: string): Promise<string> {
     const highRisk = packet.outcome === "boundary" || packet.items.some((item) =>
-      item.kind === "boundary" || item.kind === "prior_evidence" || item.kind === "attribute_evidence" ||
+      item.kind === "boundary" || item.kind === "prior_evidence" || item.kind === "recollection" || item.kind === "attribute_evidence" ||
       item.kind === "observed_entities" || item.kind === "bounded_relation_set" || item.kind === "relation_evidence",
     );
     if (highRisk) return this.deterministic.render(packet, languageSample);
@@ -53,8 +53,8 @@ export class DeterministicPresentationRenderer implements ApprovedPresentationRe
     const item = packet.items[0];
     if (!item) return packet.language === "zh" ? "你没有获得可呈现的信息。" : "You acquired no presentable information.";
     if (item.kind === "boundary") {
-      const zh = { TARGET_NOT_PERCEIVABLE: "你现在无法感知到目标。", CONTAINER_CLOSED: "容器关着，你现在看不到里面。", NO_ACQUIRED_EVIDENCE: "你没有可供查阅的既有证据。", UNSUPPORTED_PROJECTION: "当前世界还不能回答这个问题。", RESOLUTION_DEFERRED: "这个事实目前尚未固定。", AMBIGUOUS_TARGET: "你指的目标不够明确。" } as const;
-      const en = { TARGET_NOT_PERCEIVABLE: "You cannot currently perceive the target.", CONTAINER_CLOSED: "The container is closed, so you cannot see inside.", NO_ACQUIRED_EVIDENCE: "You have no acquired evidence to consult.", UNSUPPORTED_PROJECTION: "The current world cannot answer that yet.", RESOLUTION_DEFERRED: "That fact has not yet been fixed.", AMBIGUOUS_TARGET: "The target is ambiguous." } as const;
+      const zh = { TARGET_NOT_PERCEIVABLE: "你现在无法感知到目标。", CONTAINER_CLOSED: "容器关着，你现在看不到里面。", NO_ACQUIRED_EVIDENCE: "你没有可供查阅的既有证据。", UNSUPPORTED_PROJECTION: "当前世界还不能回答这个问题。", RESOLUTION_DEFERRED: "这个事实目前尚未固定。", AMBIGUOUS_TARGET: "你指的目标不够明确。", RECOLLECTION_FADED: "你努力回想，但已经记不清了。" } as const;
+      const en = { TARGET_NOT_PERCEIVABLE: "You cannot currently perceive the target.", CONTAINER_CLOSED: "The container is closed, so you cannot see inside.", NO_ACQUIRED_EVIDENCE: "You have no acquired evidence to consult.", UNSUPPORTED_PROJECTION: "The current world cannot answer that yet.", RESOLUTION_DEFERRED: "That fact has not yet been fixed.", AMBIGUOUS_TARGET: "The target is ambiguous.", RECOLLECTION_FADED: "You try to recall, but it's faded from memory." } as const;
       return packet.language === "zh" ? zh[item.code] : en[item.code];
     }
     if (item.kind === "observed_entities") return packet.language === "zh" ? `你环顾四周，可以看到：${item.entityIds.map(name).join("、")}。` : `You look around and can see: ${item.entityIds.map(name).join(", ")}.`;
@@ -66,6 +66,10 @@ export class DeterministicPresentationRenderer implements ApprovedPresentationRe
     if (item.kind === "prior_evidence") {
       const value = String(item.evidence.value ?? "");
       return packet.language === "zh" ? `你此前获得的证据记录为“${value}”（取得于提交序号 ${item.acquiredAtCommitSequence}）；这不证明它现在仍然相同。` : `Your previously acquired evidence recorded “${value}” at commit sequence ${item.acquiredAtCommitSequence}; this does not establish that it is still current.`;
+    }
+    if (item.kind === "recollection") {
+      const value = String(item.evidence.value ?? "");
+      return packet.language === "zh" ? `你回忆起，纸条上写着“${value}”。` : `You recall that the note read “${value}”.`;
     }
     const evidence = item;
     if (evidence.kind === "attribute_evidence") {

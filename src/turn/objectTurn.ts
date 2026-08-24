@@ -14,7 +14,7 @@ import { replayCanonicalViews } from "../replay/canonicalReplay.js";
 import type { PublicBoundaryCode } from "../presentation/types.js";
 import type { FixedQueryKind, QueryRequest } from "../query/types.js";
 import { buildCanonicalQueryEnvelope, type CompleteRelationSetInput } from "../query/canonicalQueryEnvelope.js";
-import type { ApprovedPresentationItem } from "../presentation/types.js";
+import type { ApprovedPresentationItem, ApprovedPresentationPacket } from "../presentation/types.js";
 import { entityAttributeAddress, relationSlotAddress } from "../world/semanticAddress.js";
 import { DeterministicPresentationRenderer, RiskAwarePresentationRenderer, type ApprovedPresentationRenderer } from "../presentation/renderer.js";
 
@@ -29,6 +29,13 @@ type PositionValue = "bedside" | "doorway" | "hallway" | "living_room";
 const MOVE_DESTINATIONS: Readonly<Record<string, PositionValue>> = {
   "door-1": "doorway", "bed-1": "bedside", "hallway-1": "hallway", "living-room-1": "living_room",
 };
+
+// How many real (WorldTruth-committing) turns a recollection stays exact for,
+// counted as a distance between commitSequence numbers, not wall-clock time or
+// raw turn count — see docs/MVP-memory-recollection-design-v0.6.md §3. Kept
+// deliberately small so a live-eval sequence can cross it in a handful of
+// filler moves; not a claim about real forgetting curves.
+const RECALL_FIDELITY_WINDOW = 4;
 
 // Reverse of the two place rows above, restricted to positions that host a
 // Free-projection place — used to detect "self is currently standing inside
@@ -179,15 +186,39 @@ export async function runObjectTurn(options: {
       const code: PublicBoundaryCode = decision.code;
       const zh: Record<PublicBoundaryCode, string> = {
         TARGET_NOT_PERCEIVABLE: "你现在无法感知到目标。", CONTAINER_CLOSED: "容器关着，你现在看不到里面。", NO_ACQUIRED_EVIDENCE: "你没有可供查阅的既有证据。",
-        UNSUPPORTED_PROJECTION: "当前世界还不能回答这个问题。", RESOLUTION_DEFERRED: "这个事实目前尚未固定。", AMBIGUOUS_TARGET: "你指的目标不够明确。",
+        UNSUPPORTED_PROJECTION: "当前世界还不能回答这个问题。", RESOLUTION_DEFERRED: "这个事实目前尚未固定。", AMBIGUOUS_TARGET: "你指的目标不够明确。", RECOLLECTION_FADED: "你努力回想，但已经记不清了。",
       };
       const en: Record<PublicBoundaryCode, string> = {
         TARGET_NOT_PERCEIVABLE: "You cannot currently perceive the target.", CONTAINER_CLOSED: "The container is closed, so you cannot see inside.", NO_ACQUIRED_EVIDENCE: "You have no acquired evidence to consult.",
-        UNSUPPORTED_PROJECTION: "The current world cannot answer that yet.", RESOLUTION_DEFERRED: "That fact has not yet been fixed.", AMBIGUOUS_TARGET: "The target is ambiguous.",
+        UNSUPPORTED_PROJECTION: "The current world cannot answer that yet.", RESOLUTION_DEFERRED: "That fact has not yet been fixed.", AMBIGUOUS_TARGET: "The target is ambiguous.", RECOLLECTION_FADED: "You try to recall, but it's faded from memory.",
       };
       const packet = { packetId: `${options.turnId}:boundary`, outcome: "boundary" as const, language: parsed.inputLanguage, items: [{ kind: "boundary" as const, code }] };
       return { kind: "boundary", response: await queryRenderer.render(packet, options.rawTtd), packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never };
     }
+  }
+  if (parsed.operation === "recall_inscription") {
+    // Recollection is a channel parallel to, and independent of, the
+    // evidence/perception path above: it never touches triageFixedQuery,
+    // never checks current perceivability, and — like consult_acquired_evidence
+    // and the boundary branch above — returns before the mutable commit
+    // arrays are even declared, so it can never produce a WorldCommitment.
+    // Forgetting must never look like the world changed; it only means this
+    // one epistemic path stops answering precisely, not that the underlying
+    // fact was erased (docs/MVP-memory-recollection-design-v0.6.md §4).
+    const note = exactlyOne([...world.entities.values()].filter((entity) => entity.entityType === "paper_note"), "paper note");
+    const address = entityAttributeAddress(note.entityId, "inscription");
+    const epistemic = replayCanonicalViews(options.priorCommits, { seedCommitments: fixture.seedCommitments }).epistemic;
+    const latest = epistemic.evidenceFor("self", address).sort((left, right) => right.acquiredAtCommitSequence - left.acquiredAtCommitSequence)[0];
+    const faded = latest !== undefined && options.commitSequence - latest.acquiredAtCommitSequence > RECALL_FIDELITY_WINDOW;
+    const packet: ApprovedPresentationPacket = !latest || faded
+      ? { packetId: `${options.turnId}:recollection-boundary`, outcome: "boundary", language: parsed.inputLanguage,
+          items: [{ kind: "boundary", code: latest ? "RECOLLECTION_FADED" : "NO_ACQUIRED_EVIDENCE" }] }
+      : { packetId: `${options.turnId}:recollection`, outcome: "answer", language: parsed.inputLanguage,
+          items: [{ kind: "recollection", evidence: { kind: "attribute_evidence", semanticAddress: address,
+            value: Array.isArray(latest.representedValue) ? latest.representedValue.join(",") : latest.representedValue, evidenceId: latest.evidenceId }, acquiredAtCommitSequence: latest.acquiredAtCommitSequence }] };
+    return packet.outcome === "boundary"
+      ? { kind: "boundary", response: await queryRenderer.render(packet, options.rawTtd), packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never }
+      : { kind: "evidence", response: await queryRenderer.render(packet, options.rawTtd), packet, intent: parseMvpIntent(options.rawTtd), commitPackage: undefined as never };
   }
   const registry: ProjectionDefinition[] = [];
   const snapshots: ProjectionSnapshot[] = [];
